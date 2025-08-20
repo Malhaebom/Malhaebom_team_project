@@ -1,0 +1,205 @@
+// src/pages/Book/Library.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AOS from "aos";
+import "aos/dist/aos.css";
+// slick CSS는 index.html에서 CDN 로드 전제로 둡니다.
+
+export default function BookLibrary() {
+  const navigate = useNavigate();
+  const BASE = (import.meta.env && import.meta.env.BASE_URL) || "/";
+
+  const [fairytales, setFairytales] = useState(null);
+  const [SliderCmp, setSliderCmp] = useState(null);
+  const [sliderErr, setSliderErr] = useState(null);
+  const [sliderKey, setSliderKey] = useState(0);
+
+  const sliderWrapRef = useRef(null);
+
+  // AOS (원본처럼)
+  useEffect(() => {
+    AOS.init({ once: true });
+  }, []);
+
+  // react-slick 동적 import
+  useEffect(() => {
+    let mounted = true;
+    import("react-slick")
+      .then((m) => {
+        const Comp = m?.default || m;
+        if (mounted) setSliderCmp(() => Comp);
+      })
+      .catch((e) => {
+        console.error("[BookLibrary] failed to load react-slick:", e);
+        setSliderErr(e);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  // 데이터 로드
+  useEffect(() => {
+    fetch(`${BASE}autobiography/fairytale.json`)
+      .then((r) => r.json())
+      .then((json) => {
+        try {
+          console.log("[BookLibrary] keys:", Object.keys(json));
+          console.log(
+            '[BookLibrary] contains "할머니와바나나"?',
+            Object.prototype.hasOwnProperty.call(json, "할머니와바나나")
+          );
+          console.log("[BookLibrary] value[할머니와바나나]:", json["할머니와바나나"]);
+        } catch {}
+        setFairytales(json);
+        // 초기 계산 안정화
+        setTimeout(() => {
+          window.dispatchEvent(new Event("resize"));
+          setSliderKey((k) => k + 1);
+        }, 0);
+      })
+      .catch((e) => {
+        console.error("[BookLibrary] failed to load fairytale.json:", e);
+        setFairytales({});
+      });
+  }, [BASE]);
+
+  const go = (bookId) => {
+    navigate(`/book/training?bookId=${encodeURIComponent(bookId)}`);
+  };
+
+  const buildImgSrc = (imgPath) => {
+    const baseClean = BASE.replace(/\/+$/, "");
+    return `${baseClean}/autobiography/${imgPath}`;
+  };
+
+  // ✅ 무한 스와이프: 첫 화면에서도 왼쪽으로 이동 가능
+  const settings = useMemo(
+    () => ({
+      slidesToShow: 1,
+      slidesToScroll: 1,
+      autoplay: false,
+      autoplaySpeed: 4000,
+      dots: true,
+      arrows: true,
+      centerMode: true,
+      centerPadding: "50px",
+      focusOnSelect: true,
+      infinite: true,          // ← 이 값이 핵심!
+      adaptiveHeight: true,
+      draggable: true,
+      swipe: true,
+      swipeToSlide: true,
+      touchMove: true,
+      waitForAnimate: false,
+      // edgeFriction: 0.15,    // 필요하면 좌우 끝 감속감 추가(무한 모드에서도 동작)
+    }),
+    []
+  );
+
+  const entries = useMemo(() => {
+    if (!fairytales) return [];
+    return Object.entries(fairytales);
+  }, [fairytales]);
+
+  return (
+    <div className="content">
+      {/* 세로로 끌려 내려가는 현상만 막는 최소 보정 */}
+      <style>{`
+        .ct_slide01 .slick-list { overflow: hidden !important; }
+        .ct_slide01 .slick-track { display: flex !important; align-items: stretch; }
+        .ct_slide01 .slick-slide, .ct_slide01 .slick-slide > div { height: 100%; }
+        .ct_slide01 .slick-slide > div > div { display: flex; flex-direction: column; height: 100%; }
+        .ct_slide01 .slider_img { text-align: center; }
+      `}</style>
+
+      <div className="wrap">
+        {/* Header: 원본 그대로 */}
+        <header>
+          <div className="hd_inner">
+            <div className="hd_tit">회상동화 활동 &amp; 화행검사</div>
+            <div className="hd_left">
+              <button
+                type="button"
+                onClick={() => window.history.back()}
+                aria-label="뒤로가기"
+                className="reset-btn"
+                style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+              >
+                <i className="xi-angle-left-min" />
+              </button>
+            </div>
+            <div className="hd_right">
+              <button
+                type="button"
+                onClick={() => (window.location.href = "/")}
+                aria-label="홈으로"
+                className="reset-btn"
+                style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }}
+              >
+                <i className="xi-home-o" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div id="app">
+          <div className="inner">{/* 배너 영역 */}</div>
+
+          {/* 원본처럼 컨테이너에 AOS */}
+          <div className="ct_slide01 ct_inner" data-aos="fade-up" data-aos-duration="1000">
+            {sliderErr && (
+              <div style={{ padding: 12, border: "1px solid #f00", marginBottom: 12 }}>
+                <strong>슬라이더 로드 실패</strong>
+                <div style={{ marginTop: 6, fontSize: 13 }}>
+                  react-slick 모듈을 불러오지 못했습니다. 패키지 설치 여부를 확인하세요.
+                </div>
+              </div>
+            )}
+
+            {!SliderCmp || !entries.length ? (
+              <div style={{ padding: 12 }}>로딩 중...</div>
+            ) : (
+              <div ref={sliderWrapRef}>
+                <SliderCmp {...settings} key={sliderKey}>
+                  {entries.map(([key, value], i) => {
+                    const id = value?.id ?? key;
+                    const img = value?.image ?? "";
+                    const subtitle = value?.subtitle ?? "";
+
+                    return (
+                      <div key={key || i}>
+                        <div className="slider_img">
+                          <img
+                            src={buildImgSrc(img)}
+                            className="card-img-top"
+                            alt={key}
+                            onError={(e) => {
+                              e.currentTarget.src = `${BASE}drawable/noImage.png`;
+                            }}
+                            style={{
+                              height: 200,                 // 원본 인라인 스타일 유지
+                              display: "inline-block",
+                              border: "0.1px #ddd solid",
+                            }}
+                          />
+                        </div>
+
+                        <div className="slider_tit">
+                          <h2>{key}</h2>
+                          <p>{subtitle}</p>
+                        </div>
+
+                        <button type="button" onClick={() => go(id)}>
+                          활동하기
+                        </button>
+                      </div>
+                    );
+                  })}
+                </SliderCmp>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
