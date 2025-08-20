@@ -1,0 +1,92 @@
+[
+  {
+    "type": 4,
+    "title": "몸짱을 만들어주는 건강 식품",
+    "question": [{
+            "title": "건강지킴 생활정보",
+            "image": "image/정보/1.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "동맥경화와 치매의 상관관계",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/2.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "건강한 식단을 위한 비법",
+    "question": [{
+            "title": "건강지킴 생활정보",
+            "image": "image/정보/3.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "뇌 건강을 위한 채소 섭취 방법",
+    "question": [{
+            "title": "건강지킴 생활정보",
+            "image": "image/정보/4.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "초기 치매 대처 방법",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/5.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "심장 튼튼한 노인, 치매 위험 낮다",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/6.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "인지 활동과 운동의 중요성",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/7.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "건강장수 12가지 수칙",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/8.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "치매 예방에 도움이 되는 생활습관",
+    "question": [{
+            "title": "건강지킴 의학정보",
+            "image": "image/정보/9.png"
+        }
+    ]
+  },
+  {
+    "type": 4,
+    "title": "치매상담센터",
+    "question": [{
+            "title": "건강지킴 생활정보",
+            "image": "image/정보/10.png"
+        }
+    ]
+  }
+]
