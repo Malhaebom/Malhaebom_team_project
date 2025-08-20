@@ -1,0 +1,176 @@
+name: brain_up
+description: "A new Flutter project."
+# The following line prevents the package from being accidentally published to
+# pub.dev using `flutter pub publish`. This is preferred for private packages.
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+# The following defines the version and build number for your application.
+# A version number is three numbers separated by dots, like 1.2.43
+# followed by an optional build number separated by a +.
+# Both the version and the builder number may be overridden in flutter
+# build by specifying --build-name and --build-number, respectively.
+# In Android, build-name is used as versionName while build-number used as versionCode.
+# Read more about Android versioning at https://developer.android.com/studio/publish/versioning
+# In iOS, build-name is used as CFBundleShortVersionString while build-number is used as CFBundleVersion.
+# Read more about iOS versioning at
+# https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
+# In Windows, build-name is used as the major, minor, and patch parts
+# of the product and file versions while build-number is used as the build suffix.
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.2
+
+# Dependencies specify other packages that your package needs in order to work.
+# To automatically upgrade your package dependencies to the latest versions
+# consider running `flutter pub upgrade --major-versions`. Alternatively,
+# dependencies can be manually updated by changing the version numbers below to
+# the latest version available on pub.dev. To see which dependencies have newer
+# versions available, run `flutter pub outdated`.
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # The following adds the Cupertino Icons font to your application.
+  # Use with the CupertinoIcons class for iOS style icons.
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.3.1
+  video_player: ^2.9.5
+  liquid_progress_indicator_v2: ^0.5.0
+  flutter_screenutil: ^5.9.3
+  percent_indicator: ^4.2.5
+  stop_watch_timer:
+  audioplayers: ^6.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  # The "flutter_lints" package below contains a set of recommended lints to
+  # encourage good coding practices. The lint set provided by the package is
+  # activated in the `analysis_options.yaml` file located at the root of your
+  # package. See that file for information about deactivating specific lint
+  # rules and activating additional ones.
+  flutter_lints: ^5.0.0
+
+# For information on the generic Dart part of this file, see the
+# following page: https://dart.dev/tools/pub/pubspec
+
+# The following section is specific to Flutter packages.
+flutter:
+  # The following line ensures that the Material Icons font is
+  # included with your application, so that you can use the icons in
+  # the material Icons class.
+  uses-material-design: true
+
+  # To add assets to your application, add an assets section, like this:
+  assets:
+  #   - images/a_dot_burr.jpeg
+  #   - images/a_dot_ham.jpeg
+
+  # 로그인 및 회원가입
+  - assets/logo/logo_long.png
+  - assets/terms_and_conditions.json
+
+  # 메인 화면 (홈)
+  - assets/logo/logo_brainup.png
+  - assets/icons/activity_icon.png
+  - assets/icons/book_icon.png
+  - assets/icons/light_icon.png
+  - assets/images/fire.png
+  - assets/logo/logo_top.png
+
+  # 두뇌건강 체크리스트 결과
+  - assets/images/brain_test_note.png
+  - assets/icons/great.png
+  - assets/icons/good.png
+  - assets/icons/bad.png
+
+  # 두뇌 단련 버튼
+  - assets/icons/calculation.png
+  - assets/icons/color.png
+  - assets/icons/concentration.png
+  - assets/icons/info.png
+  - assets/icons/language.png
+  - assets/icons/music.png
+  - assets/icons/solving.png
+  - assets/icons/spacetime.png
+
+  # 신체 단련 버튼
+  - assets/icons/aerobic_exercise.png
+  - assets/icons/after_activity.png
+  - assets/icons/before_activity.png
+  - assets/icons/strength_training.png
+
+  # 소개 페이지
+  - assets/images/brand_info_img1.jpg
+  - assets/images/brand_info_img2.png
+  - assets/images/app_info_img1.png
+  - assets/images/app_info_img2.png
+
+  # 소개 페이지 (바로가기)
+  - assets/images/facebook.png
+  - assets/images/instagram.png
+  - assets/images/naver_band.png
+  - assets/images/naver_blog.png
+  - assets/images/naver_store.png
+  - assets/images/youtube.png
+  - assets/images/lebengrida.png
+
+  # 자서전
+  - assets/images/book.png
+  - assets/images/default_img.png
+
+  # 신체단련
+  - assets/training/physical/aerobic/
+  - assets/training/physical/after/
+  - assets/training/physical/before/
+  - assets/training/physical/strength/
+
+  # 두뇌단련
+  - assets/training/brain/spacetime/
+  - assets/training/brain/concentration/
+  - assets/training/brain/solving/
+  - assets/training/brain/calculation/
+  - assets/training/brain/language/
+  - assets/training/brain/color/
+  - assets/training/brain/info/
+  - assets/training/brain/music/sounds/
+  - assets/training/brain/music/images/
+  - assets/images/speaker.png
+  - assets/images/o.png
+  - assets/images/x.png
+
+
+  # An image asset can refer to one or more resolution-specific "variants", see
+  # https://flutter.dev/to/resolution-aware-images
+
+  # For details regarding adding assets from package dependencies, see
+  # https://flutter.dev/to/asset-from-package
+
+  # To add custom fonts to your application, add a fonts section here,
+  # in this "flutter" section. Each entry in this list should have a
+  # "family" key with the font family name, and a "fonts" key with a
+  # list giving the asset and other descriptors for the font. For
+  # example:
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-Black.ttf
+        - asset: assets/fonts/Pretendard-Bold.ttf
+        - asset: assets/fonts/Pretendard-ExtraBold.ttf
+        - asset: assets/fonts/Pretendard-ExtraLight.ttf
+        - asset: assets/fonts/Pretendard-Light.ttf
+        - asset: assets/fonts/Pretendard-Medium.ttf
+        - asset: assets/fonts/Pretendard-Regular.ttf
+        - asset: assets/fonts/Pretendard-SemiBold.ttf
+        - asset: assets/fonts/Pretendard-Thin.ttf
+
+    - family: GmarketSans
+      fonts:
+        - asset: assets/fonts/GmarketSansTTFLight.ttf
+        - asset: assets/fonts/GmarketSansTTFBold.ttf
+        - asset: assets/fonts/GmarketSansTTFMedium.ttf
+  #
+  # For details regarding fonts from package dependencies,
+  # see https://flutter.dev/to/font-from-package
