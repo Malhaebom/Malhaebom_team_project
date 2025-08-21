@@ -41,6 +41,9 @@ dependencies:
   percent_indicator: ^4.2.5
   stop_watch_timer:
   audioplayers: ^6.4.0
+  record: ^6.1.0
+  path_provider: ^2.1.2
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

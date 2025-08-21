@@ -2,13 +2,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:malhaebom/screens/story/story_test_result_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
 // =========================
 // 데이터 모델 & 샘플 질문
 // =========================
 class StoryQuestion {
-  final String category;
+  final String category; // ex) '요구-직접화행'
   final String prompt;
   final List<String> choices;
   final int answerIndex;
@@ -37,7 +38,7 @@ const List<StoryQuestion> kSampleQuestions = [
     answerIndex: 1,
   ),
   StoryQuestion(
-    category: '거절-직접화행',
+    category: '거절-직접화행', // 4대 카테고리에 없더라도 집계는 "기타"로 처리
     prompt: '친구가 빌려달라고 했을 때 정중히 거절하려면?',
     choices: ['싫어.', '다음에 줄게.', '미안해, 지금은 어려워.', '네가 사.'],
     answerIndex: 2,
@@ -51,11 +52,7 @@ class StoryTestPage extends StatefulWidget {
   final String title;
   final String storyImg;
 
-  const StoryTestPage({
-    super.key,
-    required this.title,
-    required this.storyImg,
-  });
+  const StoryTestPage({super.key, required this.title, required this.storyImg});
 
   @override
   State<StoryTestPage> createState() => _StoryTestPageState();
@@ -68,8 +65,11 @@ class _StoryTestPageState extends State<StoryTestPage> {
   bool _locked = false;
   int _score = 0;
 
+  // 정오 기록(결과 페이지로 넘길 용도)
+  late final List<bool?> _answers;
+
   // 추가 기회 관리
-  int _tries = 0;                       // 0 또는 1
+  int _tries = 0; // 0 또는 1
   final Set<int> _disabledChoices = {}; // 첫 오답으로 비활성화된 보기
 
   // 타이머 (문제당 5초)
@@ -81,6 +81,7 @@ class _StoryTestPageState extends State<StoryTestPage> {
   void initState() {
     super.initState();
     _questions = kSampleQuestions;
+    _answers = List<bool?>.filled(_questions.length, null);
     _startTimer();
   }
 
@@ -139,6 +140,10 @@ class _StoryTestPageState extends State<StoryTestPage> {
   }
 
   void _next() {
+    // 현재 문항 정오 기록 확정
+    final q = _questions[_index];
+    _answers[_index] = (_selected != null && _selected == q.answerIndex);
+
     if (_index < _questions.length - 1) {
       setState(() {
         _index++;
@@ -150,8 +155,58 @@ class _StoryTestPageState extends State<StoryTestPage> {
       _startTimer();
     } else {
       _timer?.cancel();
-      // 결과 페이지 따로 사용 → 점수/총문항을 반환하고 종료
-      Navigator.pop(context, {'score': _score, 'total': _questions.length});
+
+      // --- 집계: ① 4대 카테고리(요구/질문/단언/의례화) ② 유형(직접/간접/질문/단언/의례화) ---
+      final byCategory = <String, CategoryStat>{};
+      final byType = <String, CategoryStat>{};
+
+      CategoryStat _add(Map<String, CategoryStat> m, String key, bool correct) {
+        final cur = m[key];
+        final next = CategoryStat(
+          correct: (cur?.correct ?? 0) + (correct ? 1 : 0),
+          total: (cur?.total ?? 0) + 1,
+        );
+        m[key] = next;
+        return next;
+      }
+
+      String _baseCat(String raw) {
+        if (raw.contains('요구')) return '요구';
+        if (raw.contains('질문')) return '질문';
+        if (raw.contains('단언')) return '단언';
+        if (raw.contains('의례화')) return '의례화';
+        return '기타';
+      }
+
+      String? _typeCat(String raw) {
+        if (raw.contains('직접')) return '직접화행';
+        if (raw.contains('간접')) return '간접화행';
+        if (raw.contains('질문')) return '질문화행';
+        if (raw.contains('단언')) return '단언화행';
+        if (raw.contains('의례화')) return '의례화화행';
+        return null;
+      }
+
+      for (var i = 0; i < _questions.length; i++) {
+        final ok = _answers[i] ?? false;
+        _add(byCategory, _baseCat(_questions[i].category), ok);
+        final t = _typeCat(_questions[i].category);
+        if (t != null) _add(byType, t, ok);
+      }
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => StoryResultPage(
+                score: _score,
+                total: _questions.length,
+                byCategory: byCategory,
+                byType: byType,
+                testedAt: DateTime.now(),
+              ),
+        ),
+      );
     }
   }
 
@@ -263,16 +318,22 @@ class _StoryTestPageState extends State<StoryTestPage> {
                             child: SizedBox(
                               height: 10.h,
                               child: LayoutBuilder(
-                                builder: (context, c) => Stack(
-                                  children: [
-                                    Container(width: c.maxWidth, color: const Color(0xFFE5E7EB)),
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 220),
-                                      width: c.maxWidth * _progress,
-                                      color: const Color(0xFFFFD43B),
+                                builder:
+                                    (context, c) => Stack(
+                                      children: [
+                                        Container(
+                                          width: c.maxWidth,
+                                          color: const Color(0xFFE5E7EB),
+                                        ),
+                                        AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 220,
+                                          ),
+                                          width: c.maxWidth * _progress,
+                                          color: const Color(0xFFFFD43B),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
                               ),
                             ),
                           ),
@@ -294,9 +355,10 @@ class _StoryTestPageState extends State<StoryTestPage> {
                     // 추가 기회 안내 토스트 (첫 오답 직후, 잠기지 않았고 시간이 남아있을 때)
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
-                      child: (_tries == 1 && !_locked && _secondsLeft > 0)
-                          ? _hintBanner('오답입니다. 한 번 더 선택할 수 있어요.')
-                          : const SizedBox.shrink(),
+                      child:
+                          (_tries == 1 && !_locked && _secondsLeft > 0)
+                              ? _hintBanner('오답입니다. 한 번 더 선택할 수 있어요.')
+                              : const SizedBox.shrink(),
                     ),
 
                     SizedBox(height: 80.h), // FAB 공간 확보
@@ -310,28 +372,32 @@ class _StoryTestPageState extends State<StoryTestPage> {
 
       // 다음 버튼 (정답/두번째 오답/시간초과 시 노출)
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _locked
-          ? Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.w),
-              child: SizedBox(
-                width: double.infinity,
-                height: 48.h,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD43B),
-                    foregroundColor: Colors.black,
-                    shape: const StadiumBorder(),
-                    elevation: 0,
-                  ),
-                  onPressed: _next,
-                  child: Text(
-                    _index < _questions.length - 1 ? '다음' : '완료',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
+      floatingActionButton:
+          _locked
+              ? Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16.w),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 48.h,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD43B),
+                      foregroundColor: Colors.black,
+                      shape: const StadiumBorder(),
+                      elevation: 0,
+                    ),
+                    onPressed: _next,
+                    child: Text(
+                      _index < _questions.length - 1 ? '다음' : '완료',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16.sp,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            )
-          : null,
+              )
+              : null,
     );
   }
 
@@ -344,13 +410,14 @@ class _StoryTestPageState extends State<StoryTestPage> {
         color: const Color(0xFFF3F4F6),
         child: AspectRatio(
           aspectRatio: 3 / 4,
-          child: src.startsWith('http')
-              ? Image.network(src, fit: BoxFit.cover)
-              : Image.asset(
-                  src,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                ),
+          child:
+              src.startsWith('http')
+                  ? Image.network(src, fit: BoxFit.cover)
+                  : Image.asset(
+                    src,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
         ),
       ),
     );
@@ -404,7 +471,10 @@ class _StoryTestPageState extends State<StoryTestPage> {
           ),
           child: Row(
             children: [
-              _choiceNumber(index + 1, disabledTap ? const Color(0xFF9CA3AF) : const Color(0xFF111827)),
+              _choiceNumber(
+                index + 1,
+                disabledTap ? const Color(0xFF9CA3AF) : const Color(0xFF111827),
+              ),
               SizedBox(width: 10.w),
               Expanded(
                 child: Text(

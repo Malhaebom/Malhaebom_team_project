@@ -9,6 +9,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 // 오버레이/사용 페이지 라우팅
 import 'watch_how_overlay_page.dart';
 
+// 녹음 페이지 라우팅 추가
+import 'package:malhaebom/screens/story/story_record_page.dart';
+
 /// ===== 전역 리소스 & 디자인 상수 =====
 const String kCoverAsset = 'assets/story/mother_gloves_cover.png';
 const String kIcoLock = 'assets/icons/ico_lock.png';
@@ -99,10 +102,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                     aspectRatio: 3 / 4,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.r),
-                      child: Image.asset(
-                        widget.storyImg,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.asset(widget.storyImg, fit: BoxFit.cover),
                     ),
                   ),
                 ),
@@ -154,9 +154,12 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             title: '동화보기',
             subtitle: '영상으로 재생되는 동화 시청하기',
             onTap: () {
-              Navigator.of(
-                context,
-              ).push(WatchHowOverlayPage.route(title: widget.title, storyImg: widget.storyImg));
+              Navigator.of(context).push(
+                WatchHowOverlayPage.route(
+                  title: widget.title,
+                  storyImg: widget.storyImg,
+                ),
+              );
             },
           ),
           SizedBox(height: 12.h),
@@ -169,7 +172,11 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => StoryTestinfoPage(title: widget.title, storyImg: widget.storyImg,),
+                  builder:
+                      (context) => StoryTestinfoPage(
+                        title: widget.title,
+                        storyImg: widget.storyImg,
+                      ),
                 ),
               );
             },
@@ -187,6 +194,19 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             fallbackIcon: Icons.record_voice_over_outlined,
             title: '동화 연극하기',
             subtitle: '이야기 주인공의 대사 따라하기',
+            onTap: () {
+              // >>> 여기서 녹음 페이지로 이동 <<<
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => StoryRecordPage(
+                        title: widget.title,
+                        totalLines: 38, // 필요 시 변경
+                      ),
+                ),
+              );
+            },
           ),
 
           SizedBox(height: 22.h),
