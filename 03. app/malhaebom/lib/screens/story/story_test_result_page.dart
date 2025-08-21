@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
+// import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart'; // <- 네가 추가
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -29,6 +31,18 @@ class StoryResultPage extends StatelessWidget {
     required this.testedAt,
   });
 
+  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
+  String _formatKst(DateTime dt) {
+    // 어떤 타임존에서 들어와도 UTC로 환산 후 +9h 하여 KST로 표시
+    final kst = dt.toUtc().add(const Duration(hours: 9));
+    final y = kst.year;
+    final m = kst.month.toString().padLeft(2, '0');
+    final d = kst.day.toString().padLeft(2, '0');
+    final hh = kst.hour.toString().padLeft(2, '0');
+    final mm = kst.minute.toString().padLeft(2, '0');
+    return '$y년 $m월 $d일 $hh:$mm';
+  }
+
   @override
   Widget build(BuildContext context) {
     final overall = total == 0 ? 0.0 : score / total;
@@ -54,7 +68,7 @@ class StoryResultPage extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(testedAt),
+              _attemptChip(_formatKst(testedAt)),
               SizedBox(height: 12.h),
 
               // 카드: 점수 요약 + 카테고리 바 4개
@@ -113,20 +127,31 @@ class StoryResultPage extends StatelessWidget {
 
               SizedBox(height: 20.h),
 
-              // 맨 아래: 게임으로 이동(모양만, 기능 X)
+              // 맨 아래: 두뇌 게임으로 이동
               SizedBox(
                 width: double.infinity,
                 height: 52.h,
                 child: ElevatedButton.icon(
-                  onPressed: null, // 모양만 구현 (비활성)
+                  onPressed: () {
+                    // 결과 페이지를 대체하고 두뇌훈련 메인으로
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
+                        (route) => false,
+                    );
+                    // 만약 스택을 모두 비우고 이동하려면 위 대신 pushAndRemoveUntil 사용
+                    // Navigator.of(context).pushAndRemoveUntil(
+                    //   MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
+                    //   (route) => false,
+                    // );
+                  },
                   icon: const Icon(Icons.videogame_asset_rounded),
                   label: Text(
                     '두뇌 게임으로 이동',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
                   ),
                   style: ElevatedButton.styleFrom(
-                    disabledBackgroundColor: const Color(0xFFFFD43B),
-                    disabledForegroundColor: Colors.black,
+                    backgroundColor: const Color(0xFFFFD43B),
+                    foregroundColor: Colors.black,
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
@@ -160,9 +185,7 @@ class StoryResultPage extends StatelessWidget {
     );
   }
 
-  Widget _attemptChip(DateTime dt) {
-    final s =
-        '${dt.year}년 ${dt.month.toString().padLeft(2, '0')}월 ${dt.day.toString().padLeft(2, '0')}일 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  Widget _attemptChip(String formattedKst) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
       decoration: BoxDecoration(
@@ -180,7 +203,7 @@ class StoryResultPage extends StatelessWidget {
                 color: AppColors.btnColorDark,
               )),
           SizedBox(width: 10.w),
-          Text(s,
+          Text(formattedKst,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 13.sp,
@@ -335,10 +358,8 @@ class StoryResultPage extends StatelessWidget {
     );
   }
 
-  // 평가 아이템 생성(낮은 항목만)
   List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
     final items = <Widget>[];
-
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;
@@ -347,22 +368,16 @@ class StoryResultPage extends StatelessWidget {
       }
     }
 
-    // PDF의 평가 항목을 요약 반영
-    addIfLow('직접화행',
-        '직접화행',
-        '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.'); // :contentReference[oaicite:2]{index=2}
-    addIfLow('간접화행',
-        '간접화행',
-        '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.'); // :contentReference[oaicite:3]{index=3}
-    addIfLow('질문화행',
-        '질문화행',
-        '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.'); // :contentReference[oaicite:4]{index=4}
-    addIfLow('단언화행',
-        '단언화행',
-        '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.'); // :contentReference[oaicite:5]{index=5}
-    addIfLow('의례화화행',
-        '의례화화행',
-        '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.'); // :contentReference[oaicite:6]{index=6}
+    addIfLow('직접화행', '직접화행',
+        '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
+    addIfLow('간접화행', '간접화행',
+        '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
+    addIfLow('질문화행', '질문화행',
+        '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
+    addIfLow('단언화행', '단언화행',
+        '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
+    addIfLow('의례화화행', '의례화화행',
+        '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
 
     if (items.isEmpty) {
       items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
@@ -402,7 +417,6 @@ class StoryResultPage extends StatelessWidget {
     );
   }
 
-  // 바 배지/포지션 계산
   _EvalView _evalFromStat(CategoryStat? s) {
     if (s == null || s.total == 0) {
       return _EvalView(
