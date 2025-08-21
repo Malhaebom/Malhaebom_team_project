@@ -1,14 +1,13 @@
+// lib/screens/brain_training/story_result_page.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
 /// 서버 주소 (필수 수정)
-/// 예) 로컬 네트워크: http://192.168.0.10:4000/str
-/// 예) 로컬 PC 에뮬레이터(Android): http://10.0.2.2:4000/str  (에뮬레이터에서 PC로)
+/// 에뮬레이터 -> PC: http://10.0.2.2:4000/str
 const String API_BASE = 'http://10.0.2.2:4000/str';
 
 /// 카테고리 집계용
@@ -38,6 +37,17 @@ class StoryResultPage extends StatefulWidget {
     required this.testedAt,
   });
 
+  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
+  String _formatKst(DateTime dt) {
+    final kst = dt.toUtc().add(const Duration(hours: 9));
+    final y = kst.year;
+    final m = kst.month.toString().padLeft(2, '0');
+    final d = kst.day.toString().padLeft(2, '0');
+    final hh = kst.hour.toString().padLeft(2, '0');
+    final mm = kst.minute.toString().padLeft(2, '0');
+    return '$y년 $m월 $d일 $hh:$mm';
+  }
+
   @override
   State<StoryResultPage> createState() => _StoryResultPageState();
 }
@@ -45,7 +55,6 @@ class StoryResultPage extends StatefulWidget {
 class _StoryResultPageState extends State<StoryResultPage> {
   // ---- KST(Asia/Seoul) 변환 & 포맷 ----
   String _formatKst(DateTime dt) {
-    // 어떤 타임존에서 들어와도 UTC로 환산 후 +9h 하여 KST로 표시
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
     final m = kst.month.toString().padLeft(2, '0');
@@ -58,7 +67,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
   @override
   void initState() {
     super.initState();
-    // 페이지가 처음 표시될 때 1회 전송
     _postAttemptTime();
   }
 
@@ -66,7 +74,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
   Future<void> _postAttemptTime() async {
     final uri = Uri.parse('$API_BASE/attempt');
 
-    // 서버에는 ISO(표준시간)도 같이 보내두면 후처리에 유용합니다.
     final payload = {
       'attemptTime': _formatKst(widget.testedAt), // 사람이 보기 좋은 KST 포맷
       'attemptTimeISO':
@@ -80,14 +87,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
-
       debugPrint('⬅️ [Flutter] status=${resp.statusCode} body=${resp.body}');
-      if (resp.statusCode == 200) {
-        // 성공적으로 수신된 경우
-        // 서버 콘솔에는 "📥 [STR] 서버에서 받은 시도 시간: ..." 이 찍힙니다.
-      } else {
-        debugPrint('⚠️ [Flutter] 전송 실패 (status ${resp.statusCode})');
-      }
     } catch (e) {
       debugPrint('❌ [Flutter] 전송 에러: $e');
     }
@@ -197,10 +197,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
                 height: 52.h,
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    // 결과 페이지를 대체하고 두뇌훈련 메인으로
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => BrainTrainingMainPage(),
+                        builder: (_) => const BrainTrainingMainPage(),
                       ),
                       (route) => false,
                     );
@@ -273,8 +272,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
             formattedKst,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 13.sp,
-              color: const Color(0xFF111827),
+              fontSize: 12.sp,
+              color: const Color(0xFF6B7280),
             ),
           ),
         ],
@@ -441,6 +440,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
     final items = <Widget>[];
+
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;
