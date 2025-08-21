@@ -22,6 +22,9 @@ class StoryResultPage extends StatelessWidget {
   final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
   final DateTime testedAt;
 
+  /// 선택: 어떤 동화로 테스트했는지 제목 표시하고 싶으면 넘겨줘
+  final String? storyTitle;
+
   const StoryResultPage({
     super.key,
     required this.score,
@@ -29,6 +32,7 @@ class StoryResultPage extends StatelessWidget {
     required this.byCategory,
     required this.byType,
     required this.testedAt,
+    this.storyTitle,
   });
 
   // ---- KST(Asia/Seoul) 변환 & 포맷 ----
@@ -76,18 +80,22 @@ class StoryResultPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('인지검사 결과',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w900,
-                        )),
+                    Text(
+                      '인지검사 결과',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     SizedBox(height: 4.h),
-                    Text('검사 결과 요약입니다.',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w600,
-                        )),
+                    Text(
+                      '검사 결과 요약입니다.',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: const Color(0xFF6B7280),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     SizedBox(height: 14.h),
                     _scoreCircle(score, total),
 
@@ -110,17 +118,21 @@ class StoryResultPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('검사 결과 평가',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w900,
-                        )),
+                    Text(
+                      '검사 결과 평가',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     SizedBox(height: 12.h),
 
                     if (showWarn) _warnBanner(),
 
                     // 부족한 항목만 노출
-                    ..._buildEvalItems(byType).expand((w) => [w, SizedBox(height: 10.h)]),
+                    ..._buildEvalItems(
+                      byType,
+                    ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
@@ -135,8 +147,10 @@ class StoryResultPage extends StatelessWidget {
                   onPressed: () {
                     // 결과 페이지를 대체하고 두뇌훈련 메인으로
                     Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
-                        (route) => false,
+                      MaterialPageRoute(
+                        builder: (_) => BrainTrainingMainPage(),
+                      ),
+                      (route) => false,
                     );
                     // 만약 스택을 모두 비우고 이동하려면 위 대신 pushAndRemoveUntil 사용
                     // Navigator.of(context).pushAndRemoveUntil(
@@ -147,7 +161,10 @@ class StoryResultPage extends StatelessWidget {
                   icon: const Icon(Icons.videogame_asset_rounded),
                   label: Text(
                     '두뇌 게임으로 이동',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16.sp,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFFFD43B),
@@ -178,7 +195,7 @@ class StoryResultPage extends StatelessWidget {
             color: Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: child,
@@ -196,19 +213,23 @@ class StoryResultPage extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('1회차',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13.sp,
-                color: AppColors.btnColorDark,
-              )),
+          Text(
+            '1회차',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13.sp,
+              color: AppColors.btnColorDark,
+            ),
+          ),
           SizedBox(width: 10.w),
-          Text(formattedKst,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13.sp,
-                color: const Color(0xFF111827),
-              )),
+          Text(
+            formattedKst,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13.sp,
+              color: const Color(0xFF111827),
+            ),
+          ),
         ],
       ),
     );
@@ -233,19 +254,23 @@ class StoryResultPage extends StatelessWidget {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('$score',
-                  style: TextStyle(
-                    fontSize: 48.sp,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFFEF4444),
-                    height: 0.9,
-                  )),
-              Text('/$total',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFFEF4444),
-                  )),
+              Text(
+                '$score',
+                style: TextStyle(
+                  fontSize: 48.sp,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFEF4444),
+                  height: 0.9,
+                ),
+              ),
+              Text(
+                '/$total',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFEF4444),
+                ),
+              ),
             ],
           ),
         ],
@@ -260,13 +285,15 @@ class StoryResultPage extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: _riskBar(eval.position),
-            ),
+            Expanded(child: _riskBar(eval.position)),
             SizedBox(width: 10.w),
             Text(
               label,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.sp, color: const Color(0xFF4B5563)),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13.sp,
+                color: const Color(0xFF4B5563),
+              ),
             ),
             SizedBox(width: 8.w),
             Container(
@@ -295,38 +322,45 @@ class StoryResultPage extends StatelessWidget {
     // position: 0(양호, 녹색) ~ 1(매우 주의, 빨강)
     return SizedBox(
       height: 16.h,
-      child: LayoutBuilder(builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [
-                  Color(0xFF10B981), // green
-                  Color(0xFFF59E0B), // amber
-                  Color(0xFFEF4444), // red
-                ]),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth;
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                width: w,
+                height: 6.h,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF10B981), // green
+                      Color(0xFFF59E0B), // amber
+                      Color(0xFFEF4444), // red
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
               ),
-            ),
-          ],
-        );
-      }),
+              Positioned(
+                left: (w - 18.w) * position,
+                child: Container(
+                  width: 18.w,
+                  height: 18.w,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFF9CA3AF),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -368,19 +402,36 @@ class StoryResultPage extends StatelessWidget {
       }
     }
 
-    addIfLow('직접화행', '직접화행',
-        '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
-    addIfLow('간접화행', '간접화행',
-        '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
-    addIfLow('질문화행', '질문화행',
-        '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
-    addIfLow('단언화행', '단언화행',
-        '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행',
-        '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
+    addIfLow(
+      '직접화행',
+      '직접화행',
+      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.',
+    );
+    addIfLow(
+      '간접화행',
+      '간접화행',
+      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.',
+    );
+    addIfLow(
+      '질문화행',
+      '질문화행',
+      '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.',
+    );
+    addIfLow(
+      '단언화행',
+      '단언화행',
+      '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.',
+    );
+    addIfLow(
+      '의례화화행',
+      '의례화화행',
+      '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.',
+    );
 
     if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
+      items.add(
+        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'),
+      );
     }
     return items;
   }
@@ -396,12 +447,14 @@ class StoryResultPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14.sp,
-                color: const Color(0xFF111827),
-              )),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 14.sp,
+              color: const Color(0xFF111827),
+            ),
+          ),
           SizedBox(height: 6.h),
           Text(
             body,

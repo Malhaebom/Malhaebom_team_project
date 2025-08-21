@@ -68,7 +68,7 @@ class _HomePageState extends State<HomePage> {
                         },
                       child: Container(
                         width: screenWidth * 0.4,
-                        height: screenHeight * 0.24,
+                        height: screenHeight * 0.25,
                         decoration: BoxDecoration(
                           color: AppColors.yellow,
                           borderRadius: BorderRadius.circular(20),
@@ -87,7 +87,7 @@ class _HomePageState extends State<HomePage> {
                             horizontal: 20.w,
                           ),
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                             },
                             child: Container(
                               width: screenWidth * 0.4,
-                              height: screenHeight * 0.24,
+                              height: screenHeight * 0.25,
                               decoration: BoxDecoration(
                                 color: AppColors.white,
                                 borderRadius: BorderRadius.circular(20),

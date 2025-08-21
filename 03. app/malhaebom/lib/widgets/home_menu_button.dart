@@ -39,7 +39,7 @@ class HomeMenuButton extends StatelessWidget {
       },
       child: Container(
         width: screenWidth * 0.4,
-        height: screenHeight * 0.23,
+        height: screenHeight * 0.25,
         decoration: BoxDecoration(
           color: colorList[colorIndex],
           borderRadius: BorderRadius.circular(20),
@@ -55,6 +55,7 @@ class HomeMenuButton extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.symmetric(vertical: 20.h, horizontal: 20.w),
           child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Image.asset(iconAsset, height: screenHeight * 0.08),
 
@@ -79,6 +80,8 @@ class HomeMenuButton extends StatelessWidget {
                       fontSize: 13.sp,
                     ),
                     textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    textScaler: const TextScaler.linear(1.0),
                   ),
                 ],
               ),
