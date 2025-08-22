@@ -39,6 +39,7 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
   bool _isNetwork = false;
 
   @override
+  @override
   void initState() {
     super.initState();
     _isNetwork = widget.videoSource.startsWith('http');
@@ -47,12 +48,24 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
             ? VideoPlayerController.networkUrl(Uri.parse(widget.videoSource))
             : VideoPlayerController.asset(widget.videoSource);
 
+    _controller.addListener(() {
+      final err = _controller.value.errorDescription;
+      if (err != null) debugPrint('🎯 VideoPlayer errorDescription: $err');
+    });
+
     _controller
       ..setLooping(true)
-      ..initialize().then((_) {
-        if (!mounted) return;
-        setState(() => _initialized = true);
-      });
+      ..initialize()
+          .then((_) async {
+            if (!mounted) return;
+            // 🔽 자동재생 & 볼륨(원하면 조절)
+            await _controller.setVolume(1.0);
+            // await _controller.play();
+            setState(() => _initialized = true);
+          })
+          .catchError((e, st) {
+            debugPrint('🎯 initialize() failed: $e');
+          });
   }
 
   @override
@@ -108,9 +121,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
         ),
       ),
       backgroundColor: AppColors.background,
-
       body: ListView(
-        padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0), // ↓ 하단 여백 제거
+        padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0),
         children: [
           // 동영상
           Stack(
@@ -127,21 +139,25 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
                           : Container(color: const Color(0xFFE5E7EB)),
                 ),
               ),
-              // 플레이 토글 — 살짝 아래 보정
               Positioned.fill(
-                child: GestureDetector(
-                  onTap: _togglePlay,
-                  behavior: HitTestBehavior.translucent,
-                  child: AnimatedOpacity(
-                    opacity:
-                        !_initialized || !_controller.value.isPlaying ? 1 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Align(
-                      alignment: const Alignment(0, 0.02),
-                      child: Icon(
-                        Icons.play_arrow_rounded,
-                        size: 120.sp,
-                        color: AppColors.btnColorDark,
+                child: IgnorePointer(
+                  ignoring:
+                      _initialized &&
+                      _controller.value.isPlaying, // 🔽 재생 중이면 터치 무시
+                  child: GestureDetector(
+                    onTap: _togglePlay,
+                    behavior: HitTestBehavior.translucent,
+                    child: AnimatedOpacity(
+                      opacity:
+                          !_initialized || !_controller.value.isPlaying ? 1 : 0,
+                      duration: const Duration(milliseconds: 150),
+                      child: Align(
+                        alignment: const Alignment(0, 0.02),
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          size: 120.sp,
+                          color: AppColors.btnColorDark,
+                        ),
                       ),
                     ),
                   ),
@@ -169,8 +185,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
           _CenteredMaxWidth(
             child: _GuideBox(
               title: 'Q. 어떻게 사용하나요?',
-              centerTitle: true, // ← 제목 가운데
-              centerBody: false, // 목록은 좌측 정렬 유지
+              centerTitle: true, // 제목 가운데
+              centerBody: false, // 목록 좌측 정렬
               bullets: const [
                 _BulletItem(
                   icon: Icons.play_arrow_rounded,
@@ -192,8 +208,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
           _CenteredMaxWidth(
             child: _GuideBox(
               title: 'Q. 동화를 모두 들으셨나요?',
-              centerTitle: true, // ← 제목 가운데
-              centerBody: true, // ← 본문도 가운데
+              centerTitle: true,
+              centerBody: true,
               subtitle: '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
               actions: [
                 Expanded(
@@ -207,7 +223,10 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
                         context,
                         MaterialPageRoute(
                           builder:
-                              (_) => StoryTestinfoPage(title: widget.title, storyImg: widget.storyImg,),
+                              (_) => StoryTestinfoPage(
+                                title: widget.title,
+                                storyImg: widget.storyImg,
+                              ),
                         ),
                       );
                     },
