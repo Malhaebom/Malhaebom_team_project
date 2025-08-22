@@ -21,7 +21,7 @@ export default function QuizList() {
   // brainTraining.json + 각 타입 JSON을 로드 (Vue의 import들과 동일한 효과)
   useEffect(() => {
     (async () => {
-      try {
+      try { 
         const btRes = await fetch(`${BASE}autobiography/brainTraining.json`);
         const bt = await btRes.json();
         setBrainTraining(bt);
