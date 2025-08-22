@@ -1,3 +1,9 @@
+// watch_how_overlay_page.dart
+// ▼ FairytaleAsset / byTitle 가 들어있는 파일 경로로 바꿔줘!
+//   예) 'package:malhaebom/data/fairytale_data.dart' 또는 '.../fairytale_asset.dart'
+import 'package:malhaebom/data/fairytale_assets.dart';
+import 'package:malhaebom/data/fairytale_data.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -9,11 +15,6 @@ const _kFont = 'GmarketSans';
 const _overlayBg = Color(0xCC2B2B2B); // 오버레이 딤
 const _ctaYellow = Color(0xFFFACC15); // 메인 코인색
 
-// ▼ 프리뷰 이미지(선택)
-
-// 프리뷰(오버레이 미리보기용) - 로컬 에셋 이미지 사용
-const String kPreviewImageAsset = './assets/images/overlayfairy.png';
-
 /// 오버레이 형태의 "동화 시청 방법"
 class WatchHowOverlayPage extends StatelessWidget {
   const WatchHowOverlayPage({
@@ -22,24 +23,27 @@ class WatchHowOverlayPage extends StatelessWidget {
     required this.storyImg,
   });
 
-  final String title;
-  final String storyImg;
+  final String title;     // 예) '어머니의 벙어리장갑'
+  final String storyImg;  // 예) assets/fairytale/어머니의벙어리장갑.png
 
   static PageRoute<void> route({
     required String title,
     required String storyImg,
   }) => PageRouteBuilder(
-    opaque: false,
-    barrierColor: _overlayBg,
-    pageBuilder:
-        (_, __, ___) => WatchHowOverlayPage(title: title, storyImg: storyImg),
-    transitionDuration: const Duration(milliseconds: 160),
-    transitionsBuilder:
-        (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-  );
+        opaque: false,
+        barrierColor: _overlayBg,
+        pageBuilder: (_, __, ___) =>
+            WatchHowOverlayPage(title: title, storyImg: storyImg),
+        transitionDuration: const Duration(milliseconds: 160),
+        transitionsBuilder:
+            (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+      );
 
   @override
   Widget build(BuildContext context) {
+    // ★ 선택한 동화 데이터 (video 경로 포함)
+    final asset = byTitle(title);
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
@@ -101,7 +105,8 @@ class WatchHowOverlayPage extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // 프리뷰(이미지) + 재생 아이콘
+
+                    // 프리뷰(이미지) + 재생 아이콘  → 네가 넘긴 asset 썸네일을 그대로 사용
                     Padding(
                       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 6.h),
                       child: Stack(
@@ -112,7 +117,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10.r),
                               child: Image.asset(
-                                kPreviewImageAsset,
+                                storyImg,
                                 fit: BoxFit.cover,
                               ),
                             ),
@@ -125,6 +130,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                         ],
                       ),
                     ),
+
                     // 설명 리스트
                     Padding(
                       padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 16.h),
@@ -148,7 +154,7 @@ class WatchHowOverlayPage extends StatelessWidget {
               ),
             ),
 
-            // 우상단 '나가기' — 워크북 오버레이와 동일 스타일/크기
+            // 우상단 나가기
             Positioned(
               top: 10.h,
               right: 14.w,
@@ -182,25 +188,17 @@ class WatchHowOverlayPage extends StatelessWidget {
               bottom: 28.h,
               child: GestureDetector(
                 onTap: () {
-                  try {
-                    final tale = byTitle(title);
-                    debugPrint('[WatchHowOverlay] title="$title" -> video="${tale.video}"');
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (_) => WatchUsagePage(
-                              title: title,
-                              videoSource: tale.video,
-                              storyImg: storyImg,
-                            ),
+                  // ★ 여기서 데이터의 동영상 경로를 그대로 전달
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => WatchUsagePage(
+                        title: title,
+                        videoSource: asset.video, // 핵심
+                        storyImg: storyImg,
                       ),
-                    );
-                  } catch (e) {
-                    debugPrint('[WatchHowOverlay][ERROR] $e');
-                    final all = Fairytales.map((f) => f.title).join(', ');
-                    debugPrint('[WatchHowOverlay] Available titles: $all');
-                  }
+                    ),
+                  );
                 },
                 child: Container(
                   height: 48.h,
