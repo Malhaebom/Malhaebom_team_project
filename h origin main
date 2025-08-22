@@ -1,0 +1,67 @@
+[1mdiff --git a/03. app/malhaebom/lib/screens/story/story_detail_page.dart b/03. app/malhaebom/lib/screens/story/story_detail_page.dart[m
+[1mindex 569bc90..caa61df 100644[m
+[1m--- a/03. app/malhaebom/lib/screens/story/story_detail_page.dart[m	
+[1m+++ b/03. app/malhaebom/lib/screens/story/story_detail_page.dart[m	
+[36m@@ -49,6 +49,8 @@[m [mclass _StoryDetailPageState extends State<StoryDetailPage> {[m
+   @override[m
+   Widget build(BuildContext context) {[m
+     final tale = byTitle(widget.title); // 스토리 메타[m
+[32m+[m[32m    final currentIndex = Fairytales.indexWhere((t) => t.title == widget.title);[m
+[32m+[m[32m    final totalTales = Fairytales.length;[m
+ [m
+     return Scaffold([m
+       // ===== 상단 AppBar =====[m
+[36m@@ -106,19 +108,51 @@[m [mclass _StoryDetailPageState extends State<StoryDetailPage> {[m
+                     ),[m
+                   ),[m
+                 ),[m
+[32m+[m[32m                // 왼쪽 버튼 (이전 동화 또는 마지막 동화로)[m
+                 Positioned([m
+                   left: 0,[m
+                   child: IconButton([m
+[31m-                    onPressed: () {}, // (옵션) 이전 표지로 이동 기능[m
+[32m+[m[32m                    onPressed: () {[m
+[32m+[m[32m                      print('왼쪽 버튼 클릭됨!');[m
+[32m+[m[32m                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');[m
+[32m+[m[32m                      final previousIndex = currentIndex > 0 ? currentIndex - 1 : totalTales - 1;[m
+[32m+[m[32m                      final previousTale = Fairytales[previousIndex];[m
+[32m+[m[32m                      print('이전 동화: ${previousTale.title}');[m
+[32m+[m[32m                      Navigator.pushReplacement([m
+[32m+[m[32m                        context,[m
+[32m+[m[32m                        MaterialPageRoute([m
+[32m+[m[32m                          builder: (context) => StoryDetailPage([m
+[32m+[m[32m                            title: previousTale.title,[m
+[32m+[m[32m                            storyImg: previousTale.titleImg,[m
+[32m+[m[32m                          ),[m
+[32m+[m[32m                        ),[m
+[32m+[m[32m                      );[m
+[32m+[m[32m                    },[m
+                     icon: const Icon(Icons.chevron_left),[m
+                     color: Colors.black54,[m
+                     iconSize: 28.sp,[m
+                   ),[m
+                 ),[m
+[32m+[m[32m                // 오른쪽 버튼 (다음 동화 또는 첫 번째 동화로)[m
+                 Positioned([m
+                   right: 0,[m
+                   child: IconButton([m
+[31m-                    onPressed: () {}, // (옵션) 다음 표지로 이동 기능[m
+[32m+[m[32m                    onPressed: () {[m
+[32m+[m[32m                      print('오른쪽 버튼 클릭됨!');[m
+[32m+[m[32m                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');[m
+[32m+[m[32m                      final nextIndex = currentIndex < totalTales - 1 ? currentIndex + 1 : 0;[m
+[32m+[m[32m                      final nextTale = Fairytales[nextIndex];[m
+[32m+[m[32m                      print('다음 동화: ${nextTale.title}');[m
+[32m+[m[32m                      Navigator.pushReplacement([m
+[32m+[m[32m                        context,[m
+[32m+[m[32m                        MaterialPageRoute([m
+[32m+[m[32m                          builder: (context) => StoryDetailPage([m
+[32m+[m[32m                            title: nextTale.title,[m
+[32m+[m[32m                            storyImg: nextTale.titleImg,[m
+[32m+[m[32m                          ),[m
+[32m+[m[32m                        ),[m
+[32m+[m[32m                      );[m
+[32m+[m[32m                    },[m
+                     icon: const Icon(Icons.chevron_right),[m
+                     color: Colors.black54,[m
+                     iconSize: 28.sp,[m

@@ -49,6 +49,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
   @override
   Widget build(BuildContext context) {
     final tale = byTitle(widget.title); // 스토리 메타
+    final currentIndex = Fairytales.indexWhere((t) => t.title == widget.title);
+    final totalTales = Fairytales.length;
 
     return Scaffold(
       // ===== 상단 AppBar =====
@@ -106,19 +108,51 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                     ),
                   ),
                 ),
+                // 왼쪽 버튼 (이전 동화 또는 마지막 동화로)
                 Positioned(
                   left: 0,
                   child: IconButton(
-                    onPressed: () {}, // (옵션) 이전 표지로 이동 기능
+                    onPressed: () {
+                      print('왼쪽 버튼 클릭됨!');
+                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');
+                      final previousIndex = currentIndex > 0 ? currentIndex - 1 : totalTales - 1;
+                      final previousTale = Fairytales[previousIndex];
+                      print('이전 동화: ${previousTale.title}');
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StoryDetailPage(
+                            title: previousTale.title,
+                            storyImg: previousTale.titleImg,
+                          ),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.chevron_left),
                     color: Colors.black54,
                     iconSize: 28.sp,
                   ),
                 ),
+                // 오른쪽 버튼 (다음 동화 또는 첫 번째 동화로)
                 Positioned(
                   right: 0,
                   child: IconButton(
-                    onPressed: () {}, // (옵션) 다음 표지로 이동 기능
+                    onPressed: () {
+                      print('오른쪽 버튼 클릭됨!');
+                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');
+                      final nextIndex = currentIndex < totalTales - 1 ? currentIndex + 1 : 0;
+                      final nextTale = Fairytales[nextIndex];
+                      print('다음 동화: ${nextTale.title}');
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => StoryDetailPage(
+                            title: nextTale.title,
+                            storyImg: nextTale.titleImg,
+                          ),
+                        ),
+                      );
+                    },
                     icon: const Icon(Icons.chevron_right),
                     color: Colors.black54,
                     iconSize: 28.sp,
