@@ -54,10 +54,6 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
       ..setLooping(true)
       ..initialize().then((_) {
         if (!mounted) return;
-        debugPrint('[WatchUsagePage] initialized: isNetwork=$_isNetwork, duration=${_controller.value.duration}, size=${_controller.value.size}');
-        if (_controller.value.hasError) {
-          debugPrint('[WatchUsagePage][init] controller error=${_controller.value.errorDescription}');
-        }
         setState(() => _initialized = true);
       });
   }
@@ -70,20 +66,15 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
 
   void _togglePlay() {
     if (!_initialized) return;
-    debugPrint('[WatchUsagePage] togglePlay: isPlaying=${_controller.value.isPlaying}, position=${_controller.value.position}, source=${widget.videoSource}');
     setState(() {
       _controller.value.isPlaying ? _controller.pause() : _controller.play();
     });
-    if (_controller.value.hasError) {
-      debugPrint('[WatchUsagePage][toggle] controller error=${_controller.value.errorDescription}');
-    }
   }
 
   Future<void> _openFullscreen() async {
     if (!_initialized) return;
     final pos = await _controller.position ?? Duration.zero;
     final bool wasPlaying = _controller.value.isPlaying;
-    debugPrint('[WatchUsagePage] openFullscreen: pos=$pos, wasPlaying=$wasPlaying, source=${widget.videoSource}, isNetwork=$_isNetwork');
     _controller.pause();
 
     await Navigator.of(context).push(
