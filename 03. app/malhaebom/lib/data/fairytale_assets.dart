@@ -35,7 +35,7 @@ class FairytaleAsset {
 /// 🔹 여기서 책들을 전부 등록
 const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
-    title: '어머니의벙어리장갑',
+    title: '어머니의 벙어리장갑',
     titleImg: 'assets/fairytale/어머니의벙어리장갑.png',
     content: '1960년도 추운 겨울,\n3남매 가족의 사랑을 그리는 이야기에요.',
     video: 'assets/fairytale/어머니의벙어리장갑.mp4',
@@ -44,7 +44,7 @@ const List<FairytaleAsset> Fairytales = [
     voiceDir: 'assets/fairytale/어머니의벙어리/voice', // 디렉토리
   ),
   FairytaleAsset(
-    title: '아버지와결혼식',
+    title: '아버지와 결혼식',
     titleImg: 'assets/fairytale/아버지와결혼식.png',
     content: '1980년대, 부산에 사는 딸과 아버지의\n가슴이 뭉클해지는 이야기에요.',
     video: 'assets/fairytale/아버지와결혼식.mp4',
@@ -62,9 +62,13 @@ const List<FairytaleAsset> Fairytales = [
     voiceDir: 'assets/fairytale/아들의 호빵/voice',
   ),
   FairytaleAsset(
-    title: '할머니와바나나',
+    title: '할머니와 바나나',
     titleImg: 'assets/fairytale/할머니와바나나.png',
+<<<<<<< HEAD
     content: '1980년도에 있었던 할머니, 손자 주현이의\n3대 가족이 바나나를 통해\n따스한 과거를 담은 이야기입니다.',
+=======
+    content: '1980년도에 있었던 할머니, 손자 주현이의 3대 가족이\n바나나를 통해 따스한 과거를 담은 이야기입니다.', // 아직 없음
+>>>>>>> e174448ee22a710e2733c8c4665d86104d08bd1d
     video: 'assets/fairytale/할머니와바나나.mp4',
     workbookJson: 'assets/fairytale/할머니와바나나/workbook.json',
     workbookImg: 'assets/fairytale/할머니와바나나',

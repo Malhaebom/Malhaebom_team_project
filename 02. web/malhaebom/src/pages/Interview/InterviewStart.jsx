@@ -1,16 +1,17 @@
-// src/pages/Interview/InterviewStart.jsx
 import React, { useEffect, useRef, useState } from "react";
-import useQuery from "../../hooks/useQuery.js"; // 경로 확인
+import useQuery from "../../hooks/useQuery.js"; 
 import Header from "../../components/Header.jsx";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import ProgressBar from "./ProgressBar.jsx"; 
 
 export default function InterviewStart() {
   const query = useQuery();
-  const questionId = Number(query.get("questionId") ?? "0");
+  const initialQuestionId = Number(query.get("questionId") ?? "0");
 
-const [bookTitle] = useState("회상훈련");
+  const [bookTitle] = useState("회상훈련");
   const [questions, setQuestions] = useState([]);
+  const [questionId, setQuestionId] = useState(initialQuestionId);
 
   const recordBtnRef = useRef(null);
   const stopBtnRef = useRef(null);
@@ -21,11 +22,6 @@ const [bookTitle] = useState("회상훈련");
   useEffect(() => {
     AOS.init();
   }, []);
-
-  // bookTitle 설정
-  // useEffect(() => {
-  //   setBookTitle(localStorage.getItem("bookTitle") || "인터뷰");
-  // }, []);
 
   // 인터뷰 질문 JSON 로드
   useEffect(() => {
@@ -50,7 +46,6 @@ const [bookTitle] = useState("회상훈련");
     const soundClips = soundClipsRef.current;
 
     if (!recordBtn || !stopBtn || !soundClips) return;
-
     if (!navigator.mediaDevices) {
       alert("마이크를 사용할 수 없는 환경입니다!");
       history.go(-2);
@@ -103,6 +98,13 @@ const [bookTitle] = useState("회상훈련");
 
           soundClips.appendChild(clipContainer);
           a.click();
+
+          // 🔹 녹음 후 다음 질문으로 이동
+          if (questionId + 1 < questions.length) {
+            setQuestionId((prev) => prev + 1);
+          } else {
+            alert("마지막 질문입니다!");
+          }
         };
       })
       .catch((err) => {
@@ -119,7 +121,7 @@ const [bookTitle] = useState("회상훈련");
       } catch {}
       if (streamCleanup) streamCleanup();
     };
-  }, []);
+  }, [questionId, questions.length]);
 
   const currentQuestion = Array.isArray(questions) ? questions[questionId] : null;
 
@@ -127,7 +129,6 @@ const [bookTitle] = useState("회상훈련");
     <div className="content">
       <div className="wrap">
         <Header title={bookTitle} />
-
         <div className="inner">
           <div className="ct_inner">
             <div
@@ -149,7 +150,9 @@ const [bookTitle] = useState("회상훈련");
             </div>
           </div>
         </div>
+        <ProgressBar current={questionId + 1} total={questions.length} />
       </div>
+      
     </div>
   );
 }

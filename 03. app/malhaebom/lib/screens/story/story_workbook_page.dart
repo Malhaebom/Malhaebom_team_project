@@ -32,12 +32,16 @@ class StoryWorkbookPage extends StatefulWidget {
   final String imageBaseDir;
   final List<int>? subsetIndices;
 
+  // 결과를 호출자(결과 페이지)로 되돌려줄지 여부
+  final bool returnResultToCaller;
+
   const StoryWorkbookPage({
     super.key,
     required this.title,
     required this.jsonAssetPath,
     required this.imageBaseDir,
     this.subsetIndices,
+    this.returnResultToCaller = false, // 기본은 기존 흐름 유지
   });
 
   @override
@@ -84,6 +88,7 @@ class _StoryWorkbookPageState extends State<StoryWorkbookPage> {
               originalIndices:
                   widget.subsetIndices ??
                   List<int>.generate(items.length, (i) => i),
+              returnResultToCaller: widget.returnResultToCaller,
             );
           },
         );
@@ -100,12 +105,16 @@ class _WorkbookRunner extends StatefulWidget {
   final String jsonAssetPath;
   final List<int> originalIndices;
 
+  /// 결과를 pop으로 돌려줄지(재도전 플로우에서 사용)
+  final bool returnResultToCaller;
+
   const _WorkbookRunner({
     required this.title,
     required this.items,
     required this.imageBaseDir,
     required this.jsonAssetPath,
     required this.originalIndices,
+    this.returnResultToCaller = false,
   });
 
   @override
@@ -140,19 +149,34 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
         _selected = null;
       });
     } else {
+      // 퀴즈가 끝나는 지점
+      if (widget.returnResultToCaller) {
+        // 재도전 흐름: 결과 페이지로 결과 맵(원본 인덱스 → 정오)을 돌려준다.
+        final resultMap = <int, bool>{};
+        for (var i = 0; i < _corrects.length; i++) {
+          final c = _corrects[i];
+          if (c != null) {
+            final originalIndex = widget.originalIndices[i];
+            resultMap[originalIndex] = c;
+          }
+        }
+        Navigator.pop(context, resultMap); // 결과 페이지로 되돌림
+        return;
+      }
+
+      // 기본 흐름: 결과 페이지로 이동
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder:
-              (_) => WorkbookResultPage(
-                title: widget.title,
-                jsonAssetPath: widget.jsonAssetPath,
-                items: widget.items,
-                imageBaseDir: widget.imageBaseDir,
-                selections: _selections,
-                corrects: _corrects,
-                originalIndices: widget.originalIndices,
-              ),
+          builder: (_) => WorkbookResultPage(
+            title: widget.title,
+            jsonAssetPath: widget.jsonAssetPath,
+            items: widget.items,
+            imageBaseDir: widget.imageBaseDir,
+            selections: _selections,
+            corrects: _corrects,
+            originalIndices: widget.originalIndices,
+          ),
         ),
       );
     }
@@ -165,6 +189,11 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
   Widget build(BuildContext context) {
     final item = widget.items[_index];
 
+    // ★ 변경: 현재 문제의 "원본" 번호 계산(1-base)
+    final originalNo = (_index >= 0 && _index < widget.originalIndices.length)
+        ? widget.originalIndices[_index] + 1
+        : _index + 1;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -176,8 +205,8 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
             fontFamily: _kFont,
             color: Colors.white,
             fontSize: 22.sp,
-            fontWeight: FontWeight.w400, // ✅ 얇게
-            letterSpacing: -0.1, // 시각적으로 더 가볍게
+            fontWeight: FontWeight.w400,
+            letterSpacing: -0.1,
           ),
         ),
       ),
@@ -188,7 +217,8 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
             SizedBox(height: 6.h),
             Center(
               child: Text(
-                '${_index + 1}번 문제',
+                // ★ 변경: 부분 세트 순번이 아닌, 원본 번호 표기
+                '${originalNo}번 문제',
                 style: TextStyle(
                   fontFamily: _kFont,
                   fontWeight: FontWeight.w700,
@@ -213,7 +243,7 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
                   fontFamily: _kFont,
                   color: Colors.white,
                   fontSize: 18.sp,
-                  fontWeight: FontWeight.w500, // ✅ 굵지 않음
+                  fontWeight: FontWeight.w500,
                   height: 1.5,
                 ),
               ),
@@ -231,12 +261,11 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
                 crossAxisSpacing: 16.w,
                 childAspectRatio: 1,
               ),
-              itemBuilder:
-                  (_, i) => _ImageChoiceTile(
-                    imgPath: '${widget.imageBaseDir}/${item.imageNames[i]}',
-                    selected: _selected == i,
-                    onTap: () => setState(() => _selected = i),
-                  ),
+              itemBuilder: (_, i) => _ImageChoiceTile(
+                imgPath: '${widget.imageBaseDir}/${item.imageNames[i]}',
+                selected: _selected == i,
+                onTap: () => setState(() => _selected = i),
+              ),
             ),
 
             SizedBox(height: 16.h),
@@ -244,6 +273,7 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
             // 진행도
             Row(
               children: [
+                // ★ 변경: 동그라미에도 원본 번호 표기
                 _roundIndex(_index + 1, size: 34.w),
                 SizedBox(width: 10.w),
                 Expanded(
@@ -252,20 +282,19 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
                     child: SizedBox(
                       height: 12.h,
                       child: LayoutBuilder(
-                        builder:
-                            (context, c) => Stack(
-                              children: [
-                                Container(
-                                  width: c.maxWidth,
-                                  color: const Color(0xFFE5E7EB),
-                                ),
-                                AnimatedContainer(
-                                  duration: const Duration(milliseconds: 220),
-                                  width: c.maxWidth * _progress,
-                                  color: AppColors.btnColorDark,
-                                ),
-                              ],
+                        builder: (context, c) => Stack(
+                          children: [
+                            Container(
+                              width: c.maxWidth,
+                              color: const Color(0xFFE5E7EB),
                             ),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              width: c.maxWidth * _progress,
+                              color: AppColors.btnColorDark,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -383,14 +412,13 @@ class _ImageChoiceTile extends StatelessWidget {
           child: Image.asset(
             imgPath,
             fit: BoxFit.cover,
-            errorBuilder:
-                (_, __, ___) => Center(
-                  child: Icon(
-                    Icons.image_not_supported_outlined,
-                    color: const Color(0xFF9CA3AF),
-                    size: 30.sp,
-                  ),
-                ),
+            errorBuilder: (_, __, ___) => Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: const Color(0xFF9CA3AF),
+                size: 30.sp,
+              ),
+            ),
           ),
         ),
       ),
