@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/theme/colors.dart';
+import 'package:malhaebom/data/fairytale_assets.dart';
 import 'watch_usage_page.dart';
 
 const _kFont = 'GmarketSans';
 const _overlayBg = Color(0xCC2B2B2B); // 오버레이 딤
 const _ctaYellow = Color(0xFFFACC15); // 메인 코인색
 
-// ▼ 실제 동영상 소스 (URL 또는 assets 경로)
-// 예) 'https://samplelib.com/lib/preview/mp4/sample-5s.mp4'
-// 예) 'assets/story/sample_video.mp4'
-const String kVideoSource =
-    'https://samplelib.com/lib/preview/mp4/sample-5s.mp4';
+// ▼ 프리뷰 이미지(선택)
 
 // 썸네일(오버레이 미리보기용) — 없으면 자동으로 동영상 첫 프레임이 보입니다.
 const String? kPreviewImage =
@@ -186,17 +184,25 @@ class WatchHowOverlayPage extends StatelessWidget {
               bottom: 28.h,
               child: GestureDetector(
                 onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder:
-                          (_) => WatchUsagePage(
-                            title: title,
-                            videoSource: kVideoSource,
-                            storyImg: storyImg,
-                          ),
-                    ),
-                  );
+                  try {
+                    final tale = byTitle(title);
+                    debugPrint('[WatchHowOverlay] title="$title" -> video="${tale.video}"');
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (_) => WatchUsagePage(
+                              title: title,
+                              videoSource: tale.video,
+                              storyImg: storyImg,
+                            ),
+                      ),
+                    );
+                  } catch (e) {
+                    debugPrint('[WatchHowOverlay][ERROR] $e');
+                    final all = Fairytales.map((f) => f.title).join(', ');
+                    debugPrint('[WatchHowOverlay] Available titles: $all');
+                  }
                 },
                 child: Container(
                   height: 48.h,

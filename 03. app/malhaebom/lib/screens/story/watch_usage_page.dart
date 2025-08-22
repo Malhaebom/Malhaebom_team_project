@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:malhaebom/screens/story/story_testInfo_page.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -41,6 +42,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[WatchUsagePage] incoming title=${widget.title}');
+    debugPrint('[WatchUsagePage] incoming videoSource=${widget.videoSource}');
     _isNetwork = widget.videoSource.startsWith('http');
     _controller =
         _isNetwork
