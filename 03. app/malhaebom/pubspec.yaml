@@ -145,6 +145,7 @@ flutter:
   - assets/images/x.png
 
   # 동화
+  - assets/images/
   - assets/fairytale/
   - assets/fairytale/어머니의벙어리장갑.png
   - assets/fairytale/어머니의벙어리/

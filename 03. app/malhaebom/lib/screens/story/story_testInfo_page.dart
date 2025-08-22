@@ -4,6 +4,8 @@ import 'package:malhaebom/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+const String _kFont = 'GmarketSans';
+
 class StoryTestinfoPage extends StatelessWidget {
   final String title;
   final String storyImg;
@@ -24,7 +26,8 @@ class StoryTestinfoPage extends StatelessWidget {
         title: Text(
           '화행 인지검사',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            fontFamily: _kFont,
+            fontWeight: FontWeight.w400, // ← 굵지 않게
             fontSize: 20.sp,
             color: Colors.black,
           ),
@@ -41,8 +44,9 @@ class StoryTestinfoPage extends StatelessWidget {
                   '질문에 대한 언어 사용 능력을 평가하여\n응답자의 인지능력을 검사합니다.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400, // ← 얇게
                     color: const Color(0xFF4B5563),
                   ),
                 ),
@@ -65,8 +69,9 @@ class StoryTestinfoPage extends StatelessWidget {
                   '동화 내용에 기반한 문제를\n제시하는 음성이 나와요.',
                   textAlign: TextAlign.start,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400, // ← 얇게
                     color: const Color(0xFF4B5563),
                   ),
                 ),
@@ -77,12 +82,14 @@ class StoryTestinfoPage extends StatelessWidget {
                   text: '시간 제한',
                   alignStart: true,
                 ),
+                // 5초 언급 제거
                 Text(
-                  '음성이 모두 나온 후\n5초 안에 답을 체크할 수 있어요.',
+                  '음성이 모두 나온 후\n답을 체크할 수 있어요.',
                   textAlign: TextAlign.start,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400, // ← 얇게
                     color: const Color(0xFF4B5563),
                   ),
                 ),
@@ -93,12 +100,14 @@ class StoryTestinfoPage extends StatelessWidget {
                   text: '답안 선택',
                   alignStart: true,
                 ),
+                // 5초 언급 제거
                 Text(
-                  '올바른 답안을 선택하세요.\n5초 안에 선택하지 못하면\n추가 기회가 제공돼요.',
+                  '올바른 답안을 선택하세요.\n선택하지 못하면 \n추가 기회가 제공돼요.',
                   textAlign: TextAlign.start,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400, // ← 얇게
                     color: const Color(0xFF4B5563),
                   ),
                 ),
@@ -113,8 +122,9 @@ class StoryTestinfoPage extends StatelessWidget {
                   '동화기반의 문제가 출제됩니다.\n동화를 꼭 보고 검사를 시작해주세요.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w400, // ← 얇게
                     color: const Color(0xFF4B5563),
                   ),
                 ),
@@ -139,6 +149,7 @@ class StoryTestinfoPage extends StatelessWidget {
                             Text(
                               '네',
                               style: TextStyle(
+                                fontFamily: _kFont,
                                 fontSize: 20.sp,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -147,8 +158,9 @@ class StoryTestinfoPage extends StatelessWidget {
                             Text(
                               '검사할게요.',
                               style: TextStyle(
+                                fontFamily: _kFont,
                                 fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w400, // ← 얇게
                               ),
                             ),
                           ],
@@ -174,6 +186,7 @@ class StoryTestinfoPage extends StatelessWidget {
                             Text(
                               '아니요',
                               style: TextStyle(
+                                fontFamily: _kFont,
                                 fontSize: 20.sp,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -182,8 +195,9 @@ class StoryTestinfoPage extends StatelessWidget {
                             Text(
                               '다 안 봤어요.',
                               style: TextStyle(
+                                fontFamily: _kFont,
                                 fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w400, // ← 얇게
                               ),
                             ),
                           ],
@@ -201,35 +215,30 @@ class StoryTestinfoPage extends StatelessWidget {
   }
 
   // ===== 네비게이션 헬퍼 =====
-
   void _goToOverlay(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => StoryTestOverlayPage(title: title, storyImg: storyImg),
+        pageBuilder:
+            (_, __, ___) =>
+                StoryTestOverlayPage(title: title, storyImg: storyImg),
         transitionsBuilder:
             (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 220),
       ),
     );
-    // 만약 네임드 라우트를 쓰고 있다면:
-    // Navigator.pushNamed(context, '/storyTestOverlay', arguments: {'title': title});
   }
 
   void _goBackToDetail(BuildContext context) {
     if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop(); // 스택에 바로 이전 화면(=detail)이 있으면 pop으로 복귀
+      Navigator.of(context).pop();
       return;
     }
-    // 스택 초기에 직접 진입한 경우 대비 폴백
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => StoryDetailPage(title: title, storyImg: storyImg),
       ),
     );
-
-    // 네임드 라우트를 쓰는 경우 대안:
-    // Navigator.of(context).pushNamedAndRemoveUntil('/storyDetail', (route) => false, arguments: {'title': title});
   }
 
   // ===== UI 유틸 =====
@@ -243,7 +252,11 @@ class StoryTestinfoPage extends StatelessWidget {
   }) {
     final titleText = Text(
       title,
-      style: TextStyle(fontSize: 18.5.sp, fontWeight: FontWeight.w900),
+      style: TextStyle(
+        fontFamily: _kFont,
+        fontSize: 20.5.sp, // ← 제목 더 큼
+        fontWeight: FontWeight.w900,
+      ),
     );
 
     return Container(
@@ -304,7 +317,11 @@ class StoryTestinfoPage extends StatelessWidget {
           Text(
             text,
             textAlign: alignStart ? TextAlign.start : TextAlign.center,
-            style: TextStyle(fontSize: 16.5.sp, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              fontFamily: _kFont,
+              fontSize: 18.5.sp, // ← 단계 제목 더 큼
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       ),
