@@ -3,8 +3,6 @@
     "기억집중": "brainTraining/기억집중.json",
     "문제해결능력": "brainTraining/문제해결능력.json",
     "계산능력": "brainTraining/계산능력.json",
-    "알록달록": "brainTraining/알록달록.json",
     "언어능력": "brainTraining/언어능력.json",
-    "음악과터치": "brainTraining/음악과터치.json",
-    "건강정보": "brainTraining/정보.json"
+    "음악과터치": "brainTraining/음악과터치.json"
 }

@@ -40,10 +40,8 @@ export default function QuizPlay() {
           "기억집중.json",
           "문제해결능력.json",
           "계산능력.json",
-          "알록달록.json",
           "언어능력.json",
-          "음악과터치.json",
-          "정보.json",
+          "음악과터치.json"
         ];
         const arr = await Promise.all(
           files.map((f) =>
