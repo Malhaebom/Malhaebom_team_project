@@ -5,6 +5,13 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Pages
 import Home from "./pages/Home.jsx";
 
+// 로그인 추가
+// Login
+import Login from "./pages/Login/Login.jsx"
+
+// Interview 추가
+import Interview from "./pages/Interview/InterviewStart.jsx";
+
 // Book > Training
 import Course from "./pages/Book/Training/Course.jsx";
 
@@ -94,6 +101,26 @@ export default function App() {
           element={
             <ErrorBoundary name="Home">
               <Home />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 로그인 */}
+        <Route
+          path="/login"
+          element={
+            <ErrorBoundary name="login">
+              <Login />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 인터뷰 */}
+        <Route
+          path="/interview/interviewstart"
+          element={
+            <ErrorBoundary name="interview">
+              <Interview />
             </ErrorBoundary>
           }
         />

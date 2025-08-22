@@ -16,7 +16,7 @@ export default function Home() {
       <div className="wrap">
         <header>
           <div className="hd_inner">
-            <h1 className="logo">브레인업</h1>
+            <h1 className="logo">말해봄</h1>
             <div className="hd_left">
               <a onClick={() => navigate("/")}>
                 <i className="xi-angle-left-min" />
@@ -34,10 +34,26 @@ export default function Home() {
           <div className="ct_banner">훈련을 통해 활력을 되찾아요!</div>
 
           <div className="ct_home ct_inner">
-            {/* 화상동화 활동 */}
+            {/* 회상 인터뷰 */}
+            <div className="box" data-aos="fade-up" data-aos-duration="1000">
+              <div>
+                <h2>회상 훈련</h2>
+                <p>추억을 나누며 기억을 되살려요</p>
+                <img
+                  src="/img/home_icon04.png"
+                  onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
+                  alt="회상 훈련"
+                />
+              </div>
+              <button type="button" onClick={() => navigate("/interview/interviewstart")}>
+                시작하기
+              </button>
+            </div>
+
+            {/* 회상동화 활동 */}
             <div className="box" data-aos="fade-up" data-aos-duration="1500">
               <div>
-                <h2>화상동화 활동</h2>
+                <h2>회상동화 활동</h2>
                 <p>이야기를 듣고 활동해요</p>
                 <img
                   src="/img/home_icon01.png"
@@ -67,7 +83,7 @@ export default function Home() {
             </div>
 
             {/* 신체 단련 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="2500">
+            {/* <div className="box" data-aos="fade-up" data-aos-duration="2500">
               <div>
                 <h2>신체 단련</h2>
                 <p>몸을 튼튼하게 만들어요</p>
@@ -80,7 +96,16 @@ export default function Home() {
               <button type="button" onClick={() => navigate("/exercise")}>
                 시작하기
               </button>
-            </div>
+            </div> */}
+          </div>
+
+          {/* 하단 로그인 이동 영역 */}
+          <div
+            className="ct_banner"
+            style={{ background: "#344CB7", marginTop: "100px", cursor: "pointer" }}
+            onClick={() => navigate("/login")}
+          >
+            로그인 하러가기
           </div>
         </div>
       </div>
