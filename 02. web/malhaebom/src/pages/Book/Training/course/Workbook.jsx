@@ -65,12 +65,10 @@ export default function Workbook() {
   }, [bookId, BASE]);
 
   const goHome = () => {
-    // 원본: /book/training?bookId=...
     window.location.href = `/book/training?bookId=${bookId}`;
   };
 
   const goToStartWork = (idx) => {
-    // 원본과 동일하게 workId만 전달 (bookId는 localStorage에 이미 저장)
     navigate(`/book/training/course/workbook/start?workId=${idx}`);
   };
 
@@ -86,16 +84,36 @@ export default function Workbook() {
           >
             {Array.isArray(work) ? (
               work.map((v, idx) => (
-                <div key={idx}>
-                  <div className="theater_flex">
-                    <p className="tit">문항 {idx + 1}</p>
-                    <div className="start">
-                      <a onClick={() => goToStartWork(idx)}>
-                        <i className="xi-arrow-right" />
-                      </a>
-                    </div>
+                <div
+                  key={idx}
+                  onClick={() => goToStartWork(idx)}
+                  style={{
+                    cursor: "pointer",
+                    padding: "12px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    transition: "background-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#ecececff")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <p style={{ fontWeight: "bold", margin: 0 }}>
+                      문항 {idx + 1}
+                    </p>
                   </div>
-                  <p>{v?.title}</p>
+                  <p style={{ marginTop: "8px" }}>{v?.title}</p>
                 </div>
               ))
             ) : (
@@ -104,8 +122,6 @@ export default function Workbook() {
           </div>
         </div>
       </div>
-
-      {/* 우측 상단 홈 이동 아이콘 동작 유지 필요 시, Header 컴포넌트 수정 or 별도 버튼 배치 가능 */}
     </div>
   );
 }

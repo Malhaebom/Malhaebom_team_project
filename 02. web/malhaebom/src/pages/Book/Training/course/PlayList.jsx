@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
-
 
 export default function PlayList() {
   const query = useQuery();
@@ -44,7 +43,7 @@ export default function PlayList() {
     }
     const [bookTitle, value] = found;
     setTitle(bookTitle);
-    // speech 경로 저장(다음 화면에서 쓸 수도 있어서)
+    // speech 경로 저장
     if (value?.speech) {
       localStorage.setItem("speechPath", value.speech);
       localStorage.setItem("bookTitle", bookTitle);
@@ -82,16 +81,36 @@ export default function PlayList() {
           >
             {Array.isArray(speech) ? (
               speech.map((item, idx) => (
-                <div key={idx}>
-                  <div className="theater_flex">
-                    <p className="tit">{item?.title}</p>
-                    <div className="start">
-                      <a onClick={() => goToStartPlay(idx)}>
-                        <i className="xi-arrow-right"></i>
-                      </a>
-                    </div>
+                <div
+                  key={idx}
+                  onClick={() => goToStartPlay(idx)}
+                  style={{
+                    cursor: "pointer",
+                    padding: "12px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    transition: "background-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#ecececff")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <p style={{ fontWeight: "bold", margin: 0 }}>
+                      {item?.title}
+                    </p>
                   </div>
-                  <p>{item?.speechText}</p>
+                  <p style={{ marginTop: "8px" }}>{item?.speechText}</p>
                 </div>
               ))
             ) : (

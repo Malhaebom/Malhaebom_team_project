@@ -18,7 +18,6 @@ export default function QuizList() {
     AOS.init();
   }, []);
 
-  // brainTraining.json + 각 타입 JSON을 로드 (Vue의 import들과 동일한 효과)
   useEffect(() => {
     (async () => {
       try {
@@ -31,10 +30,8 @@ export default function QuizList() {
           "기억집중.json",
           "문제해결능력.json",
           "계산능력.json",
-          "알록달록.json",
           "언어능력.json",
-          "음악과터치.json",
-          "정보.json",
+          "음악과터치.json"
         ];
         const arr = await Promise.all(
           files.map((f) =>
@@ -43,7 +40,6 @@ export default function QuizList() {
         );
         setBrainTrainingArr(arr);
 
-        // 제목: brainTraining의 key 순회에서 index === quizType 인 키
         const entry = Object.entries(bt).find(([, _], idx) => idx === quizType);
         setTitle(entry ? entry[0] : "");
       } catch (e) {
@@ -73,51 +69,53 @@ export default function QuizList() {
         <header>
           <div className="hd_inner">
             <div className="hd_tit">
-              <div className="alert alert-dark text-center" role="alert">{title}</div>
+              <div className="alert alert-dark text-center" role="alert">
+                {title}
+              </div>
             </div>
             <div className="hd_left">
-              <a onClick={() => window.history.back()}><i className="xi-angle-left-min" /></a>
+              <a onClick={() => window.history.back()}>
+                <i className="xi-angle-left-min" />
+              </a>
             </div>
             <div className="hd_right">
-              <a onClick={goHome}><i className="xi-home-o" /></a>
+              <a onClick={goHome}>
+                <i className="xi-home-o" />
+              </a>
             </div>
           </div>
         </header>
 
         <div className="inner">
-          <div
-            className="ct_theater ct_inner"
-            data-aos="fade-up"
-            data-aos-duration="1000"
-          >
-            {quizType !== 7 ? (
-              listData.map((_, key) => (
-                <div key={key}>
+          <div className="ct_theater ct_inner" data-aos="fade-up" data-aos-duration="1000">
+            {listData.length > 0 ? (
+              listData.map((item, key) => (
+                <div
+                  key={key}
+                  onClick={() => goToQuizPlay(quizType, key)}
+                  style={{
+                    cursor: "pointer",
+                    padding: "12px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    transition: "background-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#ecececff")}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                >
                   <div className="theater_flex">
-                    <p className="tit">Level {key + 1}</p>
-                    <div className="start">
-                      <a onClick={() => goToQuizPlay(quizType, key)}>
-                        <i className="xi-arrow-right" />
-                      </a>
-                    </div>
+                    <p className="tit">
+                      {quizType !== 5 ? `Level ${key + 1}` : item.title}
+                    </p>
                   </div>
-                  {bannerSuffix}을 길러봅시다.
+                  <p style={{ marginTop: "8px" }}>
+                    {quizType !== 5 ? `${bannerSuffix}을 길러봅시다.` : item?.question?.[0]?.title}
+                  </p>
                 </div>
               ))
             ) : (
-              listData.map((value, key) => (
-                <div key={key}>
-                  <div className="theater_flex">
-                    <p className="tit">{value.title}</p>
-                    <div className="start">
-                      <a onClick={() => goToQuizPlay(quizType, key)}>
-                        <i className="xi-arrow-right" />
-                      </a>
-                    </div>
-                  </div>
-                  {value?.question?.[0]?.title}
-                </div>
-              ))
+              <p>로딩 중...</p>
             )}
           </div>
         </div>
