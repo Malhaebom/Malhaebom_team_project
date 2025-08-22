@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/data/fairytale_data.dart';
 import 'package:malhaebom/screens/story/story_test_result_page.dart';
 import 'package:malhaebom/theme/colors.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 // =========================
 // 데이터 모델
@@ -14,6 +15,7 @@ class StoryQuestion {
   final List<String> choices; // 보기 (data의 "list")
   final int? answerIndex; // 정답 인덱스 (data의 "answer")
   final String? cover; // 커버 이미지 (data의 "image")
+  final List<String> sounds; // ★ 추가: 이 문항에서 자동재생할 사운드들
 
   const StoryQuestion({
     required this.category,
@@ -21,6 +23,7 @@ class StoryQuestion {
     required this.choices,
     required this.answerIndex,
     this.cover,
+    this.sounds = const [], // ★ 기본값
   });
 }
 
@@ -49,12 +52,72 @@ class _StoryTestPageState extends State<StoryTestPage> {
   // 정오 기록(결과 페이지로 넘길 용도)
   late final int _validCount; // 정답이 지정된 문제 개수(= 분모/2)
 
+  // ====== ★ 오디오 재생 관련 ======
+  late final AudioPlayer _player;
+  int _soundCursor = 0;
+
   @override
   void initState() {
     super.initState();
     _questions = _loadQuestionsFromData(widget.title, widget.storyImg);
     _answers = List<bool?>.filled(_questions.length, null);
     _validCount = _questions.where((q) => q.answerIndex != null).length;
+
+    // ★ 오디오 플레이어 초기화
+    _player = AudioPlayer();
+    _player.setPlayerMode(PlayerMode.mediaPlayer);
+    // 문항의 현재 트랙이 끝나면 다음 트랙 자동 재생
+    _player.onPlayerComplete.listen((event) {
+      if (!mounted) return;
+      final tracks =
+          _questions.isEmpty ? const <String>[] : _questions[_index].sounds;
+      if (_soundCursor + 1 < tracks.length) {
+        _soundCursor++;
+        _playTrack(tracks[_soundCursor]);
+      }
+    });
+
+    // 첫 문항 자동 재생 (사운드 프리로드 후)
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _preloadSounds();
+      if (!mounted) return;
+      _playCurrentQuestionSounds();
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.stop();
+    _player.dispose();
+    super.dispose();
+  }
+
+  // ====== ★ 오디오: 현재 문항의 모든 사운드를 미리 로드
+  Future<void> _preloadSounds() async {
+    final allSounds = <String>{};
+    for (final q in _questions) {
+      for (final soundPath in q.sounds) {
+        if (!soundPath.startsWith('http')) {
+          allSounds.add(soundPath);
+        }
+      }
+    }
+
+    if (allSounds.isEmpty) return;
+
+    final keysToCache = allSounds.map(_toAssetKey).toList();
+    try {
+      await _player.audioCache.loadAll(keysToCache);
+      debugPrint('[StoryTestPage] Pre-loaded ${keysToCache.length} sounds into cache.');
+    } catch (e) {
+      debugPrint('[StoryTestPage] Failed to preload sounds: $e');
+    }
+  }
+
+  /// audioplayers AssetSource 키: assets/ 접두어는 빼야 한다.
+  String _toAssetKey(String rawOrFull) {
+    final r = rawOrFull.trim();
+    return r.startsWith('assets/') ? r.substring('assets/'.length) : r;
   }
 
   // 데이터 → 화면용 모델 변환
@@ -74,8 +137,17 @@ class _StoryTestPageState extends State<StoryTestPage> {
           final prompt = (raw['title'] ?? '').toString();
           final choices =
               (raw['list'] as List?)?.map((e) => e.toString()).toList() ??
-              const <String>[];
+                  const <String>[];
           final a = raw['answer'];
+
+          // ★ sounds 파싱: sounds(List) 또는 sound(String) 모두 허용
+          List<String> sounds = const [];
+          final rs = raw['sounds'];
+          if (rs is List) {
+            sounds = rs.map((e) => e.toString()).toList();
+          } else if (raw['sound'] != null) {
+            sounds = [raw['sound'].toString()];
+          }
 
           // answer 인덱스 방어 처리(0-based 가정, 범위 밖이면 0으로 보정)
           int? ans;
@@ -98,16 +170,46 @@ class _StoryTestPageState extends State<StoryTestPage> {
             choices: choices,
             answerIndex: ans,
             cover: cover,
+            sounds: sounds, // ★ 주입
           );
         })
         .toList(growable: false);
+  }
+
+  // ====== ★ 오디오: 현재 문항의 모든 사운드를 순차 자동 재생
+  Future<void> _playCurrentQuestionSounds() async {
+    await _player.stop();
+    _soundCursor = 0;
+    if (_questions.isEmpty) return;
+    final tracks = _questions[_index].sounds;
+    if (tracks.isEmpty) return;
+    await _playTrack(tracks[_soundCursor]);
+  }
+
+  Future<void> _playTrack(String src) async {
+    final s = src.trim();
+
+    if (s.startsWith('http')) {
+      await _player.play(UrlSource(s));
+      return;
+    }
+
+    // `fairytale_data.dart`에 정의된 경로를 신뢰하고 바로 사용합니다.
+    // audioplayers의 AssetSource는 'assets/' 접두어를 제외한 경로를 기대합니다.
+    final key = _toAssetKey(s);
+
+    try {
+      await _player.play(AssetSource(key));
+    } catch (e) {
+      debugPrint('[StoryTestPage] Failed to play asset: $key. Error: $e');
+    }
   }
 
   void _onSelect(int idx) {
     setState(() => _selected = idx); // 선택만 표시. 즉시 채점/피드백 없음
   }
 
-  void _next() {
+  void _next() async {
     final q = _questions[_index];
     if (q.answerIndex != null && _selected != null) {
       final ok = (_selected == q.answerIndex);
@@ -123,8 +225,13 @@ class _StoryTestPageState extends State<StoryTestPage> {
         _index++;
         _selected = null;
       });
+      // ★ 다음 문항 사운드 자동 재생
+      _playCurrentQuestionSounds();
       return;
     }
+
+    // 마지막 문항 → 결과로 이동 전 오디오 정리
+    await _player.stop();
 
     // --- 집계 ---
     final byCategory = <String, CategoryStat>{};
@@ -168,6 +275,7 @@ class _StoryTestPageState extends State<StoryTestPage> {
 
     final int totalPoints = _validCount * _kPointsPerQuestion;
 
+    if (!mounted) return;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -211,153 +319,173 @@ class _StoryTestPageState extends State<StoryTestPage> {
       );
     }
 
-    final q = _questions[_index];
-
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.btnColorDark,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          '화행 인지검사',
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18.sp,
-            color: AppColors.white,
+      appBar: _buildAppBar(),
+      body: _buildBody(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _buildFloatingActionButton(),
+    );
+  }
+
+  // =================================
+  // Widget Build Helpers
+  // =================================
+
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: AppColors.btnColorDark,
+      elevation: 0,
+      centerTitle: true,
+      title: Text(
+        '화행 인지검사',
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 18.sp,
+          color: AppColors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    final q = _questions[_index];
+    return SafeArea(
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: 16.w),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  SizedBox(height: 10.h),
+                  _buildQuestionHeader(q),
+                  SizedBox(height: 10.h),
+                  _coverImage(widget.storyImg, width: 120.w),
+                  SizedBox(height: 10.h),
+                  _buildQuestionPrompt(q),
+                  SizedBox(height: 12.h),
+                  _buildChoices(q),
+                  SizedBox(height: 8.h),
+                  _buildProgressBar(),
+                  SizedBox(height: 80.h), // FAB 공간 확보
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingActionButton() {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16.w),
+      child: SizedBox(
+        width: double.infinity,
+        height: 48.h,
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFFD43B),
+            foregroundColor: Colors.black,
+            shape: const StadiumBorder(),
+            elevation: 0,
+          ),
+          onPressed: (_selected == null) ? null : _next,
+          child: Text(
+            _index < _questions.length - 1 ? '다음' : '완료',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
           ),
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: 16.w),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+    );
+  }
+
+  Widget _buildQuestionHeader(StoryQuestion q) {
+    return Text(
+      '${_index + 1}번. ${q.category}',
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontWeight: FontWeight.w800,
+        fontSize: 24.sp,
+        color: AppColors.btnColorDark,
+      ),
+    );
+  }
+
+  Widget _buildQuestionPrompt(StoryQuestion q) {
+    return Align(
+      alignment: Alignment.center,
+      child: Text(
+        q.prompt,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 20.sp,
+          fontWeight: FontWeight.w800,
+          color: const Color(0xFF111827),
+          height: 1.55,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoices(StoryQuestion q) {
+    return Column(
+      children: [
+        for (int i = 0; i < q.choices.length; i++) ...[
+          _choiceTile(
+            index: i,
+            text: q.choices[i],
+            isSelected: _selected == i,
+            onTap: () => _onSelect(i),
+          ),
+          SizedBox(height: 10.h),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildProgressBar() {
+    return Row(
+      children: [
+        _roundIndex(_index + 1, size: 30.w),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 10.h,
+              child: LayoutBuilder(
+                builder: (context, c) => Stack(
                   children: [
-                    SizedBox(height: 10.h),
-                    // 문제 번호 + 카테고리
-                    Text(
-                      '${_index + 1}번. ${q.category}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 24.sp,
-                        color: AppColors.btnColorDark,
-                      ),
+                    Container(
+                      width: c.maxWidth,
+                      color: const Color(0xFFE5E7EB),
                     ),
-                    SizedBox(height: 10.h),
-
-                    // 커버
-                    _coverImage(widget.storyImg, width: 120.w),
-
-                    SizedBox(height: 10.h),
-
-                    // 문제
-                    Align(
-                      alignment: Alignment.center,
-                      child: Text(
-                        q.prompt,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
-                          height: 1.55,
-                        ),
+                    AnimatedContainer(
+                      duration: const Duration(
+                        milliseconds: 220,
                       ),
+                      width: c.maxWidth * _progress,
+                      color: AppColors.btnColorDark,
                     ),
-                    SizedBox(height: 12.h),
-
-                    // 보기
-                    for (int i = 0; i < q.choices.length; i++) ...[
-                      _choiceTile(
-                        index: i,
-                        text: q.choices[i],
-                        isSelected: _selected == i,
-                        onTap: () => _onSelect(i),
-                      ),
-                      SizedBox(height: 10.h),
-                    ],
-
-                    SizedBox(height: 8.h),
-
-                    // 진행도
-                    Row(
-                      children: [
-                        _roundIndex(_index + 1, size: 30.w),
-                        SizedBox(width: 10.w),
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: SizedBox(
-                              height: 10.h,
-                              child: LayoutBuilder(
-                                builder:
-                                    (context, c) => Stack(
-                                      children: [
-                                        Container(
-                                          width: c.maxWidth,
-                                          color: const Color(0xFFE5E7EB),
-                                        ),
-                                        AnimatedContainer(
-                                          duration: const Duration(
-                                            milliseconds: 220,
-                                          ),
-                                          width: c.maxWidth * _progress,
-                                          color: AppColors.btnColorDark,
-                                        ),
-                                      ],
-                                    ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        SizedBox(width: 10.w),
-                        Text(
-                          '${_questions.length}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14.sp,
-                            color: const Color(0xFF6B7280),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 80.h), // FAB 공간 확보
                   ],
                 ),
               ),
             ),
-          ],
-        ),
-      ),
-
-      // 다음/완료 버튼: 선택했을 때만 활성화
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16.w),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48.h,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFD43B),
-              foregroundColor: Colors.black,
-              shape: const StadiumBorder(),
-              elevation: 0,
-            ),
-            onPressed: (_selected == null) ? null : _next,
-            child: Text(
-              _index < _questions.length - 1 ? '다음' : '완료',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
-            ),
           ),
         ),
-      ),
+        SizedBox(width: 10.w),
+        Text(
+          '${_questions.length}',
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 14.sp,
+            color: const Color(0xFF6B7280),
+          ),
+        ),
+      ],
     );
   }
 

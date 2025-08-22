@@ -158,6 +158,90 @@ flutter:
   - assets/fairytale/아버지와결혼식/voice/
   - assets/fairytale/아들의 호빵/voice/
   - assets/fairytale/할머니와바나나/voice/
+  - assets/fairytale/어머니의벙어리/test/
+  - assets/fairytale/어머니의벙어리/test/1/
+  - assets/fairytale/어머니의벙어리/test/2/
+  - assets/fairytale/어머니의벙어리/test/3/
+  - assets/fairytale/어머니의벙어리/test/4/
+  - assets/fairytale/어머니의벙어리/test/5/
+  - assets/fairytale/어머니의벙어리/test/6/
+  - assets/fairytale/어머니의벙어리/test/7/
+  - assets/fairytale/어머니의벙어리/test/8/
+  - assets/fairytale/어머니의벙어리/test/9/
+  - assets/fairytale/어머니의벙어리/test/10/
+  - assets/fairytale/어머니의벙어리/test/11/
+  - assets/fairytale/어머니의벙어리/test/12/
+  - assets/fairytale/어머니의벙어리/test/13/
+  - assets/fairytale/어머니의벙어리/test/14/
+  - assets/fairytale/어머니의벙어리/test/15/
+  - assets/fairytale/어머니의벙어리/test/16/
+  - assets/fairytale/어머니의벙어리/test/17/
+  - assets/fairytale/어머니의벙어리/test/18/
+  - assets/fairytale/어머니의벙어리/test/19/
+  - assets/fairytale/어머니의벙어리/test/20/
+  - assets/fairytale/아버지와결혼식/test/
+  - assets/fairytale/아버지와결혼식/test/1/
+  - assets/fairytale/아버지와결혼식/test/2/
+  - assets/fairytale/아버지와결혼식/test/3/
+  - assets/fairytale/아버지와결혼식/test/4/
+  - assets/fairytale/아버지와결혼식/test/5/
+  - assets/fairytale/아버지와결혼식/test/6/
+  - assets/fairytale/아버지와결혼식/test/7/
+  - assets/fairytale/아버지와결혼식/test/8/
+  - assets/fairytale/아버지와결혼식/test/9/
+  - assets/fairytale/아버지와결혼식/test/10/
+  - assets/fairytale/아버지와결혼식/test/11/
+  - assets/fairytale/아버지와결혼식/test/12/
+  - assets/fairytale/아버지와결혼식/test/13/
+  - assets/fairytale/아버지와결혼식/test/14/
+  - assets/fairytale/아버지와결혼식/test/15/
+  - assets/fairytale/아버지와결혼식/test/16/
+  - assets/fairytale/아버지와결혼식/test/17/
+  - assets/fairytale/아버지와결혼식/test/18/
+  - assets/fairytale/아버지와결혼식/test/19/
+  - assets/fairytale/아버지와결혼식/test/20/
+  - assets/fairytale/아들의 호빵/test/
+  - assets/fairytale/아들의 호빵/test/1/
+  - assets/fairytale/아들의 호빵/test/2/
+  - assets/fairytale/아들의 호빵/test/3/
+  - assets/fairytale/아들의 호빵/test/4/
+  - assets/fairytale/아들의 호빵/test/5/
+  - assets/fairytale/아들의 호빵/test/6/
+  - assets/fairytale/아들의 호빵/test/7/
+  - assets/fairytale/아들의 호빵/test/8/
+  - assets/fairytale/아들의 호빵/test/9/
+  - assets/fairytale/아들의 호빵/test/10/
+  - assets/fairytale/아들의 호빵/test/11/
+  - assets/fairytale/아들의 호빵/test/12/
+  - assets/fairytale/아들의 호빵/test/13/
+  - assets/fairytale/아들의 호빵/test/14/
+  - assets/fairytale/아들의 호빵/test/15/
+  - assets/fairytale/아들의 호빵/test/16/
+  - assets/fairytale/아들의 호빵/test/17/
+  - assets/fairytale/아들의 호빵/test/18/
+  - assets/fairytale/아들의 호빵/test/19/
+  - assets/fairytale/아들의 호빵/test/20/
+  - assets/fairytale/할머니와바나나/test/
+  - assets/fairytale/할머니와바나나/test/1/
+  - assets/fairytale/할머니와바나나/test/2/
+  - assets/fairytale/할머니와바나나/test/3/
+  - assets/fairytale/할머니와바나나/test/4/
+  - assets/fairytale/할머니와바나나/test/5/
+  - assets/fairytale/할머니와바나나/test/6/
+  - assets/fairytale/할머니와바나나/test/7/
+  - assets/fairytale/할머니와바나나/test/8/
+  - assets/fairytale/할머니와바나나/test/9/
+  - assets/fairytale/할머니와바나나/test/10/
+  - assets/fairytale/할머니와바나나/test/11/
+  - assets/fairytale/할머니와바나나/test/12/
+  - assets/fairytale/할머니와바나나/test/13/
+  - assets/fairytale/할머니와바나나/test/14/
+  - assets/fairytale/할머니와바나나/test/15/
+  - assets/fairytale/할머니와바나나/test/16/
+  - assets/fairytale/할머니와바나나/test/17/
+  - assets/fairytale/할머니와바나나/test/18/
+  - assets/fairytale/할머니와바나나/test/19/
+  - assets/fairytale/할머니와바나나/test/20/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
