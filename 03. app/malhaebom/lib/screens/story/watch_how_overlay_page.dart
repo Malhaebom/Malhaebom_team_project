@@ -154,28 +154,26 @@ class WatchHowOverlayPage extends StatelessWidget {
 
             // 우상단 나가기
             Positioned(
-              top: 12.h,
-              right: 12.w,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
+              top: 10.h,
+              right: 14.w,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white.withOpacity(0.85),
                   padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 6.h,
+                    horizontal: 16.w,
+                    vertical: 8.h,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(16.r),
-                    border: Border.all(color: AppColors.white, width: 1),
+                  shape: StadiumBorder(
+                    side: BorderSide(color: Colors.white.withOpacity(0.55)),
                   ),
-                  child: Text(
-                    '나가기',
-                    style: TextStyle(
-                      fontFamily: _kFont,
-                      color: AppColors.white,
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  '나가기',
+                  style: TextStyle(
+                    fontFamily: _kFont,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18.sp,
                   ),
                 ),
               ),

@@ -20,7 +20,7 @@ export default function QuizList() {
 
   useEffect(() => {
     (async () => {
-      try {
+      try { 
         const btRes = await fetch(`${BASE}autobiography/brainTraining.json`);
         const bt = await btRes.json();
         setBrainTraining(bt);
