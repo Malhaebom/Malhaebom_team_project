@@ -1,6 +1,9 @@
+// lib/screens/story/story_recording_page.dart
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle, FlutterError;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:record/record.dart';
@@ -12,8 +15,11 @@ import 'package:path/path.dart' as p;
 class StoryRecordingPage extends StatefulWidget {
   final String title; // 동화 제목
   final int lineNumber; // 몇 번 대사인지(1..N)
-  final int totalLines; // 총 대사 수(예: 38)
+  final int totalLines; // 총 대사 수(실제 개수로 전달)
   final String lineText; // 대사 내용
+  /// pubspec.yaml에 선언된 "정확한" 경로. 예) assets/fairytale/어머니의벙어리/1/line01.mp3
+  /// 또는 접두어 없이 fairytale/... 으로 들어와도 허용 (본 파일에서 보정)
+  final String? lineAssetPath;
 
   const StoryRecordingPage({
     Key? key,
@@ -21,6 +27,7 @@ class StoryRecordingPage extends StatefulWidget {
     required this.lineNumber,
     required this.totalLines,
     required this.lineText,
+    this.lineAssetPath,
   }) : super(key: key);
 
   @override
@@ -39,11 +46,13 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
 
   // --- 녹음/재생 상태 ---
   final _recorder = AudioRecorder();
-  final _player = AudioPlayer();
+  final _myPlayer = AudioPlayer(); // 내 녹음 재생
+  final _assetPlayer = AudioPlayer(); // 원본(에셋) 재생
 
   bool _isRecording = false;
-  bool _isPlaying = false;
-  String? _savedPath; // 저장된 로컬 파일 경로 (DB 없이 메모리로만 보유)
+  bool _isMyPlaying = false;
+  bool _isAssetPlaying = false;
+  String? _savedPath; // 저장된 로컬 파일 경로
 
   // --- 슬라이더 애니메이션 ---
   late final AnimationController _ctrl;
@@ -54,7 +63,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
   void initState() {
     super.initState();
 
-    // 슬라이더: (n-1) → n 으로 살짝 이동
+    // 슬라이더: (n-1) → n
     final double start =
         (widget.lineNumber > 1 ? widget.lineNumber - 1 : 1).toDouble();
     final double end = widget.lineNumber.toDouble();
@@ -71,17 +80,54 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
     _ctrl.addListener(() => setState(() => _sliderValue = _sliderAnim.value));
     WidgetsBinding.instance.addPostFrameCallback((_) => _ctrl.forward());
 
-    _player.onPlayerComplete.listen((_) {
-      setState(() => _isPlaying = false);
+    _myPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isMyPlaying = false);
+    });
+    _assetPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isAssetPlaying = false);
     });
   }
 
   @override
   void dispose() {
     _ctrl.dispose();
-    _player.dispose();
+    _myPlayer.dispose();
+    _assetPlayer.dispose();
     _recorder.dispose();
     super.dispose();
+  }
+
+  // ====== (디버그) 빌드에 포함된 모든 자산 중 특정 텍스트를 포함하는 항목을 출력 ======
+  Future<void> _debugDumpAssets({String? contains}) async {
+    try {
+      final jsonStr = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifest = json.decode(jsonStr);
+
+      Iterable<String> keys = manifest.keys;
+      if (contains != null && contains.isNotEmpty) {
+        keys = keys.where((k) => k.contains(contains));
+      }
+      final list = keys.toList()..sort();
+      debugPrint('===== [ASSETS IN BUILD] filter: ${contains ?? "ALL"} =====');
+      for (final k in list) {
+        debugPrint(k);
+      }
+      debugPrint('===== [COUNT] ${list.length} =====');
+    } catch (e) {
+      debugPrint('AssetManifest load failed: $e');
+    }
+  }
+
+  /// rootBundle.load()에 쓸 "풀 경로" 보정: assets/ 접두어가 없으면 붙여 준다.
+  String _ensureAssetFullPath(String raw) {
+    return raw.startsWith('assets/') ? raw : 'assets/$raw';
+  }
+
+  /// audioplayers 의 AssetSource 키: assets/ 접두어를 제거한 경로 사용
+  String _toAssetKey(String rawOrFull) {
+    return rawOrFull.startsWith('assets/')
+        ? rawOrFull.substring('assets/'.length)
+        : rawOrFull;
   }
 
   // ====== UI ======
@@ -121,7 +167,6 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
           child: ListView(
             padding: EdgeInsets.fromLTRB(20.w, 28.h, 20.w, 28.h),
             children: [
-              // "n번 대사" (굵게)
               Center(
                 child: Text(
                   '${widget.lineNumber}번 대사',
@@ -135,40 +180,69 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
               ),
               SizedBox(height: 20.h),
 
-              // 대사 말풍선 (보통 두께)
+              // 대사 말풍선 — 탭하면 원본(에셋) 재생
               Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 26.w,
-                    vertical: 20.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: kBlue,
-                    borderRadius: BorderRadius.circular(26.r),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x1A000000),
-                        blurRadius: 10,
-                        offset: Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    widget.lineText,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 20.sp,
-                      color: kBubbleText,
-                      height: 1.5,
+                child: GestureDetector(
+                  onTap: _onTapSpeechBubblePlayAsset,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 26.w,
+                      vertical: 20.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: kBlue,
+                      borderRadius: BorderRadius.circular(26.r),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          widget.lineText,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontFamily: 'GmarketSans',
+                            fontWeight: FontWeight.w500,
+                            fontSize: 20.sp,
+                            color: kBubbleText,
+                            height: 1.5,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _isAssetPlaying
+                                  ? Icons.graphic_eq_rounded
+                                  : Icons.volume_up_rounded,
+                              color: Colors.white,
+                            ),
+                            SizedBox(width: 6.w),
+                            Text(
+                              '탭해서 원본 듣기',
+                              style: TextStyle(
+                                fontFamily: 'GmarketSans',
+                                fontWeight: FontWeight.w400,
+                                fontSize: 13.sp,
+                                color: Colors.white.withOpacity(0.95),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
-              SizedBox(height: 36.h),
+              SizedBox(height: 28.h),
 
-              // 큰 원형 녹음 버튼 (탭: 시작/정지)
+              // 큰 원형 녹음 버튼
               Center(
                 child: GestureDetector(
                   onTap: _toggleRecording,
@@ -195,16 +269,16 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                   ),
                 ),
               ),
-              SizedBox(height: 34.h),
+              SizedBox(height: 20.h),
 
-              // 내 녹음 듣기 (저장 파일 있을 때만 활성)
+              // 내 녹음 듣기 — 녹음 버튼 아래
               Center(
                 child: SizedBox(
                   width: 260.w,
                   height: 64.h,
                   child: ElevatedButton.icon(
                     icon: Icon(
-                      _isPlaying
+                      _isMyPlaying
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                     ),
@@ -212,7 +286,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           _savedPath == null
-                              ? const Color(0xFFFFE36B)
+                              ? const Color(0xFFF2F3F5)
                               : kListenYellow,
                       foregroundColor: Colors.black87,
                       disabledBackgroundColor: const Color(0xFFF2F3F5),
@@ -222,16 +296,16 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                       elevation: 0,
                       textStyle: TextStyle(
                         fontFamily: 'GmarketSans',
-                        fontWeight: FontWeight.w800, // 이 버튼만 굵게
+                        fontWeight: FontWeight.w800,
                         fontSize: 20.sp,
                       ),
                     ),
-                    onPressed: _savedPath == null ? null : _togglePlay,
+                    onPressed: _savedPath == null ? null : _togglePlayMyRecord,
                   ),
                 ),
               ),
 
-              SizedBox(height: 36.h),
+              SizedBox(height: 28.h),
 
               // 하단 진행 표시
               Row(
@@ -257,7 +331,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                           min: 1,
                           max: widget.totalLines.toDouble(),
                           divisions: (widget.totalLines - 1).clamp(1, 1000),
-                          onChanged: (_) {}, // 스타일 유지를 위한 더미
+                          onChanged: (_) {},
                         ),
                       ),
                     ),
@@ -272,26 +346,76 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
     );
   }
 
-  // ====== 동작(녹음/재생) — DB 없이 파일만 저장 ======
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      // 정지 + 파일 경로 확보
-      final path = await _recorder.stop();
-      setState(() {
-        _isRecording = false;
-        _savedPath = path; // 로컬 파일 경로 보관 (DB 미사용)
-      });
+  // ====== 동작 (원본 재생 - 말풍선 탭) ======
+  Future<void> _onTapSpeechBubblePlayAsset() async {
+    final raw = widget.lineAssetPath?.trim();
+    if (raw == null || raw.isEmpty) {
+      _showSnack('원본 오디오가 없어요.');
       return;
     }
 
-    // 권한 및 저장 경로 준비
+    // rootBundle.load()용 풀경로/AssetSource용 키를 각각 준비
+    final full = _ensureAssetFullPath(
+      raw,
+    ); // ex) fairytale/... -> assets/fairytale/...
+    final key = _toAssetKey(full); // ex) assets/fairytale/... -> fairytale/...
+
+    try {
+      // 존재 여부 사전 확인
+      await rootBundle.load(full);
+
+      // 내 녹음이 재생 중이면 정지
+      await _myPlayer.stop();
+      if (mounted) setState(() => _isMyPlaying = false);
+
+      // 토글 동작
+      if (_isAssetPlaying) {
+        await _assetPlayer.pause();
+        if (mounted) setState(() => _isAssetPlaying = false);
+        return;
+      }
+
+      await _assetPlayer.stop();
+      await _assetPlayer.play(AssetSource(key));
+
+      if (mounted) setState(() => _isAssetPlaying = true);
+    } on FlutterError {
+      // 빌드에 들어간 자산을 보여줘서 어디가 틀렸는지 바로 진단
+      await _debugDumpAssets(contains: p.basename(full));
+      // 상위 폴더명으로도 한 번 더 검색(한글/공백 문제 조기 파악)
+      final parent = p.basename(p.dirname(full));
+      if (parent.isNotEmpty) {
+        await _debugDumpAssets(contains: parent);
+      }
+      _showSnack('원본 오디오를 찾을 수 없어요.\npubspec.yaml 또는 파일 경로(대소문자/공백)를 확인해 주세요.');
+      if (mounted) setState(() => _isAssetPlaying = false);
+    } catch (_) {
+      _showSnack('원본 오디오를 찾을 수 없어요.');
+      if (mounted) setState(() => _isAssetPlaying = false);
+    }
+  }
+
+  // ====== 동작(녹음/저장) ======
+  Future<void> _toggleRecording() async {
+    if (_isAssetPlaying) {
+      await _assetPlayer.stop();
+      if (mounted) setState(() => _isAssetPlaying = false);
+    }
+
+    if (_isRecording) {
+      final path = await _recorder.stop();
+      if (mounted) {
+        setState(() {
+          _isRecording = false;
+          _savedPath = path;
+        });
+      }
+      return;
+    }
+
     final hasPerm = await _recorder.hasPermission();
     if (!hasPerm) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('마이크 권한이 필요해요.')));
-      }
+      _showSnack('마이크 권한이 필요해요.');
       return;
     }
 
@@ -309,23 +433,31 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
       path: filePath,
     );
 
-    setState(() {
-      _isRecording = true;
-      _isPlaying = false; // 녹음 중에는 재생 중지
-    });
+    if (mounted) {
+      setState(() {
+        _isRecording = true;
+        _isMyPlaying = false;
+      });
+    }
   }
 
-  Future<void> _togglePlay() async {
+  // ====== 동작(내 녹음 재생) ======
+  Future<void> _togglePlayMyRecord() async {
     if (_savedPath == null) return;
-    if (_isPlaying) {
-      await _player.pause();
-      setState(() => _isPlaying = false);
+
+    if (_isAssetPlaying) {
+      await _assetPlayer.stop();
+      if (mounted) setState(() => _isAssetPlaying = false);
+    }
+
+    if (_isMyPlaying) {
+      await _myPlayer.pause();
+      if (mounted) setState(() => _isMyPlaying = false);
       return;
     }
-    // 새로 재생
-    await _player.stop();
-    await _player.play(DeviceFileSource(_savedPath!));
-    setState(() => _isPlaying = true);
+    await _myPlayer.stop();
+    await _myPlayer.play(DeviceFileSource(_savedPath!));
+    if (mounted) setState(() => _isMyPlaying = true);
   }
 
   // ====== 배지/슬라이더 UI 유틸 ======
@@ -357,5 +489,10 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
         ),
       ),
     );
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
