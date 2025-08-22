@@ -31,19 +31,19 @@ class FairytaleAsset {
 /// 🔹 여기서 책들을 전부 등록
 const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
-    title: '어머니의 벙어리장갑',
+    title: '어머니의벙어리장갑',
     titleImg: 'assets/fairytale/어머니의벙어리장갑.png',
     content: '1960년도 추운 겨울,\n3남매 가족의 사랑을 그리는 이야기에요.',
-    video: 'assets/fairytale/어머니의벙어리장갑.mp4',
+    video: 'assets/fairytale/mother_mittens/mother_mittens.mp4',
     workbookJson: 'assets/fairytale/어머니의벙어리/workbook.json',
     workbookImg: 'assets/fairytale/어머니의벙어리',      // 디렉토리
     voiceDir: 'assets/fairytale/어머니의벙어리/voice',  // 디렉토리
   ),
   FairytaleAsset(
-    title: '아버지와 결혼식',
+    title: '아버지와결혼식',
     titleImg: 'assets/fairytale/아버지와결혼식.png',
     content: '1980년대, 부산에 사는 딸과 아버지의\n가슴이 뭉클해지는 이야기에요.',
-    video: 'assets/fairytale/아버지와결혼식.mp4',
+    video: 'assets/fairytale/father_wedding/father_wedding.mp4',
     workbookJson: 'assets/fairytale/아버지와결혼식/workbook.json',
     workbookImg: 'assets/fairytale/아버지와결혼식',
     voiceDir: 'assets/fairytale/아버지와결혼식/voice',
@@ -52,16 +52,16 @@ const List<FairytaleAsset> Fairytales = [
     title: '아들의 호빵',
     titleImg: 'assets/fairytale/아들의 호빵.png',
     content: '1970년도에 있었던 어머니와 아들의\n따스한 과거를 담은 이야기입니다.',
-    video: 'assets/fairytale/아들의 호빵.mp4',
+    video: 'assets/fairytale/hobbang_son/hobbang_son.mp4',
     workbookJson: 'assets/fairytale/아들의 호빵/workbook.json',
     workbookImg: 'assets/fairytale/아들의 호빵',
     voiceDir: 'assets/fairytale/아들의 호빵/voice',
   ),
   FairytaleAsset(
-    title: '할머니와 바나나',
+    title: '할머니와바나나',
     titleImg: 'assets/fairytale/할머니와바나나.png',
-    content: '1980년도에 있었던 할머니, 손자 주현이의 3대 가족이\n바나나를 통해 따스한 과거를 담은 이야기입니다.', // 아직 없음
-    video: 'assets/fairytale/할머니와바나나.mp4',
+    content: null, // 아직 없음
+    video: 'assets/fairytale/grandma_banana/grandma_banana.mp4',
     workbookJson: 'assets/fairytale/할머니와바나나/workbook.json',
     workbookImg: 'assets/fairytale/할머니와바나나',
     voiceDir: 'assets/fairytale/할머니와바나나/voice',

@@ -11,9 +11,8 @@ const _ctaYellow = Color(0xFFFACC15); // 메인 코인색
 
 // ▼ 프리뷰 이미지(선택)
 
-// 썸네일(오버레이 미리보기용) — 없으면 자동으로 동영상 첫 프레임이 보입니다.
-const String? kPreviewImage =
-    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=60';
+// 프리뷰(오버레이 미리보기용) - 로컬 에셋 이미지 사용
+const String kPreviewImageAsset = './assets/images/overlayfairy.png';
 
 /// 오버레이 형태의 "동화 시청 방법"
 class WatchHowOverlayPage extends StatelessWidget {
@@ -26,10 +25,14 @@ class WatchHowOverlayPage extends StatelessWidget {
   final String title;
   final String storyImg;
 
-  static PageRoute<void> route({required String title, required String storyImg,}) => PageRouteBuilder(
+  static PageRoute<void> route({
+    required String title,
+    required String storyImg,
+  }) => PageRouteBuilder(
     opaque: false,
     barrierColor: _overlayBg,
-    pageBuilder: (_, __, ___) => WatchHowOverlayPage(title: title, storyImg: storyImg,),
+    pageBuilder:
+        (_, __, ___) => WatchHowOverlayPage(title: title, storyImg: storyImg),
     transitionDuration: const Duration(milliseconds: 160),
     transitionsBuilder:
         (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
@@ -108,15 +111,10 @@ class WatchHowOverlayPage extends StatelessWidget {
                             aspectRatio: 16 / 9,
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(10.r),
-                              child:
-                                  kPreviewImage == null
-                                      ? Container(
-                                        color: const Color(0xFFE5E7EB),
-                                      )
-                                      : Image.network(
-                                        kPreviewImage!,
-                                        fit: BoxFit.cover,
-                                      ),
+                              child: Image.asset(
+                                kPreviewImageAsset,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           Icon(
@@ -149,34 +147,34 @@ class WatchHowOverlayPage extends StatelessWidget {
                 ),
               ),
             ),
-            // 우상단 나가기
+
+            // 우상단 '나가기' — 워크북 오버레이와 동일 스타일/크기
             Positioned(
-              top: 12.h,
-              right: 12.w,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
+              top: 10.h,
+              right: 14.w,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white.withOpacity(0.85),
                   padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 6.h,
+                    horizontal: 16.w,
+                    vertical: 8.h,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(16.r),
-                    border: Border.all(color: AppColors.white, width: 1),
+                  shape: StadiumBorder(
+                    side: BorderSide(color: Colors.white.withOpacity(0.55)),
                   ),
-                  child: Text(
-                    '나가기',
-                    style: TextStyle(
-                      fontFamily: _kFont,
-                      color: AppColors.white,
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w500,
-                    ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  '나가기',
+                  style: TextStyle(
+                    fontFamily: _kFont,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18.sp,
                   ),
                 ),
               ),
             ),
+
             // 하단 CTA
             Positioned(
               left: 24.w,

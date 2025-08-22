@@ -1,10 +1,6 @@
 // story_test_overlay_page.dart
 //
 // 화행 인지검사 : 문제 미리보기/안내 오버레이
-// - 상단 우측 '나가기' 캡슐
-// - 가운데 카드(파란 헤더 + 흰 본문)
-// - 선지 4개(1번 기본 선택 표시, 텍스트는 Bold 아님)
-// - 하단 노란 '문제 풀기' 버튼(더 크고, 가장자리와 더 붙게)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -101,7 +97,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                               ),
                             ),
                             SizedBox(height: 8.h),
-                            // 큰 타이틀(굵게 유지)
+                            // 큰 타이틀
                             Text(
                               '맞는 답안 고르기',
                               textAlign: TextAlign.center,
@@ -155,7 +151,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                             ),
                             SizedBox(height: 12.h),
 
-                            // 보기 4개 (Bold 아님 + 더 큼)
+                            // 보기 4개
                             _OptionTile(
                               index: 1,
                               label: '계란 주세요.',
@@ -192,44 +188,40 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
               ),
             ),
 
-            // ===== 상단 우측 '나가기' 캡슐 =====
+            // ===== 상단 우측 '나가기' (워크북 오버레이와 동일 크기) =====
             Positioned(
-              top: 12.h,
-              right: 12.w,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
+              top: 10.h,
+              right: 14.w,
+              child: TextButton(
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.white.withOpacity(0.85),
                   padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 6.h,
+                    horizontal: 16.w,
+                    vertical: 8.h,
                   ),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(18.r),
-                    border: Border.all(color: Colors.white, width: 1),
+                  shape: StadiumBorder(
+                    side: BorderSide(color: Colors.white.withOpacity(0.55)),
                   ),
-                  child: Text(
-                    '나가기',
-                    style: TextStyle(
-                      fontFamily: _kFont,
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w600,
-                      height: 1.1,
-                      color: Colors.white,
-                    ),
+                ),
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  '나가기',
+                  style: TextStyle(
+                    fontFamily: _kFont,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 18.sp,
                   ),
                 ),
               ),
             ),
 
-            // ===== 하단 노란 CTA (더 크고, 더 붙게) =====
+            // ===== 하단 노란 CTA =====
             Positioned(
-              left: 16.w, // 24 -> 16 (가장자리와 더 붙게)
+              left: 16.w,
               right: 16.w,
-              bottom: 20.h, // 28 -> 20
+              bottom: 20.h,
               child: GestureDetector(
                 onTap: () {
-                  // TODO: 실제 문제 풀기 화면 이동
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
                       builder:
@@ -241,7 +233,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                   );
                 },
                 child: Container(
-                  height: 64.h, // 48 -> 64
+                  height: 64.h,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: _ctaYellow,
@@ -252,7 +244,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                     style: TextStyle(
                       fontFamily: _kFont,
                       fontWeight: FontWeight.w800,
-                      fontSize: 20.sp, // 16 -> 20
+                      fontSize: 20.sp,
                       height: 1.0,
                       color: Colors.black,
                     ),
@@ -267,7 +259,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
   }
 }
 
-/// 보기 한 줄 위젯 (텍스트 Bold 아님 + 사이즈 업)
+/// 보기 한 줄 위젯
 class _OptionTile extends StatelessWidget {
   final int index;
   final String label;
@@ -294,7 +286,7 @@ class _OptionTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16.r),
         child: Container(
-          height: 48.h, // 44 -> 48
+          height: 48.h,
           padding: EdgeInsets.symmetric(horizontal: 12.w),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16.r),
@@ -316,7 +308,7 @@ class _OptionTile extends StatelessWidget {
                   '$index',
                   style: TextStyle(
                     fontFamily: _kFont,
-                    fontWeight: FontWeight.w500, // 굵지 않게
+                    fontWeight: FontWeight.w500,
                     fontSize: 12.5.sp,
                     height: 1.0,
                     color: badgeBorder,
@@ -324,14 +316,14 @@ class _OptionTile extends StatelessWidget {
                 ),
               ),
               SizedBox(width: 10.w),
-              // 보기 텍스트 (굵지 않게 + 더 큼)
+              // 보기 텍스트
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
                     fontFamily: _kFont,
-                    fontWeight: FontWeight.w500, // **Bold 아님**
-                    fontSize: 16.5.sp, // 더 크게
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.5.sp,
                     height: 1.22,
                     color: textColor,
                   ),
