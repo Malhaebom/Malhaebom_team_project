@@ -1,4 +1,3 @@
-// lib/screens/brain_training/story_result_page.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -6,9 +5,10 @@ import 'package:http/http.dart' as http;
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
-/// 서버 주소 (필수 수정)
-/// 에뮬레이터 -> PC: http://10.0.2.2:4000/str
+// ★ 서버 베이스 URL (에뮬레이터 사용 시)
 const String API_BASE = 'http://10.0.2.2:4000/str';
+// 실제 기기(Wi‑Fi 동일망)에서 테스트 시 PC IP로 바꾸세요.
+// 예: const String API_BASE = 'http://192.168.0.15:4000/str';
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -28,6 +28,9 @@ class StoryResultPage extends StatefulWidget {
   final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
   final DateTime testedAt;
 
+  /// 선택: 어떤 동화로 테스트했는지 제목 표시하고 싶으면 넘겨줘
+  final String? storyTitle;
+
   const StoryResultPage({
     super.key,
     required this.score,
@@ -35,26 +38,61 @@ class StoryResultPage extends StatefulWidget {
     required this.byCategory,
     required this.byType,
     required this.testedAt,
+    this.storyTitle,
   });
-
-  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
-  String _formatKst(DateTime dt) {
-    final kst = dt.toUtc().add(const Duration(hours: 9));
-    final y = kst.year;
-    final m = kst.month.toString().padLeft(2, '0');
-    final d = kst.day.toString().padLeft(2, '0');
-    final hh = kst.hour.toString().padLeft(2, '0');
-    final mm = kst.minute.toString().padLeft(2, '0');
-    return '$y년 $m월 $d일 $hh:$mm';
-  }
 
   @override
   State<StoryResultPage> createState() => _StoryResultPageState();
 }
 
 class _StoryResultPageState extends State<StoryResultPage> {
+  bool _posted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 프레임 이후 1회만 서버 전송
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _postAttemptTimeOnce();
+    });
+  }
+
+  Future<void> _postAttemptTimeOnce() async {
+    if (_posted) return;
+    _posted = true;
+
+    try {
+      final uri = Uri.parse('$API_BASE/attempt');
+
+      // UTC ISO 형식 (서버에서 파싱하기 가장 안전)
+      final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
+
+      // 사람이 보기 좋은 KST 문자열(확인용)
+      final clientKst = _formatKst(widget.testedAt);
+
+      final body = jsonEncode({
+        'attemptTime': measuredAtIso, // ★ 서버에서 req.body.attemptTime
+        'clientKst': clientKst, // (선택) 서버 로그 가독성용
+        'storyTitle': widget.storyTitle, // (선택) 어떤 동화로 했는지
+      });
+
+      final res = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      debugPrint(
+        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
+      );
+    } catch (e) {
+      debugPrint('[STR] attempt POST error: $e');
+    }
+  }
+
   // ---- KST(Asia/Seoul) 변환 & 포맷 ----
   String _formatKst(DateTime dt) {
+    // 어떤 타임존에서 들어와도 UTC로 환산 후 +9h 하여 KST로 표시
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
     final m = kst.month.toString().padLeft(2, '0');
@@ -65,43 +103,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _postAttemptTime();
-  }
-
-  /// 서버로 검사 시도 시간 전송 (콘솔 로그 확인용)
-  Future<void> _postAttemptTime() async {
-    final uri = Uri.parse('$API_BASE/attempt');
-
-    final payload = {
-      'attemptTime': _formatKst(widget.testedAt), // 사람이 보기 좋은 KST 포맷
-      'attemptTimeISO':
-          widget.testedAt.toUtc().toIso8601String(), // 표준 ISO(UTC)
-    };
-
-    try {
-      debugPrint('➡️ [Flutter] POST $uri with $payload');
-      final resp = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
-      debugPrint('⬅️ [Flutter] status=${resp.statusCode} body=${resp.body}');
-    } catch (e) {
-      debugPrint('❌ [Flutter] 전송 에러: $e');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final score = widget.score;
-    final total = widget.total;
-    final byCategory = widget.byCategory;
-    final byType = widget.byType;
-    final testedAt = widget.testedAt;
-
-    final overall = total == 0 ? 0.0 : score / total;
+    final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
     return Scaffold(
@@ -124,7 +127,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(_formatKst(testedAt)),
+              _attemptChip(_formatKst(widget.testedAt)),
               SizedBox(height: 12.h),
 
               // 카드: 점수 요약 + 카테고리 바 4개
@@ -149,16 +152,16 @@ class _StoryResultPageState extends State<StoryResultPage> {
                       ),
                     ),
                     SizedBox(height: 14.h),
-                    _scoreCircle(score, total),
+                    _scoreCircle(widget.score, widget.total),
 
                     SizedBox(height: 16.h),
-                    _riskBarRow('요구', byCategory['요구']),
+                    _riskBarRow('요구', widget.byCategory['요구']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('질문', byCategory['질문']),
+                    _riskBarRow('질문', widget.byCategory['질문']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('단언', byCategory['단언']),
+                    _riskBarRow('단언', widget.byCategory['단언']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('의례화', byCategory['의례화']),
+                    _riskBarRow('의례화', widget.byCategory['의례화']),
                   ],
                 ),
               ),
@@ -183,7 +186,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
                     // 부족한 항목만 노출
                     ..._buildEvalItems(
-                      byType,
+                      widget.byType,
                     ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
@@ -197,9 +200,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
                 height: 52.h,
                 child: ElevatedButton.icon(
                   onPressed: () {
+                    // 결과 페이지를 대체하고 두뇌훈련 메인으로
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(
-                        builder: (_) => const BrainTrainingMainPage(),
+                        builder: (_) => BrainTrainingMainPage(),
                       ),
                       (route) => false,
                     );
@@ -272,8 +276,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
             formattedKst,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 12.sp,
-              color: const Color(0xFF6B7280),
+              fontSize: 13.sp,
+              color: const Color(0xFF111827),
             ),
           ),
         ],
@@ -440,7 +444,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
     final items = <Widget>[];
-
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;

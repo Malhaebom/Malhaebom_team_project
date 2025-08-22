@@ -145,10 +145,14 @@ flutter:
   - assets/images/x.png
 
   # 동화
-  - assets/fairytale/mother_mittens/mother_mittens.png
-  - assets/fairytale/father_wedding/father_wedding.png
-  - assets/fairytale/hobbang_son/hobbang_son.png
-
+  - assets/fairytale/어머니의벙어리장갑.png
+  - assets/fairytale/어머니의벙어리/
+  - assets/fairytale/아버지와결혼식.png
+  - assets/fairytale/아버지와결혼식/
+  - assets/fairytale/아들의 호빵.png
+  - assets/fairytale/아들의 호빵/
+  - assets/fairytale/할머니와바나나.png
+  - assets/fairytale/할머니와바나나/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

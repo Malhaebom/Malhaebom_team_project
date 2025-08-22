@@ -1,1 +1,6 @@
 수정사항 기록
+2025-08-20 // 동화책 화행 인지검사 페이지 구성 (임시)
+2025-08-21 // 동화 화행 인지검사 페이지, 워크북 페이지 구성, 
+                    back_to_home위젯 생성, home_menu_button위젯 수정,
+                    fairytale_data 데이터 수정(미완), fairytale_assets 데이터 생성
+                    assets폴더 fairytale 추가
