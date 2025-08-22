@@ -1,7 +1,6 @@
 // Flutter UI 제작 기본 라이브러리
 import 'package:malhaebom/screens/story/story_testInfo_page.dart';
 import 'package:flutter/material.dart';
-import 'package:malhaebom/screens/story/story_workbook_page.dart';
 import 'package:malhaebom/data/fairytale_assets.dart';
 // 앱 공통 색상 정의
 import 'package:malhaebom/theme/colors.dart';
@@ -14,6 +13,9 @@ import 'watch_how_overlay_page.dart';
 // 녹음 페이지 라우팅 추가
 import 'package:malhaebom/screens/story/story_record_page.dart';
 
+// 워크북 오버레이
+import 'package:malhaebom/screens/story/story_workbook_overlay.dart';
+
 /// ===== 전역 리소스 & 디자인 상수 =====
 const String kCoverAsset = 'assets/story/mother_gloves_cover.png';
 const String kIcoLock = 'assets/icons/ico_lock.png';
@@ -25,12 +27,6 @@ const String kFont = 'GmarketSans'; // 상단바와 본문 통일 폰트
 const Color kDivider = Color(0xFFE5E7EB);
 const Color kTextDark = Color(0xFF202124);
 const Color kTextSub = Color(0xFF6B7280);
-
-// 진행 스트립 컬러
-const Color kStepDark = Color(0xFF0B1551); // 원 배경(진남)
-const Color kStepLite = Color(0xFF5A78CF); // 파이/연결선(밝은 파랑)
-const Color kCoin = Color(0xFFFACC15);
-const Color kCoinText = Color(0xFF7C5B00);
 
 /// 스토리(이야기) 상세 페이지
 class StoryDetailPage extends StatefulWidget {
@@ -52,9 +48,10 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tale = byTitle(widget.title); // widget.title
+    final tale = byTitle(widget.title); // 스토리 메타
+
     return Scaffold(
-      // ===== 상단 AppBar (주신 틀 유지) =====
+      // ===== 상단 AppBar =====
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRRect(
@@ -70,7 +67,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
               widget.title,
               style: TextStyle(
                 fontFamily: kFont,
-                fontWeight: FontWeight.w500, // ← 요청: 안 굵게
+                fontWeight: FontWeight.w500,
                 fontSize: 30.sp,
                 color: AppColors.white,
               ),
@@ -85,7 +82,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
       body: ListView(
         padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
         children: [
-          // --- 표지 배너 (좌/우 화살표) ---
+          // --- 표지 배너 (동화 이미지) ---
           Container(
             decoration: BoxDecoration(
               color: AppColors.white,
@@ -112,7 +109,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 Positioned(
                   left: 0,
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {}, // (옵션) 이전 표지로 이동 기능
                     icon: const Icon(Icons.chevron_left),
                     color: Colors.black54,
                     iconSize: 28.sp,
@@ -121,7 +118,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 Positioned(
                   right: 0,
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {}, // (옵션) 다음 표지로 이동 기능
                     icon: const Icon(Icons.chevron_right),
                     color: Colors.black54,
                     iconSize: 28.sp,
@@ -150,7 +147,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
 
           SizedBox(height: 16.h),
 
-          // --- 알약 버튼 4개 (제목 더 크고/더 굵게) ---
+          // --- 알약 버튼 4개 ---
           _ActionPill(
             iconAsset: kIcoLock,
             fallbackIcon: Icons.lock_outline,
@@ -166,6 +163,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             },
           ),
           SizedBox(height: 12.h),
+
           _ActionPill(
             iconAsset: kIcoCheck,
             fallbackIcon: Icons.assignment_turned_in_outlined,
@@ -185,6 +183,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             },
           ),
           SizedBox(height: 12.h),
+
+          // 워크북: 오버레이 → '워크북 풀기' → 진행 페이지
           _ActionPill(
             iconAsset: kIcoPencil,
             fallbackIcon: Icons.brush_outlined,
@@ -193,33 +193,29 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder:
-                      (_) => StoryWorkbookPage(
-                        title: tale.title,
-                        jsonAssetPath: tale.workbookJson,
-                        imageBaseDir: tale.workbookImg,
-                      ),
+                StoryWorkbookOverlayPage.route(
+                  title: widget.title,
+                  storyImg: widget.storyImg, // 오버레이에서도 이 이미지를 활용
+                  workbookJson: tale.workbookJson,
+                  workbookImgBase: tale.workbookImg,
                 ),
               );
             },
           ),
           SizedBox(height: 12.h),
+
           _ActionPill(
             iconAsset: kIcoDrama,
             fallbackIcon: Icons.record_voice_over_outlined,
             title: '동화 연극하기',
             subtitle: '이야기 주인공의 대사 따라하기',
             onTap: () {
-              // >>> 여기서 녹음 페이지로 이동 <<<
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder:
-                      (context) => StoryRecordPage(
-                        title: widget.title,
-                        totalLines: 38, // 필요 시 변경
-                      ),
+                      (context) =>
+                          StoryRecordPage(title: widget.title, totalLines: 38),
                 ),
               );
             },
@@ -230,20 +226,20 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
   }
 }
 
-/// ===== 알약형 액션 버튼 (제목 더 크고/굵게) =====
+/// ===== 알약형 액션 버튼 =====
 class _ActionPill extends StatelessWidget {
   final String? iconAsset;
   final IconData fallbackIcon;
   final String title;
   final String subtitle;
-  final VoidCallback? onTap; // ← 추가
+  final VoidCallback? onTap;
 
   const _ActionPill({
     required this.iconAsset,
     required this.fallbackIcon,
     required this.title,
     required this.subtitle,
-    this.onTap, // ← 추가
+    this.onTap,
   });
 
   @override
@@ -266,7 +262,7 @@ class _ActionPill extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap, // ← 추가
+        onTap: onTap,
         borderRadius: BorderRadius.circular(28.r),
         child: Container(
           decoration: BoxDecoration(
@@ -292,7 +288,6 @@ class _ActionPill extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 제목 — 크게/굵게
                     Text(
                       title,
                       maxLines: 1,
@@ -305,7 +300,6 @@ class _ActionPill extends StatelessWidget {
                       ),
                     ),
                     SizedBox(height: 4.h),
-                    // 부제 — 얇게
                     Text(
                       subtitle,
                       maxLines: 1,
