@@ -1,6 +1,6 @@
 class FairytaleData {
   Map<String, dynamic> data = {
-    "어머니의벙어리장갑": {
+    "어머니의 벙어리장갑": {
       "image": "assets/fairytale/어머니의벙어리.png",
       "video": "assets/fairytale/어머니의벙어리.mp4",
       "test": [
@@ -524,7 +524,7 @@ class FairytaleData {
       },
     },
 
-    "아버지와결혼식": {
+    "아버지와 결혼식": {
       "image": "assets/fairytale/아버지와결혼식.png",
       "video": "assets/fairytale/아버지와결혼식.mp4",
       "test": [
@@ -1046,7 +1046,7 @@ class FairytaleData {
         },
       },
     },
-    "할머니와바나나": {
+    "할머니와 바나나": {
       "image": "assets/fairytale/할머니와바나나.jpg",
       "video": "assets/fairytale/할머니와바나나.mp4",
       "test": [
