@@ -1,6 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:http/http.dart' as http;
+import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
+
+// ★ 서버 베이스 URL (에뮬레이터 사용 시)
+const String API_BASE = 'http://10.0.2.2:4000/str';
+// 실제 기기(Wi‑Fi 동일망)에서 테스트 시 PC IP로 바꾸세요.
+// 예: const String API_BASE = 'http://192.168.0.15:4000/str';
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -13,12 +21,15 @@ class CategoryStat {
 }
 
 /// 결과 페이지
-class StoryResultPage extends StatelessWidget {
+class StoryResultPage extends StatefulWidget {
   final int score;
   final int total;
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
   final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
   final DateTime testedAt;
+
+  /// 선택: 어떤 동화로 테스트했는지 제목 표시하고 싶으면 넘겨줘
+  final String? storyTitle;
 
   const StoryResultPage({
     super.key,
@@ -27,11 +38,73 @@ class StoryResultPage extends StatelessWidget {
     required this.byCategory,
     required this.byType,
     required this.testedAt,
+    this.storyTitle,
   });
 
   @override
+  State<StoryResultPage> createState() => _StoryResultPageState();
+}
+
+class _StoryResultPageState extends State<StoryResultPage> {
+  bool _posted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 프레임 이후 1회만 서버 전송
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _postAttemptTimeOnce();
+    });
+  }
+
+  Future<void> _postAttemptTimeOnce() async {
+    if (_posted) return;
+    _posted = true;
+
+    try {
+      final uri = Uri.parse('$API_BASE/attempt');
+
+      // UTC ISO 형식 (서버에서 파싱하기 가장 안전)
+      final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
+
+      // 사람이 보기 좋은 KST 문자열(확인용)
+      final clientKst = _formatKst(widget.testedAt);
+
+      final body = jsonEncode({
+        'attemptTime': measuredAtIso, // ★ 서버에서 req.body.attemptTime
+        'clientKst': clientKst, // (선택) 서버 로그 가독성용
+        'storyTitle': widget.storyTitle, // (선택) 어떤 동화로 했는지
+      });
+
+      final res = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      );
+
+      debugPrint(
+        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
+      );
+    } catch (e) {
+      debugPrint('[STR] attempt POST error: $e');
+    }
+  }
+
+  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
+  String _formatKst(DateTime dt) {
+    // 어떤 타임존에서 들어와도 UTC로 환산 후 +9h 하여 KST로 표시
+    final kst = dt.toUtc().add(const Duration(hours: 9));
+    final y = kst.year;
+    final m = kst.month.toString().padLeft(2, '0');
+    final d = kst.day.toString().padLeft(2, '0');
+    final hh = kst.hour.toString().padLeft(2, '0');
+    final mm = kst.minute.toString().padLeft(2, '0');
+    return '$y년 $m월 $d일 $hh:$mm';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final overall = total == 0 ? 0.0 : score / total;
+    final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
     return Scaffold(
@@ -54,7 +127,7 @@ class StoryResultPage extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(testedAt),
+              _attemptChip(_formatKst(widget.testedAt)),
               SizedBox(height: 12.h),
 
               // 카드: 점수 요약 + 카테고리 바 4개
@@ -62,29 +135,33 @@ class StoryResultPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Text('인지검사 결과',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w900,
-                        )),
+                    Text(
+                      '인지검사 결과',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     SizedBox(height: 4.h),
-                    Text('검사 결과 요약입니다.',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w600,
-                        )),
+                    Text(
+                      '검사 결과 요약입니다.',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: const Color(0xFF6B7280),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     SizedBox(height: 14.h),
-                    _scoreCircle(score, total),
+                    _scoreCircle(widget.score, widget.total),
 
                     SizedBox(height: 16.h),
-                    _riskBarRow('요구', byCategory['요구']),
+                    _riskBarRow('요구', widget.byCategory['요구']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('질문', byCategory['질문']),
+                    _riskBarRow('질문', widget.byCategory['질문']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('단언', byCategory['단언']),
+                    _riskBarRow('단언', widget.byCategory['단언']),
                     SizedBox(height: 12.h),
-                    _riskBarRow('의례화', byCategory['의례화']),
+                    _riskBarRow('의례화', widget.byCategory['의례화']),
                   ],
                 ),
               ),
@@ -96,37 +173,52 @@ class StoryResultPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('검사 결과 평가',
-                        style: TextStyle(
-                          fontSize: 18.sp,
-                          fontWeight: FontWeight.w900,
-                        )),
+                    Text(
+                      '검사 결과 평가',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     SizedBox(height: 12.h),
 
                     if (showWarn) _warnBanner(),
 
                     // 부족한 항목만 노출
-                    ..._buildEvalItems(byType).expand((w) => [w, SizedBox(height: 10.h)]),
+                    ..._buildEvalItems(
+                      widget.byType,
+                    ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
 
               SizedBox(height: 20.h),
 
-              // 맨 아래: 게임으로 이동(모양만, 기능 X)
+              // 맨 아래: 두뇌 게임으로 이동
               SizedBox(
                 width: double.infinity,
                 height: 52.h,
                 child: ElevatedButton.icon(
-                  onPressed: null, // 모양만 구현 (비활성)
+                  onPressed: () {
+                    // 결과 페이지를 대체하고 두뇌훈련 메인으로
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => BrainTrainingMainPage(),
+                      ),
+                      (route) => false,
+                    );
+                  },
                   icon: const Icon(Icons.videogame_asset_rounded),
                   label: Text(
                     '두뇌 게임으로 이동',
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16.sp,
+                    ),
                   ),
                   style: ElevatedButton.styleFrom(
-                    disabledBackgroundColor: const Color(0xFFFFD43B),
-                    disabledForegroundColor: Colors.black,
+                    backgroundColor: const Color(0xFFFFD43B),
+                    foregroundColor: Colors.black,
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),
@@ -153,16 +245,14 @@ class StoryResultPage extends StatelessWidget {
             color: Colors.black.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: child,
     );
   }
 
-  Widget _attemptChip(DateTime dt) {
-    final s =
-        '${dt.year}년 ${dt.month.toString().padLeft(2, '0')}월 ${dt.day.toString().padLeft(2, '0')}일 ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  Widget _attemptChip(String formattedKst) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
       decoration: BoxDecoration(
@@ -173,19 +263,23 @@ class StoryResultPage extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('1회차',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13.sp,
-                color: AppColors.btnColorDark,
-              )),
+          Text(
+            '1회차',
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 13.sp,
+              color: AppColors.btnColorDark,
+            ),
+          ),
           SizedBox(width: 10.w),
-          Text(s,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 13.sp,
-                color: const Color(0xFF111827),
-              )),
+          Text(
+            formattedKst,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13.sp,
+              color: const Color(0xFF111827),
+            ),
+          ),
         ],
       ),
     );
@@ -210,19 +304,23 @@ class StoryResultPage extends StatelessWidget {
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('$score',
-                  style: TextStyle(
-                    fontSize: 48.sp,
-                    fontWeight: FontWeight.w900,
-                    color: const Color(0xFFEF4444),
-                    height: 0.9,
-                  )),
-              Text('/$total',
-                  style: TextStyle(
-                    fontSize: 16.sp,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFFEF4444),
-                  )),
+              Text(
+                '$score',
+                style: TextStyle(
+                  fontSize: 48.sp,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFEF4444),
+                  height: 0.9,
+                ),
+              ),
+              Text(
+                '/$total',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFEF4444),
+                ),
+              ),
             ],
           ),
         ],
@@ -237,13 +335,15 @@ class StoryResultPage extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(
-              child: _riskBar(eval.position),
-            ),
+            Expanded(child: _riskBar(eval.position)),
             SizedBox(width: 10.w),
             Text(
               label,
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.sp, color: const Color(0xFF4B5563)),
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13.sp,
+                color: const Color(0xFF4B5563),
+              ),
             ),
             SizedBox(width: 8.w),
             Container(
@@ -272,38 +372,45 @@ class StoryResultPage extends StatelessWidget {
     // position: 0(양호, 녹색) ~ 1(매우 주의, 빨강)
     return SizedBox(
       height: 16.h,
-      child: LayoutBuilder(builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [
-                  Color(0xFF10B981), // green
-                  Color(0xFFF59E0B), // amber
-                  Color(0xFFEF4444), // red
-                ]),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final w = c.maxWidth;
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                width: w,
+                height: 6.h,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF10B981), // green
+                      Color(0xFFF59E0B), // amber
+                      Color(0xFFEF4444), // red
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
               ),
-            ),
-          ],
-        );
-      }),
+              Positioned(
+                left: (w - 18.w) * position,
+                child: Container(
+                  width: 18.w,
+                  height: 18.w,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFF9CA3AF),
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -335,10 +442,8 @@ class StoryResultPage extends StatelessWidget {
     );
   }
 
-  // 평가 아이템 생성(낮은 항목만)
   List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
     final items = <Widget>[];
-
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;
@@ -347,25 +452,36 @@ class StoryResultPage extends StatelessWidget {
       }
     }
 
-    // PDF의 평가 항목을 요약 반영
-    addIfLow('직접화행',
-        '직접화행',
-        '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.'); // :contentReference[oaicite:2]{index=2}
-    addIfLow('간접화행',
-        '간접화행',
-        '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.'); // :contentReference[oaicite:3]{index=3}
-    addIfLow('질문화행',
-        '질문화행',
-        '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.'); // :contentReference[oaicite:4]{index=4}
-    addIfLow('단언화행',
-        '단언화행',
-        '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.'); // :contentReference[oaicite:5]{index=5}
-    addIfLow('의례화화행',
-        '의례화화행',
-        '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.'); // :contentReference[oaicite:6]{index=6}
+    addIfLow(
+      '직접화행',
+      '직접화행',
+      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.',
+    );
+    addIfLow(
+      '간접화행',
+      '간접화행',
+      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.',
+    );
+    addIfLow(
+      '질문화행',
+      '질문화행',
+      '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.',
+    );
+    addIfLow(
+      '단언화행',
+      '단언화행',
+      '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.',
+    );
+    addIfLow(
+      '의례화화행',
+      '의례화화행',
+      '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.',
+    );
 
     if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
+      items.add(
+        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'),
+      );
     }
     return items;
   }
@@ -381,12 +497,14 @@ class StoryResultPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title,
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 14.sp,
-                color: const Color(0xFF111827),
-              )),
+          Text(
+            title,
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              fontSize: 14.sp,
+              color: const Color(0xFF111827),
+            ),
+          ),
           SizedBox(height: 6.h),
           Text(
             body,
@@ -402,7 +520,6 @@ class StoryResultPage extends StatelessWidget {
     );
   }
 
-  // 바 배지/포지션 계산
   _EvalView _evalFromStat(CategoryStat? s) {
     if (s == null || s.total == 0) {
       return _EvalView(

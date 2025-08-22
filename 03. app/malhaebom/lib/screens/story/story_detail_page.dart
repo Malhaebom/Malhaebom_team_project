@@ -1,6 +1,8 @@
 // Flutter UI 제작 기본 라이브러리
 import 'package:malhaebom/screens/story/story_testInfo_page.dart';
 import 'package:flutter/material.dart';
+import 'package:malhaebom/screens/story/story_workbook_page.dart';
+import 'package:malhaebom/data/fairytale_assets.dart';
 // 앱 공통 색상 정의
 import 'package:malhaebom/theme/colors.dart';
 // 화면 크기에 맞춰 UI 요소 크기를 자동 조정하는 패키지
@@ -8,6 +10,9 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 // 오버레이/사용 페이지 라우팅
 import 'watch_how_overlay_page.dart';
+
+// 녹음 페이지 라우팅 추가
+import 'package:malhaebom/screens/story/story_record_page.dart';
 
 /// ===== 전역 리소스 & 디자인 상수 =====
 const String kCoverAsset = 'assets/story/mother_gloves_cover.png';
@@ -47,6 +52,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final tale = byTitle(widget.title); // widget.title
     return Scaffold(
       // ===== 상단 AppBar (주신 틀 유지) =====
       appBar: PreferredSize(
@@ -99,10 +105,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                     aspectRatio: 3 / 4,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(8.r),
-                      child: Image.asset(
-                        widget.storyImg,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.asset(widget.storyImg, fit: BoxFit.cover),
                     ),
                   ),
                 ),
@@ -154,9 +157,12 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             title: '동화보기',
             subtitle: '영상으로 재생되는 동화 시청하기',
             onTap: () {
-              Navigator.of(
-                context,
-              ).push(WatchHowOverlayPage.route(title: widget.title, storyImg: widget.storyImg));
+              Navigator.of(context).push(
+                WatchHowOverlayPage.route(
+                  title: widget.title,
+                  storyImg: widget.storyImg,
+                ),
+              );
             },
           ),
           SizedBox(height: 12.h),
@@ -169,7 +175,11 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => StoryTestinfoPage(title: widget.title, storyImg: widget.storyImg,),
+                  builder:
+                      (context) => StoryTestinfoPage(
+                        title: widget.title,
+                        storyImg: widget.storyImg,
+                      ),
                 ),
               );
             },
@@ -180,6 +190,19 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             fallbackIcon: Icons.brush_outlined,
             title: '워크북 풀어보기',
             subtitle: '재밌고 간단한 활동으로 인지능력 강화하기',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (_) => StoryWorkbookPage(
+                        title: tale.title,
+                        jsonAssetPath: tale.workbookJson,
+                        imageBaseDir: tale.workbookImg,
+                      ),
+                ),
+              );
+            },
           ),
           SizedBox(height: 12.h),
           _ActionPill(
@@ -187,231 +210,24 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             fallbackIcon: Icons.record_voice_over_outlined,
             title: '동화 연극하기',
             subtitle: '이야기 주인공의 대사 따라하기',
-          ),
-
-          SizedBox(height: 22.h),
-
-          // --- 진행 스트립 (배경 카드 없음 / 파이 위 라벨 얇게) ---
-          const _ProgressStrip(),
-
-          SizedBox(height: 10.h),
-
-          Center(
-            child: Text(
-              '모든 활동을 끝내고 코인받으세요!',
-              style: TextStyle(
-                fontFamily: kFont,
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5.sp,
-                color: kTextDark,
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // ===== 하단 툴바(네비게이션) =====
-      bottomNavigationBar: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(18.r)),
-        child: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: AppColors.white,
-          selectedItemColor: AppColors.btnColorDark,
-          unselectedItemColor: const Color(0xFF9CA3AF),
-          showUnselectedLabels: true,
-          currentIndex: _tab,
-          onTap: (i) => setState(() => _tab = i),
-          selectedLabelStyle: TextStyle(
-            fontSize: 12.sp,
-            fontFamily: kFont,
-            fontWeight: FontWeight.w700,
-          ),
-          unselectedLabelStyle: TextStyle(
-            fontSize: 12.sp,
-            fontFamily: kFont,
-            fontWeight: FontWeight.w400,
-          ),
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.apps), label: '활동'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.fitness_center),
-              label: '훈련',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: '결과'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              label: '소통',
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-//// ===== 진행 스트립 =====
-/// 라벨(파란색, 원 '위', 얇게) + 파이 원 + 파란 연결선 + (오른쪽 끝) 200P(위)/코인(아래)
-class _ProgressStrip extends StatelessWidget {
-  const _ProgressStrip();
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) {
-        // 오른쪽 200P/코인 공간을 확보하고 4 스텝 폭 산정
-        final double colW = (c.maxWidth - 70.w) / 4;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            StepColumn(label: '동화', colWidth: colW),
-            _StepConnector(),
-            StepColumn(label: '검사', colWidth: colW),
-            _StepConnector(),
-            StepColumn(label: '워크북', colWidth: colW), // 워크북 줄바꿈/쏠림 방지
-            _StepConnector(),
-            StepColumn(label: '연극', colWidth: colW),
-
-            SizedBox(width: 10.w),
-
-            // 200P(위) + 코인(아래)
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '200P',
-                  style: TextStyle(
-                    fontFamily: kFont,
-                    fontWeight: FontWeight.w400, // ← 얇게
-                    fontSize: 16.sp,
-                    color: AppColors.btnColorDark,
-                  ),
+            onTap: () {
+              // >>> 여기서 녹음 페이지로 이동 <<<
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => StoryRecordPage(
+                        title: widget.title,
+                        totalLines: 38, // 필요 시 변경
+                      ),
                 ),
-                SizedBox(height: 4.h),
-                Container(
-                  width: 26.w,
-                  height: 26.w,
-                  decoration: const BoxDecoration(
-                    color: kCoin,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    'C',
-                    style: TextStyle(
-                      fontFamily: kFont,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14.sp,
-                      color: kCoinText,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// 하나의 스텝(라벨↑ + 파이 원)
-class StepColumn extends StatelessWidget {
-  final String label;
-  final double colWidth;
-  const StepColumn({super.key, required this.label, required this.colWidth});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: colWidth,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // ---- 라벨: 파란색, 얇게, 절대 줄바꿈 금지 ----
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              maxLines: 1,
-              softWrap: false,
-              textAlign: TextAlign.center,
-              textHeightBehavior: const TextHeightBehavior(
-                applyHeightToFirstAscent: false,
-                applyHeightToLastDescent: false,
-              ),
-              style: TextStyle(
-                fontFamily: kFont,
-                fontWeight: FontWeight.w400, // ← 요청: 얇게
-                fontSize: 12.sp,
-                color: AppColors.btnColorDark,
-                height: 1.0,
-              ),
-            ),
+              );
+            },
           ),
-          SizedBox(height: 6.h),
-          const StepCircle(progress: 0.22, startAngle: -3.0), // 좌상단 작은 조각
         ],
       ),
     );
   }
-}
-
-/// 파란 연결선(배경 카드 없음)
-class _StepConnector extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        height: 2.h,
-        margin: EdgeInsets.symmetric(horizontal: 6.w),
-        decoration: BoxDecoration(
-          color: kStepLite,
-          borderRadius: BorderRadius.circular(2.r),
-        ),
-      ),
-    );
-  }
-}
-
-/// 파이 조각이 들어간 원형 아이콘
-class StepCircle extends StatelessWidget {
-  final double progress; // 0.0 ~ 1.0
-  final double startAngle; // 라디안(좌상단: -3.1 ~ -2.8)
-  const StepCircle({super.key, required this.progress, this.startAngle = -3.0});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: Size(26.w, 26.w),
-      painter: _StepCirclePainter(progress, startAngle),
-    );
-  }
-}
-
-class _StepCirclePainter extends CustomPainter {
-  final double progress;
-  final double startAngle;
-  _StepCirclePainter(this.progress, this.startAngle);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final r = size.width / 2;
-
-    // 진파랑 원
-    final bg = Paint()..color = kStepDark;
-    canvas.drawCircle(center, r, bg);
-
-    // 밝은 파랑 파이 조각 (좌상단에서 시계 방향)
-    final fg = Paint()..color = kStepLite;
-    final rect = Rect.fromCircle(center: center, radius: r);
-    final sweep = 2 * 3.141592653589793 * progress.clamp(0.0, 1.0);
-    canvas.drawArc(rect, startAngle, sweep, true, fg);
-  }
-
-  @override
-  bool shouldRepaint(_StepCirclePainter old) =>
-      old.progress != progress || old.startAngle != startAngle;
 }
 
 /// ===== 알약형 액션 버튼 (제목 더 크고/굵게) =====
