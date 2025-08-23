@@ -60,69 +60,69 @@ class _HomePageState extends State<HomePage> {
                         프로필 정보
                     */
                       InkWell(
-                        onTap: () {
+                        onTap: (){
                           Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => MyPage()),
-                          );
+                            context, 
+                            MaterialPageRoute(builder: (context)=>MyPage()),
+                            );
                         },
-                        child: Container(
-                          width: screenWidth * 0.4,
-                          height: screenHeight * 0.24,
-                          decoration: BoxDecoration(
-                            color: AppColors.yellow,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color.fromARGB(60, 0, 0, 0),
-                                spreadRadius: 5,
-                                blurRadius: 10,
-                                offset: Offset(0, 0),
+                      child: Container(
+                        width: screenWidth * 0.4,
+                        height: screenHeight * 0.25,
+                        decoration: BoxDecoration(
+                          color: AppColors.yellow,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color.fromARGB(60, 0, 0, 0),
+                              spreadRadius: 5,
+                              blurRadius: 10,
+                              offset: Offset(0, 0),
+                            ),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            vertical: 20.h,
+                            horizontal: 20.w,
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "레벤님,",
+                                    style: TextStyle(
+                                      fontFamily: 'GmarketSans',
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 20.sp,
+                                    ),
+                                  ),
+                                  Text(
+                                    "오늘도 뇌건강\n지키러 가볼까요?",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 15.sp,
+                                    ),
+                                    textAlign: TextAlign.start,
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Image.asset(
+                                    "assets/images/fire.png",
+                                    height: screenHeight * 0.08,
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: 20.h,
-                              horizontal: 20.w,
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      "레벤님,",
-                                      style: TextStyle(
-                                        fontFamily: 'GmarketSans',
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 20.sp,
-                                      ),
-                                    ),
-                                    Text(
-                                      "오늘도 뇌건강\n지키러 가볼까요?",
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 15.sp,
-                                      ),
-                                      textAlign: TextAlign.start,
-                                    ),
-                                  ],
-                                ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    Image.asset(
-                                      "assets/images/fire.png",
-                                      height: screenHeight * 0.08,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
                         ),
+                      ),
                       ),
                       SizedBox(height: 25.h),
 
@@ -172,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                             },
                             child: Container(
                               width: screenWidth * 0.4,
-                              height: screenHeight * 0.24,
+                              height: screenHeight * 0.25,
                               decoration: BoxDecoration(
                                 color: AppColors.white,
                                 borderRadius: BorderRadius.circular(20),
