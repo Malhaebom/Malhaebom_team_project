@@ -1,4 +1,5 @@
 // lib/screens/story/story_test_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/data/fairytale_data.dart';
@@ -10,12 +11,12 @@ import 'package:audioplayers/audioplayers.dart';
 // 데이터 모델
 // =========================
 class StoryQuestion {
-  final String category; // ex) '요구-직접화행', '질문', ...
-  final String prompt; // 문제 문장 (data의 "title")
-  final List<String> choices; // 보기 (data의 "list")
-  final int? answerIndex; // 정답 인덱스 (data의 "answer")
-  final String? cover; // 커버 이미지 (data의 "image")
-  final List<String> sounds; // ★ 추가: 이 문항에서 자동재생할 사운드들
+  final String category;
+  final String prompt;
+  final List<String> choices;
+  final int? answerIndex;
+  final String? cover;
+  final List<String> sounds;
 
   const StoryQuestion({
     required this.category,
@@ -23,7 +24,7 @@ class StoryQuestion {
     required this.choices,
     required this.answerIndex,
     this.cover,
-    this.sounds = const [], // ★ 기본값
+    this.sounds = const [],
   });
 }
 
@@ -31,8 +32,8 @@ class StoryQuestion {
 // 테스트 페이지
 // =========================
 class StoryTestPage extends StatefulWidget {
-  final String title; // ← 동화 제목 (데이터 맵의 키)
-  final String storyImg; // ← 백업 커버 이미지(데이터에 image 없을 때 사용)
+  final String title;
+  final String storyImg;
 
   const StoryTestPage({super.key, required this.title, required this.storyImg});
 
@@ -40,33 +41,45 @@ class StoryTestPage extends StatefulWidget {
   State<StoryTestPage> createState() => _StoryTestPageState();
 }
 
-class _StoryTestPageState extends State<StoryTestPage> {
-  static const int _kPointsPerQuestion = 2; // 문제당 2점
+class _StoryTestPageState extends State<StoryTestPage>
+    with WidgetsBindingObserver {
+  static const int _kPointsPerQuestion = 2;
 
   late final List<StoryQuestion> _questions;
-  late final List<bool?> _answers; // 정답/오답/미채점(null)
+  late final List<bool?> _answers;
   int _index = 0;
-  int? _selected; // 사용자가 고른 보기
-  int _pointScore = 0; // 누적 점수(포인트)
+  int? _selected;
+  int _pointScore = 0;
+  late final int _validCount;
 
-  // 정오 기록(결과 페이지로 넘길 용도)
-  late final int _validCount; // 정답이 지정된 문제 개수(= 분모/2)
-
-  // ====== ★ 오디오 재생 관련 ======
+  // ====== 오디오 ======
   late final AudioPlayer _player;
+  late final StreamSubscription<PlayerState> _stateSub;
   int _soundCursor = 0;
+  bool _isPlaying = false;
+  bool _resumeAfterResume = true;
+
+  // 이어재생을 위한 현재 트랙/위치
+  String? _currentSrc;
+  Duration _lastPos = Duration.zero;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _questions = _loadQuestionsFromData(widget.title, widget.storyImg);
     _answers = List<bool?>.filled(_questions.length, null);
     _validCount = _questions.where((q) => q.answerIndex != null).length;
 
-    // ★ 오디오 플레이어 초기화
     _player = AudioPlayer();
     _player.setPlayerMode(PlayerMode.mediaPlayer);
-    // 문항의 현재 트랙이 끝나면 다음 트랙 자동 재생
+    _player.setReleaseMode(ReleaseMode.stop);
+
+    _stateSub = _player.onPlayerStateChanged.listen((s) {
+      _isPlaying = s == PlayerState.playing;
+    });
+
     _player.onPlayerComplete.listen((event) {
       if (!mounted) return;
       final tracks =
@@ -77,7 +90,6 @@ class _StoryTestPageState extends State<StoryTestPage> {
       }
     });
 
-    // 첫 문항 자동 재생 (사운드 프리로드 후)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _preloadSounds();
       if (!mounted) return;
@@ -87,12 +99,52 @@ class _StoryTestPageState extends State<StoryTestPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _stateSub.cancel();
     _player.stop();
     _player.dispose();
     super.dispose();
   }
 
-  // ====== ★ 오디오: 현재 문항의 모든 사운드를 미리 로드
+  // ====== 앱 라이프사이클: 백그라운드 시 일시정지, 복귀 시 이어듣기 ======
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // 재생 중이었는지 기록 + 현재 위치 저장
+      _resumeAfterResume = _isPlaying || (_currentSrc != null);
+      try {
+        final pos = await _player.getCurrentPosition();
+        if (pos != null) _lastPos = pos;
+      } catch (_) {}
+      await _player.pause(); // 백그라운드에서 소리 안 나게
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      if (_resumeAfterResume && _currentSrc != null) {
+        // resume() 대신 명시적 시퀀스로 확실하게 이어듣기
+        try {
+          await _player.stop(); // 세션 초기화
+          await _player.setSource(_toSource(_currentSrc!));
+          if (_lastPos > Duration.zero) {
+            await _player.seek(_lastPos);
+          }
+          await _player.resume();
+        } catch (_) {
+          // 실패 시 fallback: play → (가능하면) seek
+          try {
+            await _player.play(_toSource(_currentSrc!));
+            if (_lastPos > Duration.zero) {
+              await _player.seek(_lastPos);
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  }
+
+  // ====== 사운드 프리로드 ======
   Future<void> _preloadSounds() async {
     final allSounds = <String>{};
     for (final q in _questions) {
@@ -102,25 +154,27 @@ class _StoryTestPageState extends State<StoryTestPage> {
         }
       }
     }
-
     if (allSounds.isEmpty) return;
 
     final keysToCache = allSounds.map(_toAssetKey).toList();
     try {
       await _player.audioCache.loadAll(keysToCache);
-      debugPrint('[StoryTestPage] Pre-loaded ${keysToCache.length} sounds into cache.');
-    } catch (e) {
-      debugPrint('[StoryTestPage] Failed to preload sounds: $e');
-    }
+    } catch (_) {}
   }
 
-  /// audioplayers AssetSource 키: assets/ 접두어는 빼야 한다.
   String _toAssetKey(String rawOrFull) {
     final r = rawOrFull.trim();
     return r.startsWith('assets/') ? r.substring('assets/'.length) : r;
   }
 
-  // 데이터 → 화면용 모델 변환
+  // 현재 src 문자열을 AudioPlayers Source로 변환
+  Source _toSource(String s) {
+    final t = s.trim();
+    if (t.startsWith('http')) return UrlSource(t);
+    return AssetSource(_toAssetKey(t));
+  }
+
+  // 데이터 로드
   List<StoryQuestion> _loadQuestionsFromData(
     String title,
     String fallbackCover,
@@ -131,52 +185,45 @@ class _StoryTestPageState extends State<StoryTestPage> {
     final cover = (root['image'] as String?) ?? fallbackCover;
     final List tests = (root['test'] as List?) ?? const [];
 
-    return tests
-        .map<StoryQuestion>((raw) {
-          final type = (raw['type'] ?? '').toString();
-          final prompt = (raw['title'] ?? '').toString();
-          final choices =
-              (raw['list'] as List?)?.map((e) => e.toString()).toList() ??
-                  const <String>[];
-          final a = raw['answer'];
+    return tests.map<StoryQuestion>((raw) {
+      final type = (raw['type'] ?? '').toString();
+      final prompt = (raw['title'] ?? '').toString();
+      final choices =
+          (raw['list'] as List?)?.map((e) => e.toString()).toList() ??
+              const <String>[];
+      final a = raw['answer'];
 
-          // ★ sounds 파싱: sounds(List) 또는 sound(String) 모두 허용
-          List<String> sounds = const [];
-          final rs = raw['sounds'];
-          if (rs is List) {
-            sounds = rs.map((e) => e.toString()).toList();
-          } else if (raw['sound'] != null) {
-            sounds = [raw['sound'].toString()];
-          }
+      List<String> sounds = const [];
+      final rs = raw['sounds'];
+      if (rs is List) {
+        sounds = rs.map((e) => e.toString()).toList();
+      } else if (raw['sound'] != null) {
+        sounds = [raw['sound'].toString()];
+      }
 
-          // answer 인덱스 방어 처리(0-based 가정, 범위 밖이면 0으로 보정)
-          int? ans;
-          if (a is int) {
-            if (a == 0) {
-              // 요구사항: 0은 "정답 미지정" → 채점에서 제외
-              ans = null;
-            } else if (a > 0 && a <= choices.length) {
-              // 양수는 1-based로 간주
-              ans = a - 1;
-            } else {
-              // 방어: 범위 밖이면 미지정으로
-              ans = null;
-            }
-          }
+      int? ans;
+      if (a is int) {
+        if (a == 0) {
+          ans = null;
+        } else if (a > 0 && a <= choices.length) {
+          ans = a - 1;
+        } else {
+          ans = null;
+        }
+      }
 
-          return StoryQuestion(
-            category: type,
-            prompt: prompt,
-            choices: choices,
-            answerIndex: ans,
-            cover: cover,
-            sounds: sounds, // ★ 주입
-          );
-        })
-        .toList(growable: false);
+      return StoryQuestion(
+        category: type,
+        prompt: prompt,
+        choices: choices,
+        answerIndex: ans,
+        cover: cover,
+        sounds: sounds,
+      );
+    }).toList(growable: false);
   }
 
-  // ====== ★ 오디오: 현재 문항의 모든 사운드를 순차 자동 재생
+  // ====== 현재 문항 사운드 자동 재생 ======
   Future<void> _playCurrentQuestionSounds() async {
     await _player.stop();
     _soundCursor = 0;
@@ -187,26 +234,15 @@ class _StoryTestPageState extends State<StoryTestPage> {
   }
 
   Future<void> _playTrack(String src) async {
-    final s = src.trim();
-
-    if (s.startsWith('http')) {
-      await _player.play(UrlSource(s));
-      return;
-    }
-
-    // `fairytale_data.dart`에 정의된 경로를 신뢰하고 바로 사용합니다.
-    // audioplayers의 AssetSource는 'assets/' 접두어를 제외한 경로를 기대합니다.
-    final key = _toAssetKey(s);
-
+    _currentSrc = src;
+    _lastPos = Duration.zero;
     try {
-      await _player.play(AssetSource(key));
-    } catch (e) {
-      debugPrint('[StoryTestPage] Failed to play asset: $key. Error: $e');
-    }
+      await _player.play(_toSource(src), position: Duration.zero);
+    } catch (_) {}
   }
 
   void _onSelect(int idx) {
-    setState(() => _selected = idx); // 선택만 표시. 즉시 채점/피드백 없음
+    setState(() => _selected = idx);
   }
 
   void _next() async {
@@ -214,9 +250,8 @@ class _StoryTestPageState extends State<StoryTestPage> {
     if (q.answerIndex != null && _selected != null) {
       final ok = (_selected == q.answerIndex);
       _answers[_index] = ok;
-      if (ok) _pointScore += _kPointsPerQuestion; // 문제당 2점
+      if (ok) _pointScore += _kPointsPerQuestion;
     } else {
-      // 정답 미지정 문제 or 선택 없음 → 점수/통계 둘 다 미반영
       _answers[_index] = null;
     }
 
@@ -225,15 +260,12 @@ class _StoryTestPageState extends State<StoryTestPage> {
         _index++;
         _selected = null;
       });
-      // ★ 다음 문항 사운드 자동 재생
       _playCurrentQuestionSounds();
       return;
     }
 
-    // 마지막 문항 → 결과로 이동 전 오디오 정리
     await _player.stop();
 
-    // --- 집계 ---
     final byCategory = <String, CategoryStat>{};
     final byType = <String, CategoryStat>{};
 
@@ -266,7 +298,7 @@ class _StoryTestPageState extends State<StoryTestPage> {
 
     for (var i = 0; i < _questions.length; i++) {
       final q = _questions[i];
-      if (q.answerIndex == null) continue; // 미지정 문제 제외
+      if (q.answerIndex == null) continue;
       final ok = _answers[i] ?? false;
       _add(byCategory, _baseCat(q.category), ok);
       final t = _typeCat(q.category);
@@ -279,14 +311,13 @@ class _StoryTestPageState extends State<StoryTestPage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder:
-            (_) => StoryResultPage(
-              score: _pointScore,
-              total: totalPoints,
-              byCategory: byCategory,
-              byType: byType,
-              testedAt: DateTime.now(),
-            ),
+        builder: (_) => StoryResultPage(
+          score: _pointScore,
+          total: totalPoints,
+          byCategory: byCategory,
+          byType: byType,
+          testedAt: DateTime.now(),
+        ),
       ),
     );
   }
@@ -362,14 +393,12 @@ class _StoryTestPageState extends State<StoryTestPage> {
                   SizedBox(height: 10.h),
                   _buildQuestionHeader(q),
                   SizedBox(height: 10.h),
-                  _coverImage(widget.storyImg, width: 120.w),
-                  SizedBox(height: 10.h),
                   _buildQuestionPrompt(q),
                   SizedBox(height: 12.h),
                   _buildChoices(q),
                   SizedBox(height: 8.h),
                   _buildProgressBar(),
-                  SizedBox(height: 80.h), // FAB 공간 확보
+                  SizedBox(height: 80.h),
                 ],
               ),
             ),
@@ -446,10 +475,18 @@ class _StoryTestPageState extends State<StoryTestPage> {
     );
   }
 
+  // 진행바: 좌/우 숫자 텍스트
   Widget _buildProgressBar() {
     return Row(
       children: [
-        _roundIndex(_index + 1, size: 30.w),
+        Text(
+          '${_index + 1}',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14.sp,
+            color: AppColors.btnColorDark,
+          ),
+        ),
         SizedBox(width: 10.w),
         Expanded(
           child: ClipRRect(
@@ -459,14 +496,9 @@ class _StoryTestPageState extends State<StoryTestPage> {
               child: LayoutBuilder(
                 builder: (context, c) => Stack(
                   children: [
-                    Container(
-                      width: c.maxWidth,
-                      color: const Color(0xFFE5E7EB),
-                    ),
+                    Container(width: c.maxWidth, color: const Color(0xFFE5E7EB)),
                     AnimatedContainer(
-                      duration: const Duration(
-                        milliseconds: 220,
-                      ),
+                      duration: const Duration(milliseconds: 220),
                       width: c.maxWidth * _progress,
                       color: AppColors.btnColorDark,
                     ),
@@ -490,28 +522,6 @@ class _StoryTestPageState extends State<StoryTestPage> {
   }
 
   // ===== UI helpers =====
-  Widget _coverImage(String src, {double? width}) {
-    final radius = 12.r;
-    final box = ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: Container(
-        color: const Color(0xFFF3F4F6),
-        child: AspectRatio(
-          aspectRatio: 3 / 4,
-          child:
-              src.startsWith('http')
-                  ? Image.network(src, fit: BoxFit.cover)
-                  : Image.asset(
-                    src,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-        ),
-      ),
-    );
-    return SizedBox(width: (width ?? 160.w), child: box);
-  }
-
   Widget _choiceTile({
     required int index,
     required String text,
@@ -552,10 +562,12 @@ class _StoryTestPageState extends State<StoryTestPage> {
     );
   }
 
+  // 보기 번호 원형 배지: 수직 정렬 문제 해결 + 스케일 고정
   Widget _choiceNumber(int n, Color color) {
+    final d = 28.w;
     return Container(
-      width: 28.w,
-      height: 28.w,
+      width: d,
+      height: d,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: color, width: 1.6),
@@ -563,32 +575,24 @@ class _StoryTestPageState extends State<StoryTestPage> {
       alignment: Alignment.center,
       child: Text(
         '$n',
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 14.sp,
-          color: color,
+        maxLines: 1,
+        overflow: TextOverflow.visible,
+        textScaler: const TextScaler.linear(1.0),
+        textHeightBehavior: const TextHeightBehavior(
+          applyHeightToFirstAscent: false,
+          applyHeightToLastDescent: false,
+          leadingDistribution: TextLeadingDistribution.even,
         ),
-      ),
-    );
-  }
-
-  Widget _roundIndex(int n, {double? size}) {
-    final s = size ?? 24.w;
-    return Container(
-      width: s,
-      height: s,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '$n',
+        strutStyle: StrutStyle(
+          forceStrutHeight: true,
+          height: 1.0,
+          fontSize: (d * 0.48),
+        ),
         style: TextStyle(
           fontWeight: FontWeight.w800,
-          fontSize: (s * 0.42),
-          color: const Color(0xFF6B7280),
+          fontSize: (d * 0.48),
+          height: 1.0,
+          color: color,
         ),
       ),
     );
