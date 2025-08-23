@@ -9,9 +9,16 @@ import 'package:stop_watch_timer/stop_watch_timer.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class BrainTrainingTestPage extends StatefulWidget {
-  const BrainTrainingTestPage({super.key, required this.title});
+  const BrainTrainingTestPage({
+    super.key, 
+    required this.title,
+    this.retryIndex,
+    this.retryAnswers,
+  });
 
   final String title;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<BrainTrainingTestPage> createState() => _BrainTrainingTestPageState();
@@ -137,6 +144,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   screenHeight: screenHeight,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "기억집중")
@@ -146,6 +155,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "문제해결능력" ||
@@ -157,6 +168,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "알록달록")
@@ -166,6 +179,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "음악과터치")
@@ -175,6 +190,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
             ],
           ),
@@ -240,6 +257,8 @@ class SpaceTimeTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.screenHeight,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final String category;
@@ -247,6 +266,8 @@ class SpaceTimeTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final double screenHeight;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<SpaceTimeTest> createState() => _SpaceTimeTestState();
@@ -260,11 +281,20 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
   void initState() {
     super.initState();
     setAnswers();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(widget.data.length, (index) => -1);
+      if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<int>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(widget.data.length, (index) => -1);
+      }
     });
   }
 
@@ -485,13 +515,14 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                     /*
                       테스트 결과 페이지로 넘어가기
                     */
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -536,6 +567,8 @@ class ConcentrationTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -543,6 +576,8 @@ class ConcentrationTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<ConcentrationTest> createState() => _ConcentrationTestState();
@@ -556,11 +591,20 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
   void initState() {
     super.initState();
     setAnswers();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(widget.data.length, (index) => -1);
+      if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<int>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(widget.data.length, (index) => -1);
+      }
     });
   }
 
@@ -719,13 +763,14 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                     /*
                       테스트 결과 페이지로 넘어가기
                     */
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -770,6 +815,8 @@ class SolvingTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -777,6 +824,8 @@ class SolvingTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<SolvingTest> createState() => _SolvingTestState();
@@ -789,7 +838,16 @@ class _SolvingTestState extends State<SolvingTest> {
   @override
   void initState() {
     super.initState();
-    answers = List.generate(widget.data.length, (index) => -1);
+    if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+      // 재시도인 경우 기존 답변 복원
+      answers = List<int>.from(widget.retryAnswers);
+    } else {
+      answers = List.generate(widget.data.length, (index) => -1);
+    }
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   @override
@@ -930,13 +988,14 @@ class _SolvingTestState extends State<SolvingTest> {
                           index++;
                         });
                       } else {
-                        Navigator.push(
+                        Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(
                             builder:
                                 (_) => BrainTrainingResultPage(
                                   data: widget.data,
                                   category: widget.category,
+                                  answers: answers,
                                 ),
                           ),
                         );
@@ -981,6 +1040,8 @@ class ColorTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -988,6 +1049,8 @@ class ColorTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<ColorTest> createState() => _ColorTestState();
@@ -1284,13 +1347,14 @@ class _ColorTestState extends State<ColorTest> {
                     /*
                       테스트 결과 페이지로 넘어가기
                     */
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -1335,6 +1399,8 @@ class MusicTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -1342,6 +1408,8 @@ class MusicTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<MusicTest> createState() => _MusicTestState();
@@ -1538,13 +1606,14 @@ class _MusicTestState extends State<MusicTest> {
                     /*
                       테스트 결과 페이지로 넘어가기
                     */
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
                         builder:
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
