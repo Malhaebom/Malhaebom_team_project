@@ -2,14 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
+
+// 프로젝트 실제 페이지/테마 사용
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
 // ★ 서버 베이스 URL (에뮬레이터 사용 시)
 const String API_BASE = 'http://10.0.2.2:4000/str';
-
-// ✅ 버튼/칩/원 내부처럼 “넘치면 안 되는 컨테이너”에서 쓸 고정 스케일러
-const TextScaler fixedScale = TextScaler.linear(1.0);
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -28,6 +27,8 @@ class StoryResultPage extends StatefulWidget {
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
   final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
   final DateTime testedAt;
+
+  /// (선택) 진행한 제목
   final String? storyTitle;
 
   const StoryResultPage({
@@ -50,7 +51,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _postAttemptTimeOnce());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _postAttemptTimeOnce();
+    });
   }
 
   Future<void> _postAttemptTimeOnce() async {
@@ -59,7 +62,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
     try {
       final uri = Uri.parse('$API_BASE/attempt');
+
+      // UTC ISO 형식
       final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
+
+      // 사람이 보기 좋은 KST 문자열(확인용)
       final clientKst = _formatKst(widget.testedAt);
 
       final body = jsonEncode({
@@ -73,7 +80,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      debugPrint('[STR] attempt POST status=${res.statusCode} body=${res.body}');
+
+      debugPrint(
+        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
+      );
     } catch (e) {
       debugPrint('[STR] attempt POST error: $e');
     }
@@ -104,9 +114,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
         title: Text(
           '화행 인지검사',
           style: TextStyle(
-            fontWeight: FontWeight.w700,
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w600, // 얇게
             fontSize: 18.sp,
-            color: AppColors.white,
+            color: Colors.white,
           ),
         ),
       ),
@@ -115,7 +126,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(_formatKst(widget.testedAt)), // ✅ 시간 텍스트 스케일 고정
+              _attemptChip(_formatKst(widget.testedAt)),
               SizedBox(height: 12.h),
 
               // 카드: 점수 요약 + 카테고리 바 4개
@@ -125,20 +136,24 @@ class _StoryResultPageState extends State<StoryResultPage> {
                   children: [
                     Text(
                       '인지검사 결과',
-                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     SizedBox(height: 4.h),
                     Text(
                       '검사 결과 요약입니다.',
                       style: TextStyle(
+                        fontFamily: 'GmarketSans',
                         fontSize: 13.sp,
                         color: const Color(0xFF6B7280),
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500, // 안내문 얇게
                       ),
                     ),
                     SizedBox(height: 14.h),
-
-                    _scoreCircle(widget.score, widget.total), // ✅ 원 내부 텍스트 고정
+                    _scoreCircle(widget.score, widget.total),
 
                     SizedBox(height: 16.h),
                     _riskBarRow('요구', widget.byCategory['요구']),
@@ -154,30 +169,63 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
               SizedBox(height: 14.h),
 
-              // 카드: 검사 결과 평가
+              // 카드: 검사 결과 평가 (표의 6개 지표 고정 설명)
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '검사 결과 평가',
-                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     SizedBox(height: 12.h),
+
                     if (showWarn) _warnBanner(),
-                    ..._buildEvalItems(widget.byType)
-                        .expand((w) => [w, SizedBox(height: 10.h)]),
+
+                    // 6개 지표 설명을 모두 노출
+                    ..._buildEvalItems(
+                      widget.byType,
+                    ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
 
               SizedBox(height: 20.h),
 
-              // 맨 아래: 두뇌 게임으로 이동
+              // 맨 아래: 두뇌 게임으로 이동 (아이콘 제거 + 얇은 폰트)
               SizedBox(
                 width: double.infinity,
                 height: 52.h,
-                child: _brainCta(), // ✅ 아이콘/텍스트 함께 스케일 or 함께 고정
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                        builder: (_) => const BrainTrainingMainPage(),
+                      ),
+                      (route) => false,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFD43B),
+                    foregroundColor: Colors.black,
+                    shape: const StadiumBorder(),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    '두뇌 게임으로 이동',
+                    style: TextStyle(
+                      fontFamily: 'GmarketSans',
+                      fontWeight: FontWeight.w400, // 얇게
+                      fontSize: 16.sp,
+                      letterSpacing: 0.2,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -207,7 +255,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  // ✅ 시간 칩: 텍스트 스케일 고정 + 잘림 방지(한 줄/ellipsis)
   Widget _attemptChip(String formattedKst) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
@@ -221,24 +268,20 @@ class _StoryResultPageState extends State<StoryResultPage> {
         children: [
           Text(
             '1회차',
-            textScaler: fixedScale,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 18.sp,
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w600,
+              fontSize: 13.sp,
               color: AppColors.btnColorDark,
             ),
           ),
           SizedBox(width: 10.w),
           Text(
             formattedKst,
-            textScaler: fixedScale, // ← 시스템 글씨 키워도 여기선 고정
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18.sp,
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w500,
+              fontSize: 13.sp,
               color: const Color(0xFF111827),
             ),
           ),
@@ -247,21 +290,16 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
-    final double d = 140.w;         // 원 지름
-    final double big = d * 0.40;    // 큰 숫자 폰트
-    final double small = d * 0.20;  // /분모 폰트
-
     return SizedBox(
-      width: d,
-      height: d,
+      width: 140.w,
+      height: 140.w,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Container(
-            width: d,
-            height: d,
+            width: 140.w,
+            height: 140.w,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFEF4444), width: 8),
@@ -273,24 +311,21 @@ class _StoryResultPageState extends State<StoryResultPage> {
             children: [
               Text(
                 '$score',
-                textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: big),
                 style: TextStyle(
-                  fontSize: big,
-                  fontWeight: FontWeight.w900,
+                  fontFamily: 'GmarketSans',
+                  fontSize: 46.sp,
+                  fontWeight: FontWeight.w700,
                   color: const Color(0xFFEF4444),
-                  height: 1.0,
+                  height: 0.9,
                 ),
               ),
               Text(
                 '/$total',
-                textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: small),
                 style: TextStyle(
-                  fontSize: small,
-                  fontWeight: FontWeight.w800,
+                  fontFamily: 'GmarketSans',
+                  fontSize: 15.sp,
+                  fontWeight: FontWeight.w600,
                   color: const Color(0xFFEF4444),
-                  height: 1.0,
                 ),
               ),
             ],
@@ -312,7 +347,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
             Text(
               label,
               style: TextStyle(
-                fontWeight: FontWeight.w800,
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w600,
                 fontSize: 13.sp,
                 color: const Color(0xFF4B5563),
               ),
@@ -327,9 +363,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
               ),
               child: Text(
                 eval.text,
-                textScaler: fixedScale, // 뱃지 내부도 넘침 방지
                 style: TextStyle(
-                  fontWeight: FontWeight.w900,
+                  fontFamily: 'GmarketSans',
+                  fontWeight: FontWeight.w700,
                   fontSize: 12.sp,
                   color: eval.textColor,
                 ),
@@ -404,7 +440,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
             child: Text(
               '인지 기능 저하가 의심됩니다. 전문가와 상담을 권장합니다.',
               style: TextStyle(
-                fontWeight: FontWeight.w800,
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w600,
                 fontSize: 13.sp,
                 color: const Color(0xFF7F1D1D),
               ),
@@ -415,26 +452,40 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
-    final items = <Widget>[];
-    void addIfLow(String key, String title, String body) {
-      final s = t[key];
-      if (s == null || s.total == 0) return;
-      if (s.correctRatio < 0.5) {
-        items.add(_evalBlock('[$title]이 부족합니다.', body));
-      }
-    }
-
-    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
-    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
-    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
-    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
-
-    if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
-    }
-    return items;
+  // 표 기준 6개 지표 설명 고정 노출
+  List<Widget> _buildEvalItems(Map<String, CategoryStat> _) {
+    return <Widget>[
+      _evalBlock(
+        '[반응 시간]',
+        '질문 종료 시점부터 응답 시작까지의 시간을 측정합니다. '
+            '예) 3초 이내: 상점 / 4–6초: 보통 / 7초 이상: 주의.',
+      ),
+      _evalBlock(
+        '[반복어 비율]',
+        '동일 단어·문장이 반복되는 비율입니다. '
+            '예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.',
+      ),
+      _evalBlock(
+        '[평균 문장 길이]',
+        '응답의 평균 단어(또는 음절) 수를 봅니다. '
+            '적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.',
+      ),
+      _evalBlock(
+        '[화행 적절성 점수]',
+        '질문 맥락과 응답 화행의 매칭(적합/비적합)을 판정합니다. '
+            '예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.',
+      ),
+      _evalBlock(
+        '[회상어 점수]',
+        '사람·장소·사건 등 회상 관련 키워드 포함과 풍부성을 평가합니다. '
+            '키워드 다수 포함: 상점 / 부족: 보통 / 없음: 주의.',
+      ),
+      _evalBlock(
+        '[문법 완성도]',
+        '비문 여부, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석합니다. '
+            '오류 없음: 상점 / 일부 오류: 보통 / 잦은 오류: 주의.',
+      ),
+    ];
   }
 
   Widget _evalBlock(String title, String body) {
@@ -451,7 +502,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
           Text(
             title,
             style: TextStyle(
-              fontWeight: FontWeight.w900,
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w700,
               fontSize: 14.sp,
               color: const Color(0xFF111827),
             ),
@@ -460,7 +512,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
           Text(
             body,
             style: TextStyle(
-              fontWeight: FontWeight.w700,
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w500, // 본문 얇게
               fontSize: 13.sp,
               color: const Color(0xFF4B5563),
               height: 1.5,
@@ -515,33 +568,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
         position: risk,
       );
     }
-  }
-
-  // ✅ 아이콘/텍스트를 함께 고정 스케일로 맞추고, 아이콘 크기를 폰트에 연동
-  Widget _brainCta() {
-    final double font = 22.sp;
-    final double iconSize = font * 1.25; // 텍스트 대비 살짝 크게
-
-    return ElevatedButton.icon(
-      onPressed: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
-          (route) => false,
-        );
-      },
-      icon: Icon(Icons.videogame_asset_rounded, size: iconSize),
-      label: Text(
-        '두뇌 게임으로 이동',
-        textScaler: fixedScale,
-        style: TextStyle(fontWeight: FontWeight.w900, fontSize: font),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFFD43B),
-        foregroundColor: Colors.black,
-        shape: const StadiumBorder(),
-        elevation: 0,
-      ),
-    );
   }
 }
 
