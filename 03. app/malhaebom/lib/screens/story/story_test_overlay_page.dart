@@ -198,8 +198,8 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                   onTap: () => Navigator.pop(context),
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: 12.w,
-                      vertical: 6.h,
+                      horizontal: 16.w,
+                      vertical: 8.h,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.black26,
@@ -212,7 +212,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontFamily: _kFont,
-                        fontSize: 13.sp,
+                        fontSize: 18.sp,
                         fontWeight: FontWeight.w600,
                         height: 1.1,
                         color: Colors.white,
