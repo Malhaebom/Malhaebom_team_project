@@ -492,6 +492,7 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -726,6 +727,7 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -937,6 +939,7 @@ class _SolvingTestState extends State<SolvingTest> {
                                 (_) => BrainTrainingResultPage(
                                   data: widget.data,
                                   category: widget.category,
+                                  answers: answers,
                                 ),
                           ),
                         );
@@ -1291,6 +1294,7 @@ class _ColorTestState extends State<ColorTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -1545,6 +1549,7 @@ class _MusicTestState extends State<MusicTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );

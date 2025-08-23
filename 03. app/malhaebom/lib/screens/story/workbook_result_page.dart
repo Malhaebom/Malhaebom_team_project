@@ -8,12 +8,12 @@ import 'package:malhaebom/theme/colors.dart';
 /// 결과 페이지
 class WorkbookResultPage extends StatefulWidget {
   final String title;
-  final String jsonAssetPath; // 동일 JSON으로 재도전
-  final List<WorkbookItem> items; // 이번 세션에 실제로 보여준(푼) 문제들(부분/전체)
+  final String jsonAssetPath;            // 동일 JSON으로 재도전
+  final List<WorkbookItem> items;        // 이번 세션에 실제로 보여준(푼) 문제들(부분/전체)
   final String imageBaseDir;
-  final List<int?> selections; // 각 문항 선택지(0~3) 또는 null
-  final List<bool?> corrects; // 각 문항 정오(null=안품)
-  final List<int> originalIndices; // 이 세션의 i가 전체 몇 번 문제인지(0-base)
+  final List<int?> selections;           // 각 문항 선택지(0~3) 또는 null
+  final List<bool?> corrects;            // 각 문항 정오(null=안품)
+  final List<int> originalIndices;       // 이 세션의 i가 전체 몇 번 문제인지(0-base)
 
   const WorkbookResultPage({
     super.key,
@@ -64,9 +64,7 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
       }
     } catch (_) {}
     // 실패 시, 이미 아는 범위로 폴백
-    return widget.originalIndices.isEmpty
-        ? 0
-        : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1);
+    return widget.originalIndices.isEmpty ? 0 : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1);
   }
 
   // 재도전(단일/다중) 후 결과를 받아 현재 진행상태에 머지
@@ -74,15 +72,14 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
     final ret = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder:
-            (_) => StoryWorkbookPage(
-              title: widget.title,
-              jsonAssetPath: widget.jsonAssetPath,
-              imageBaseDir: widget.imageBaseDir,
-              subsetIndices: subsetOriginalIndices,
-              // ★ 추가 파라미터: 결과를 pop으로 되돌리도록
-              returnResultToCaller: true,
-            ),
+        builder: (_) => StoryWorkbookPage(
+          title: widget.title,
+          jsonAssetPath: widget.jsonAssetPath,
+          imageBaseDir: widget.imageBaseDir,
+          subsetIndices: subsetOriginalIndices,
+          // ★ 추가 파라미터: 결과를 pop으로 되돌리도록
+          returnResultToCaller: true,
+        ),
       ),
     );
 
@@ -102,11 +99,9 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCount =
-        _totalCount ??
-        (widget.originalIndices.isEmpty
-            ? 0
-            : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1));
+    final totalCount = _totalCount ?? (widget.originalIndices.isEmpty
+        ? 0
+        : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1));
 
     // 현재까지 맞힌 개수
     final correctSoFar = _progress.values.where((v) => v == true).length;
@@ -146,7 +141,7 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
                     color: Colors.black.withOpacity(0.04),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
-                  ),
+                  )
                 ],
               ),
               child: Column(
@@ -173,9 +168,15 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
                   // 전설
                   Row(
                     children: [
-                      _legendDot(color: AppColors.btnColorDark, label: '맞힌 문제'),
+                      _legendDot(
+                        color: AppColors.btnColorDark,
+                        label: '맞힌 문제',
+                      ),
                       SizedBox(width: 12.w),
-                      _legendX(color: const Color(0xFFEF4444), label: '틀린 문제'),
+                      _legendX(
+                        color: const Color(0xFFEF4444),
+                        label: '틀린 문제',
+                      ),
                       SizedBox(width: 12.w),
                       _legendHollow(
                         color: const Color(0xFFCBD5E1),
@@ -196,10 +197,9 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
                         _ResultRow(
                           indexLabel: '${originalIdx + 1}번 문제',
                           state: state,
-                          onTap:
-                              canRetakeThis
-                                  ? () => _retakeAndMerge([originalIdx])
-                                  : null,
+                          onTap: canRetakeThis
+                              ? () => _retakeAndMerge([originalIdx])
+                              : null,
                         ),
                         const Divider(height: 16),
                       ],
@@ -214,10 +214,9 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
             SizedBox(
               height: 56.h, // ↑
               child: ElevatedButton(
-                onPressed:
-                    wrongOriginalIndices.isEmpty
-                        ? null
-                        : () => _retakeAndMerge(wrongOriginalIndices),
+                onPressed: wrongOriginalIndices.isEmpty
+                    ? null
+                    : () => _retakeAndMerge(wrongOriginalIndices),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFD43B),
                   disabledBackgroundColor: const Color(0xFFFFE8A3),
@@ -244,49 +243,49 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
   }
 
   Widget _legendDot({required Color color, required String label}) => Row(
-    children: [
-      Icon(Icons.circle_outlined, size: 20.sp, color: color),
-      SizedBox(width: 4.w),
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 14.sp,
-          color: const Color(0xFF6B7280),
-        ),
-      ),
-    ],
-  );
+        children: [
+          Icon(Icons.circle_outlined, size: 20.sp, color: color),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14.sp,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      );
 
   Widget _legendX({required Color color, required String label}) => Row(
-    children: [
-      Icon(Icons.close, size: 20.sp, color: color),
-      SizedBox(width: 4.w),
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 14.sp,
-          color: const Color(0xFF6B7280),
-        ),
-      ),
-    ],
-  );
+        children: [
+          Icon(Icons.close, size: 20.sp, color: color),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14.sp,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      );
 
   Widget _legendHollow({required Color color, required String label}) => Row(
-    children: [
-      Icon(Icons.circle_outlined, size: 20.sp, color: color),
-      SizedBox(width: 4.w),
-      Text(
-        label,
-        style: TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 14.sp,
-          color: const Color(0xFF6B7280),
-        ),
-      ),
-    ],
-  );
+        children: [
+          Icon(Icons.circle_outlined, size: 20.sp, color: color),
+          SizedBox(width: 4.w),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14.sp,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      );
 }
 
 /// 한 줄(문항) 결과
@@ -295,7 +294,11 @@ class _ResultRow extends StatelessWidget {
   final bool? state; // true=정답, false=오답, null=미응시
   final VoidCallback? onTap;
 
-  const _ResultRow({required this.indexLabel, required this.state, this.onTap});
+  const _ResultRow({
+    required this.indexLabel,
+    required this.state,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -337,10 +340,9 @@ class _ResultRow extends StatelessWidget {
             ),
             Icon(
               Icons.chevron_right,
-              color:
-                  onTap == null
-                      ? const Color(0xFFCBD5E1)
-                      : const Color(0xFF9CA3AF),
+              color: onTap == null
+                  ? const Color(0xFFCBD5E1)
+                  : const Color(0xFF9CA3AF),
             ),
           ],
         ),
