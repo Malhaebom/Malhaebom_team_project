@@ -1,5 +1,5 @@
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
-import 'package:malhaebom/screens/main/brain_test.dart';
+import 'package:malhaebom/screens/main/interview_list_page.dart';
 import 'package:malhaebom/screens/main/my_page.dart';
 import 'package:malhaebom/screens/physical_training/physical_training_main_page.dart';
 import 'package:malhaebom/screens/story/story_main_page.dart';
@@ -156,7 +156,7 @@ class _HomePageState extends State<HomePage> {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       /* 
-                      두뇌건강 점검
+                      화상 훈련
                     */
                       Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -166,7 +166,7 @@ class _HomePageState extends State<HomePage> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => BrainTestPage(),
+                                  builder: (context) => InterviewListPage(),
                                 ),
                               );
                             },
@@ -196,7 +196,7 @@ class _HomePageState extends State<HomePage> {
                                     ),
                                     SizedBox(height: 10.h),
                                     Text(
-                                      "두뇌건강 점검",
+                                      "회상 훈련",
                                       style: TextStyle(
                                         fontFamily: 'GmarketSans',
                                         fontWeight: FontWeight.w600,
