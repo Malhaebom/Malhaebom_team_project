@@ -119,7 +119,7 @@ class BrainTrainingData {
 
   static Map<String, dynamic> solving = {
     "문제01": {
-      "title": "주어진 상황에 대한 가장 적절한 대처 방법을 선택하세요.",
+      "title": "적절한 대처법을 선택하세요.",
       "image": "assets/training/brain/solving/01.png",
       "question": [
         "출입문을 발로 찬다.",
@@ -130,7 +130,7 @@ class BrainTrainingData {
       "answer": 2,
     },
     "문제02": {
-      "title": "주어진 상황에 대한 가장 적절한 대처 방법을 선택하세요.",
+      "title": "적절한 대처법을 선택하세요.",
       "image": "assets/training/brain/solving/02.png",
       "question": [
         "파란(초록) 신호가 켜지기 전에 건넌다.",

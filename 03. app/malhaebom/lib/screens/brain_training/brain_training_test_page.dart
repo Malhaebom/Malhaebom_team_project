@@ -1548,7 +1548,7 @@ class MusicTest extends StatefulWidget {
   State<MusicTest> createState() => _MusicTestState();
 }
 
-class _MusicTestState extends State<MusicTest> {
+class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
   int index = 0;
   List<List> answers = [];
 
@@ -1565,11 +1565,35 @@ class _MusicTestState extends State<MusicTest> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     setAnswers();
     setCount();
     // 재시도인 경우 해당 문제로 이동
     if (widget.retryIndex != null) {
       index = widget.retryIndex!;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    audioPlayer.stop();
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
+  // 앱 라이프사이클 감지: 홈버튼 누를 때 자동 재생 중지
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // 홈버튼이나 다른 앱으로 이동할 때 음악 자동 중지
+      if (isPlaying) {
+        audioPlayer.stop();
+        setState(() {
+          isPlaying = false;
+        });
+      }
     }
   }
 
