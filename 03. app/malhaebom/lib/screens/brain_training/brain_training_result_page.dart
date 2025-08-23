@@ -1,4 +1,5 @@
 import 'package:malhaebom/screens/main/home_page.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_start_page.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/liquid_circle_progress_widget.dart';
@@ -62,10 +63,19 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
           final userAnswer = complexAnswers[i];
           final correctAnswer = widget.data[keys[i]]["answer"];
           
-          // 현재는 단순화하여 처리 (실제로는 터치 패턴 비교 로직 필요)
-          bool isCorrect = userAnswer.length == correctAnswer.length;
-          if (isCorrect) {
-            correctAnswers++;
+          // 음악과터치 문제는 answer가 정수값이므로 다르게 처리
+          if (widget.category == "음악과터치") {
+            // 음악과터치는 userAnswer[0]이 실제 답변값
+            bool isCorrect = userAnswer[0] == correctAnswer;
+            if (isCorrect) {
+              correctAnswers++;
+            }
+          } else {
+            // 알록달록 문제는 터치 패턴 비교
+            bool isCorrect = userAnswer.length == correctAnswer.length;
+            if (isCorrect) {
+              correctAnswers++;
+            }
           }
         }
       }
@@ -81,6 +91,21 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
     print('correctPercentage 계산: $correctAnswers / ${widget.data.length} = $correctPercentage');
     print('correctPercentage * 100: ${correctPercentage * 100}');
     print('(correctPercentage * 100).toInt(): ${(correctPercentage * 100).toInt()}');
+    
+    // 음악과터치 디버깅
+    if (widget.category == "음악과터치") {
+      print('=== 음악과터치 디버깅 ===');
+      print('widget.answers: $widget.answers');
+      print('widget.answers.runtimeType: ${widget.answers.runtimeType}');
+      if (widget.answers is List<List>) {
+        List<List> complexAnswers = widget.answers as List<List>;
+        for (int i = 0; i < complexAnswers.length; i++) {
+          print('answers[$i]: ${complexAnswers[i]}');
+          print('answers[$i].runtimeType: ${complexAnswers[i].runtimeType}');
+        }
+      }
+      print('=== 음악과터치 디버깅 완료 ===');
+    }
     print('=== 추적 완료 ===');
   }
 
@@ -195,8 +220,14 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                               List<List> complexAnswers = widget.answers as List<List>;
                               if (index < complexAnswers.length) {
                                 final userAnswer = complexAnswers[index];
-                                // 현재는 단순화하여 처리
-                                isCorrect = userAnswer.length == correctAnswer.length;
+                                // 음악과터치 문제는 answer가 정수값이므로 다르게 처리
+                                if (widget.category == "음악과터치") {
+                                  // 음악과터치는 userAnswer[0]이 실제 답변값
+                                  isCorrect = userAnswer[0] == correctAnswer;
+                                } else {
+                                  // 알록달록 문제는 터치 패턴 비교
+                                  isCorrect = userAnswer.length == correctAnswer.length;
+                                }
                               }
                             }
                             
@@ -296,9 +327,10 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
+                    Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (context) => HomePage()),
+                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -323,7 +355,17 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BrainTrainingStartPage(
+                          title: widget.category,
+                        ),
+                      ),
+                      (route) => false,
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.white,
                     foregroundColor: AppColors.blue,
