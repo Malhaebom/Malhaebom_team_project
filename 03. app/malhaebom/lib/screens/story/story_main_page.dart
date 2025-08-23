@@ -42,7 +42,7 @@ class _StoryMainPageState extends State<StoryMainPage> {
                     backgroundColor: AppColors.btnColorDark,
                     elevation: 0,
                     title: Text(
-                      '화상 동화',
+                      '회상 동화',
                       style: TextStyle(
                         fontFamily: _kFont,
                         fontWeight: FontWeight.w500, // 얇게
