@@ -1,5 +1,6 @@
 import 'package:malhaebom/data/brain_training_data.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_result_page.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/custom_submit_button.dart';
 import 'package:flutter/material.dart';
@@ -108,22 +109,36 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        automaticallyImplyLeading: false,
-        scrolledUnderElevation: 0,
-        title: Center(
-          child: Text(
-            widget.title,
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+    return WillPopScope(
+      onWillPop: () async {
+        // 재시도 모드일 때만 BrainTrainingMainPage로 이동
+        if (widget.retryIndex != null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+            (route) => false,
+          );
+          return false;
+        }
+        // 일반 모드일 때는 기본 뒤로가기 동작
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          automaticallyImplyLeading: false,
+          scrolledUnderElevation: 0,
+          title: Center(
+            child: Text(
+              widget.title,
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+            ),
           ),
         ),
-      ),
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 40.w),
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 40.w),
           child: Column(
             children: [
               LinearPercentIndicator(
@@ -196,6 +211,7 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -329,18 +345,16 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -639,18 +653,16 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -1081,7 +1093,7 @@ class _ColorTestState extends State<ColorTest> {
         widget.data.length,
         (index) => List.generate(
           widget.data[widget.data.keys.toList()[index]]["answer"].length,
-          (index) => -1,
+          (innerIndex) => -1,
         ),
       );
 
@@ -1129,18 +1141,16 @@ class _ColorTestState extends State<ColorTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -1202,12 +1212,14 @@ class _ColorTestState extends State<ColorTest> {
                                   touchCount++;
                                   // 리스트에 1 append
                                 });
+                                break;
 
                               case 5:
                                 setState(() {
                                   touchCount++;
                                   // 리스트에 2 append
                                 });
+                                break;
                             }
                           }
                         }
@@ -1432,7 +1444,29 @@ class _MusicTestState extends State<MusicTest> {
   @override
   void initState() {
     super.initState();
+    setAnswers();
     setCount();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
+  }
+
+  void setAnswers() {
+    setState(() {
+      if (widget.retryAnswers != null && widget.retryAnswers is List<List>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<List>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(
+          widget.data.length,
+          (index) => List.generate(
+            widget.data[widget.data.keys.toList()[index]]["answer"].length,
+            (innerIndex) => -1,
+          ),
+        );
+      }
+    });
   }
 
   void setCount() {
@@ -1511,18 +1545,16 @@ class _MusicTestState extends State<MusicTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 

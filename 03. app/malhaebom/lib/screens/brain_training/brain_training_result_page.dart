@@ -100,20 +100,21 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
-          (route) => false,
-        );
-        return false;
-      },
-      child: Scaffold(
+    return Scaffold(
         appBar: AppBar(
           backgroundColor: AppColors.background,
           automaticallyImplyLeading: false,
           scrolledUnderElevation: 0,
+          leading: IconButton(
+            icon: Icon(Icons.arrow_back, color: AppColors.text),
+            onPressed: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+                (route) => false,
+              );
+            },
+          ),
           title: Center(
             child: Text(
               "테스트 결과",
@@ -342,7 +343,6 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
               SizedBox(height: 20.h),
             ],
           ),
-        ),
         ),
       ),
     );
