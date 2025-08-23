@@ -2,8 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:malhaebom/screens/story/story_test_result_page.dart';
 import 'package:malhaebom/screens/story/story_workbook_page.dart';
 import 'package:malhaebom/theme/colors.dart';
+
+const String _kFont = 'GmarketSans';
 
 /// 결과 페이지
 class WorkbookResultPage extends StatefulWidget {
@@ -177,11 +180,6 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
                         color: const Color(0xFFEF4444),
                         label: '틀린 문제',
                       ),
-                      SizedBox(width: 12.w),
-                      _legendHollow(
-                        color: const Color(0xFFCBD5E1),
-                        label: '미응시',
-                      ),
                     ],
                   ),
                   SizedBox(height: 14.h),
@@ -228,14 +226,15 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
                   wrongOriginalIndices.isEmpty
                       ? '모든 문제를 맞혔어요!'
                       : '틀린 문제만 다시 풀기',
+                  textScaler: fixedScale,
                   style: TextStyle(
+                    fontFamily: _kFont,
                     fontWeight: FontWeight.w900,
-                    fontSize: 18.sp, // ↑
+                    fontSize: 20.sp, // ↑
                   ),
                 ),
               ),
             ),
-            // 하단 "정답: x/y" 표기는 요청으로 제거
           ],
         ),
       ),

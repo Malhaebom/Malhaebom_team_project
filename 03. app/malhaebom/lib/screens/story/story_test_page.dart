@@ -7,6 +7,8 @@ import 'package:malhaebom/screens/story/story_test_result_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:audioplayers/audioplayers.dart';
 
+const String _kFont = 'GmarketSans';
+
 // =========================
 // 데이터 모델
 // =========================
@@ -335,6 +337,7 @@ class _StoryTestPageState extends State<StoryTestPage>
           title: Text(
             widget.title,
             style: TextStyle(
+              fontFamily: _kFont,
               color: Colors.white,
               fontSize: 18.sp,
               fontWeight: FontWeight.w700,
@@ -371,6 +374,7 @@ class _StoryTestPageState extends State<StoryTestPage>
       title: Text(
         '화행 인지검사',
         style: TextStyle(
+          fontFamily: _kFont,
           fontWeight: FontWeight.w700,
           fontSize: 18.sp,
           color: AppColors.white,
@@ -424,7 +428,7 @@ class _StoryTestPageState extends State<StoryTestPage>
           onPressed: (_selected == null) ? null : _next,
           child: Text(
             _index < _questions.length - 1 ? '다음' : '완료',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16.sp),
+            style: TextStyle(fontFamily: _kFont, fontWeight: FontWeight.w900, fontSize: 16.sp),
           ),
         ),
       ),
@@ -436,6 +440,7 @@ class _StoryTestPageState extends State<StoryTestPage>
       '${_index + 1}번. ${q.category}',
       textAlign: TextAlign.center,
       style: TextStyle(
+        fontFamily: _kFont,
         fontWeight: FontWeight.w800,
         fontSize: 24.sp,
         color: AppColors.btnColorDark,
@@ -450,6 +455,7 @@ class _StoryTestPageState extends State<StoryTestPage>
         q.prompt,
         textAlign: TextAlign.center,
         style: TextStyle(
+          fontFamily: _kFont,
           fontSize: 20.sp,
           fontWeight: FontWeight.w800,
           color: const Color(0xFF111827),

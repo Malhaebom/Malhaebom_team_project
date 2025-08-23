@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 import 'package:malhaebom/screens/brain_training/brain_training_start_page.dart';
-import 'package:malhaebom/screens/brain_training/brain_training_info_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/back_to_home.dart';
 import 'package:malhaebom/widgets/brain_training_btn.dart';
@@ -124,14 +123,6 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                                         ),
                                       );
                                     } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  BrainTrainingInfoPage(),
-                                        ),
-                                      );
                                     }
                                   },
                                 ),
@@ -175,14 +166,6 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                                         ),
                                       );
                                     } else {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  BrainTrainingInfoPage(),
-                                        ),
-                                      );
                                     }
                                   },
                                 ),

@@ -1,3 +1,4 @@
+// lib/screens/story/story_workbook_page.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -19,10 +20,10 @@ class WorkbookItem {
   });
 
   factory WorkbookItem.fromJson(Map<String, dynamic> j) => WorkbookItem(
-    title: j['title'] as String,
-    imageNames: (j['list'] as List).cast<String>(),
-    answerIndex: j['answer'] as int,
-  );
+        title: j['title'] as String,
+        imageNames: (j['list'] as List).cast<String>(),
+        answerIndex: j['answer'] as int,
+      );
 }
 
 /// ===== 페이지 =====
@@ -87,7 +88,7 @@ class _StoryWorkbookPageState extends State<StoryWorkbookPage> {
               jsonAssetPath: widget.jsonAssetPath,
               originalIndices:
                   widget.subsetIndices ??
-                  List<int>.generate(items.length, (i) => i),
+                      List<int>.generate(items.length, (i) => i),
               returnResultToCaller: widget.returnResultToCaller,
             );
           },
@@ -189,7 +190,7 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
   Widget build(BuildContext context) {
     final item = widget.items[_index];
 
-    // ★ 변경: 현재 문제의 "원본" 번호 계산(1-base)
+    // 현재 문제의 "원본" 번호(1-base) — 상단 타이틀에만 사용
     final originalNo = (_index >= 0 && _index < widget.originalIndices.length)
         ? widget.originalIndices[_index] + 1
         : _index + 1;
@@ -217,7 +218,7 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
             SizedBox(height: 6.h),
             Center(
               child: Text(
-                // ★ 변경: 부분 세트 순번이 아닌, 원본 번호 표기
+                // 상단 문제 제목은 원본 번호를 유지
                 '${originalNo}번 문제',
                 style: TextStyle(
                   fontFamily: _kFont,
@@ -270,47 +271,8 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
 
             SizedBox(height: 16.h),
 
-            // 진행도
-            Row(
-              children: [
-                // ★ 변경: 동그라미에도 원본 번호 표기
-                _roundIndex(_index + 1, size: 34.w),
-                SizedBox(width: 10.w),
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(999),
-                    child: SizedBox(
-                      height: 12.h,
-                      child: LayoutBuilder(
-                        builder: (context, c) => Stack(
-                          children: [
-                            Container(
-                              width: c.maxWidth,
-                              color: const Color(0xFFE5E7EB),
-                            ),
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 220),
-                              width: c.maxWidth * _progress,
-                              color: AppColors.btnColorDark,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 10.w),
-                Text(
-                  '${widget.items.length}',
-                  style: TextStyle(
-                    fontFamily: _kFont,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16.sp,
-                    color: const Color(0xFF6B7280),
-                  ),
-                ),
-              ],
-            ),
+            // ===== 진행도 (test_page 스타일, 동그라미 제거) =====
+            _buildProgressBar(),
 
             SizedBox(height: 60.h),
           ],
@@ -347,26 +309,52 @@ class _WorkbookRunnerState extends State<_WorkbookRunner> {
     );
   }
 
-  Widget _roundIndex(int n, {double? size}) {
-    final s = size ?? 28.w;
-    return Container(
-      width: s,
-      height: s,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '$n',
-        style: TextStyle(
-          fontFamily: _kFont,
-          fontWeight: FontWeight.w700,
-          fontSize: (s * 0.46),
-          color: const Color(0xFF6B7280),
+  /// test_page 진행바와 동일: 왼쪽 현재 번호(텍스트), 가운데 바, 오른쪽 총 문항 수
+  Widget _buildProgressBar() {
+    return Row(
+      children: [
+        // 현재 번호 (워크북 세션 내 인덱스)
+        Text(
+          '${_index + 1}',
+          style: TextStyle(
+            fontFamily: _kFont,
+            fontWeight: FontWeight.w800,
+            fontSize: 14.sp,
+            color: AppColors.btnColorDark,
+          ),
         ),
-      ),
+        SizedBox(width: 10.w),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: SizedBox(
+              height: 10.h, // test_page와 동일 높이
+              child: LayoutBuilder(
+                builder: (context, c) => Stack(
+                  children: [
+                    Container(width: c.maxWidth, color: const Color(0xFFE5E7EB)),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: c.maxWidth * _progress,
+                      color: AppColors.btnColorDark,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 10.w),
+        Text(
+          '${widget.items.length}',
+          style: TextStyle(
+            fontFamily: _kFont,
+            fontWeight: FontWeight.w700,
+            fontSize: 14.sp,
+            color: const Color(0xFF6B7280),
+          ),
+        ),
+      ],
     );
   }
 }
