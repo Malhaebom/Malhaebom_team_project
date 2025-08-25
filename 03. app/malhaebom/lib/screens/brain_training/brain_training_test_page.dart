@@ -973,7 +973,7 @@ class _SolvingTestState extends State<SolvingTest> {
     final currentKey = widget.data.keys.toList()[index];
     final currentData = widget.data[currentKey];
     
-    // 문제해결능력의 문제01, 02는 더 좁은 너비로 설정
+    // 문제해결능력의 문제01, 02는 선택지 박스 가로길이 조정
     bool isProblemSolving01or02 = widget.category == "문제해결능력" && (currentKey == "문제01" || currentKey == "문제02");
     
     return InkWell(
@@ -1009,12 +1009,12 @@ class _SolvingTestState extends State<SolvingTest> {
           currentData["question"][idx],
           textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
           style: TextStyle(
-            fontSize: isProblemSolving01or02 ? 18.sp : 16.sp, // 문제01, 02는 더 큰 폰트
+            fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
             fontWeight: FontWeight.w500,
             color: answers[index] == idx ? AppColors.blue : AppColors.text,
           ),
           textAlign: TextAlign.center,
-          maxLines: isProblemSolving01or02 ? 4 : 3, // 문제01, 02는 더 많은 줄 허용
+          maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
           overflow: TextOverflow.ellipsis,
         ),
       ),
