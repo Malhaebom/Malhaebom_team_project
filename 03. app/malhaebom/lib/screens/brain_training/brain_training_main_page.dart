@@ -70,114 +70,129 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
           backgroundColor: AppColors.background,
           title: Text(
             "두뇌 단련",
+            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
             style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
           ),
         ),
         backgroundColor: AppColors.background,
-        body: Center(
+        body: SafeArea(
           child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 10.h),
+            padding: EdgeInsets.symmetric(horizontal: 20.w),
             child: Column(
               children: [
+                // 상단 여백
+                SizedBox(height: 20.h),
+                
+                // 안내 텍스트 - 크기 증가 및 여백 조정
                 Text(
                   "오늘은 어떤 역량을 늘려볼까요?\n원하는 활동을 선택해보세요.",
                   textAlign: TextAlign.center,
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
-                    fontSize: 14.sp,
+                    fontSize: 18.sp,
                     fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                    height: 1.4,
                   ),
                 ),
 
-                SizedBox(height: 20.h),
+                // 텍스트와 버튼 사이 여백 증가
+                SizedBox(height: 40.h),
 
-                Row(
-                  children: [
-                    // 왼쪽 컬럼 (짝수 인덱스)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(left: 15.w),
-                        child: ListView.builder(
-                          itemCount: leftCount,
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          itemBuilder: (context, index) {
-                            return Column(
-                              children: [
-                                TrainingBtn(
-                                  screenHeight: screenHeight,
-                                  screenWidth: screenWidth,
-                                  btnColor: btnColorList[index * 2],
-                                  btnIcon: btnIconList[index * 2],
-                                  btnText: btnTextList[index * 2],
-                                  onPressed: () {
-                                    if (btnTextList[index * 2] != "건강정보") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  BrainTrainingStartPage(
-                                                    title:
-                                                        btnTextList[index * 2],
-                                                  ),
-                                        ),
-                                      );
-                                    } else {
-                                    }
-                                  },
-                                ),
-                                SizedBox(height: 20.h),
-                              ],
-                            );
-                          },
+                // 버튼 그리드 - Expanded로 남은 공간 활용
+                Expanded(
+                  child: Row(
+                    children: [
+                      // 왼쪽 컬럼 (짝수 인덱스)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(right: 10.w),
+                          child: ListView.builder(
+                            itemCount: leftCount,
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return Column(
+                                children: [
+                                  TrainingBtn(
+                                    screenHeight: screenHeight,
+                                    screenWidth: screenWidth,
+                                    btnColor: btnColorList[index * 2],
+                                    btnIcon: btnIconList[index * 2],
+                                    btnText: btnTextList[index * 2],
+                                    onPressed: () {
+                                      if (btnTextList[index * 2] != "건강정보") {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) =>
+                                                    BrainTrainingStartPage(
+                                                      title:
+                                                          btnTextList[index * 2],
+                                                    ),
+                                          ),
+                                        );
+                                      } else {
+                                      }
+                                    },
+                                  ),
+                                  SizedBox(height: 25.h),
+                                ],
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
 
-                    // 오른쪽 컬럼 (홀수 인덱스)
-                    Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(right: 15.w),
-                        child: ListView.builder(
-                          itemCount: rightCount,
-                          shrinkWrap: true,
-                          physics: NeverScrollableScrollPhysics(),
-                          itemBuilder: (context, index) {
-                            return Column(
-                              children: [
-                                TrainingBtn(
-                                  screenHeight: screenHeight,
-                                  screenWidth: screenWidth,
-                                  btnColor: btnColorList[index * 2 + 1],
-                                  btnIcon: btnIconList[index * 2 + 1],
-                                  btnText: btnTextList[index * 2 + 1],
-                                  onPressed: () {
-                                    if (btnTextList[index * 2 + 1] != "건강정보") {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder:
-                                              (context) =>
-                                                  BrainTrainingStartPage(
-                                                    title:
-                                                        btnTextList[index * 2 +
-                                                            1],
-                                                  ),
-                                        ),
-                                      );
-                                    } else {
-                                    }
-                                  },
-                                ),
-                                SizedBox(height: 20.h),
-                              ],
-                            );
-                          },
+                      // 오른쪽 컬럼 (홀수 인덱스)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: 10.w),
+                          child: ListView.builder(
+                            itemCount: rightCount,
+                            shrinkWrap: true,
+                            physics: NeverScrollableScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return Column(
+                                children: [
+                                  TrainingBtn(
+                                    screenHeight: screenHeight,
+                                    screenWidth: screenWidth,
+                                    btnColor: btnColorList[index * 2 + 1],
+                                    btnIcon: btnIconList[index * 2 + 1],
+                                    btnText: btnTextList[index * 2 + 1],
+                                    onPressed: () {
+                                      if (btnTextList[index * 2 + 1] != "건강정보") {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder:
+                                                (context) =>
+                                                    BrainTrainingStartPage(
+                                                      title:
+                                                          btnTextList[index * 2 +
+                                                              1],
+                                                    ),
+                                          ),
+                                        );
+                                      } else {
+                                      }
+                                    },
+                                  ),
+                                  SizedBox(height: 25.h),
+                                ],
+                              );
+                            },
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                
+                // 하단 여백
+                SizedBox(height: 20.h),
               ],
             ),
           ),
