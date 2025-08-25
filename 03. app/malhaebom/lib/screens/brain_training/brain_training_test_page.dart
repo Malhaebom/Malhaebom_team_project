@@ -111,7 +111,7 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
 
     return WillPopScope(
       onWillPop: () async {
-        // 재시도 모드일 때만 BrainTrainingMainPage로 이동
+        // 재시도 모드일 때는 BrainTrainingMainPage로 이동
         if (widget.retryIndex != null) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -120,8 +120,13 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
           );
           return false;
         }
-        // 일반 모드일 때는 기본 뒤로가기 동작
-        return true;
+        // 일반 모드일 때는 BrainTrainingMainPage로 이동
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+          (route) => false,
+        );
+        return false;
       },
       child: Scaffold(
         appBar: AppBar(
@@ -131,6 +136,7 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
           title: Center(
             child: Text(
               widget.title,
+              textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
               style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
             ),
           ),
@@ -255,6 +261,7 @@ class _TimeDisplayState extends State<TimeDisplay> {
   Widget build(BuildContext context) {
     return Text(
       displayTime,
+      textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
       style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16.sp),
     );
   }
@@ -328,6 +335,7 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -348,6 +356,7 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                 child: Text(
                   textAlign: TextAlign.center,
                   widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -369,20 +378,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                         setState(() {
                           answers[index] = 0;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         height: widget.screenHeight * 0.2,
@@ -419,20 +414,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                         setState(() {
                           answers[index] = 1;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         height: widget.screenHeight * 0.2,
@@ -473,20 +454,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                         setState(() {
                           answers[index] = 2;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         height: widget.screenHeight * 0.2,
@@ -523,20 +490,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                         setState(() {
                           answers[index] = 3;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         height: widget.screenHeight * 0.2,
@@ -570,50 +523,69 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
 
           Column(
             children: [
-              // 재시도 모드가 아닐 때만 다음 문제 버튼 표시
+              // 재시도 모드가 아닐 때만 버튼들 표시
               if (widget.retryIndex == null)
-                CustomSubmitButton(
-                  btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                  isActive: answers[index] != -1,
-                  onPressed: () {
-                    if (index != widget.data.length - 1) {
-                      if (answers[index] != -1) {
-                        setState(() {
-                          widget.forwardFunc();
-                          index += 1;
-                        });
-                      }
-                    } else {
-                      /*
-                        테스트 결과 페이지로 넘어가기
-                      */
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomSubmitButton(
+                        btnText: "이전 문제",
+                        isActive: index != 0,
+                        onPressed: index != 0 ? () {
+                          setState(() {
+                            widget.prevFunc();
+                            index -= 1;
+                          });
+                        } : () {},
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: CustomSubmitButton(
+                        btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                        isActive: answers[index] != -1,
+                        onPressed: () {
+                          if (answers[index] == -1) return;
+                          if (index != widget.data.length - 1) {
+                            setState(() {
+                              widget.forwardFunc();
+                              index += 1;
+                            });
+                          } else {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => BrainTrainingResultPage(
+                                  data: widget.data,
+                                  category: widget.category,
+                                  answers: answers,
+                                ),
                               ),
-                        ),
-                      );
-                    }
-                  },
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
 
-              SizedBox(height: 10.h),
-
-              // 재시도 모드가 아닐 때만 이전 문제 버튼 표시
-              if (widget.retryIndex == null && index != 0)
+              // 재시도 모드일 때만 결과 확인 버튼 표시
+              if (widget.retryIndex != null)
                 CustomSubmitButton(
-                  btnText: "이전 문제",
-                  isActive: true,
+                  btnText: "결과 확인",
+                  isActive: answers[index] != -1,
                   onPressed: () {
-                    setState(() {
-                      widget.prevFunc();
-                      index -= 1;
-                    });
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BrainTrainingResultPage(
+                          data: widget.data,
+                          category: widget.category,
+                          answers: answers,
+                          originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                        ),
+                      ),
+                    );
                   },
                 ),
 
@@ -694,6 +666,7 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -714,6 +687,7 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                 child: Text(
                   textAlign: TextAlign.center,
                   widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -749,20 +723,6 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                         setState(() {
                           answers[index] = 0;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         padding: EdgeInsets.all(15.h),
@@ -798,20 +758,6 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                         setState(() {
                           answers[index] = 1;
                         });
-                        
-                        // 재시도 모드인 경우 즉시 결과페이지로 이동
-                        if (widget.retryIndex != null) {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                            ),
-                          );
-                        }
                       },
                       child: Container(
                         padding: EdgeInsets.all(15.h),
@@ -842,60 +788,77 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: answers[index] != -1,
+                         onPressed: () {
+                           if (answers[index] == -1) return;
+                           if (index != widget.data.length - 1) {
+                             setState(() {
+                               widget.forwardFunc();
+                               index += 1;
+                             });
+                           } else {
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              // 재시도 모드가 아닐 때만 다음 문제 버튼 표시
-              if (widget.retryIndex == null)
-                CustomSubmitButton(
-                  btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                  isActive: answers[index] != -1,
-                  onPressed: () {
-                    if (index != widget.data.length - 1) {
-                      if (answers[index] != -1) {
-                        setState(() {
-                          widget.forwardFunc();
-                          index += 1;
-                        });
-                      }
-                    } else {
-                      /*
-                        테스트 결과 페이지로 넘어가기
-                      */
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                        ),
-                      );
-                    }
-                  },
-                ),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: answers[index] != -1,
+                   onPressed: () {
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              SizedBox(height: 10.h),
-
-              // 재시도 모드가 아닐 때만 이전 문제 버튼 표시
-              if (widget.retryIndex == null && index != 0)
-                CustomSubmitButton(
-                  btnText: "이전 문제",
-                  isActive: true,
-                  onPressed: () {
-                    setState(() {
-                      widget.prevFunc();
-                      index -= 1;
-                    });
-                  },
-                ),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );
@@ -950,6 +913,114 @@ class _SolvingTestState extends State<SolvingTest> {
     }
   }
 
+  Widget _buildAnswerOptions() {
+    final currentKey = widget.data.keys.toList()[index];
+    final currentData = widget.data[currentKey];
+    final questionCount = currentData["question"].length;
+    
+    // 디버깅용 로그 추가
+    print("Category: ${widget.category}, CurrentKey: $currentKey, QuestionCount: $questionCount");
+    
+    // 문제해결능력의 문제01, 02만 세로형(1x4)으로 표시
+    if (widget.category == "문제해결능력" && (currentKey == "문제01" || currentKey == "문제02")) {
+      // 세로형 리스트로 표시
+      return ListView.builder(
+        itemCount: questionCount + 1, // 하단 여백을 위한 +1
+        itemBuilder: (context, idx) {
+          if (idx == questionCount) {
+            // 하단 여백
+            return SizedBox(height: 20.h);
+          }
+          return Column(
+            children: [
+              _buildAnswerOption(idx),
+              SizedBox(height: 8.h),
+            ],
+          );
+        },
+      );
+    } else if (questionCount == 4) {
+      // 그 외의 4개 선택지는 모두 2x2 그리드로 표시
+      return GridView.count(
+        crossAxisCount: 2,
+        childAspectRatio: 2.5,
+        crossAxisSpacing: 8.w,
+        mainAxisSpacing: 8.h,
+        padding: EdgeInsets.only(bottom: 20.h),
+        children: List.generate(questionCount, (idx) => _buildAnswerOption(idx)),
+      );
+    } else {
+      // 그 외의 경우는 기존 리스트 형태로 표시
+      return ListView.builder(
+        itemCount: questionCount + 1, // 하단 여백을 위한 +1
+        itemBuilder: (context, idx) {
+          if (idx == questionCount) {
+            // 하단 여백
+            return SizedBox(height: 20.h);
+          }
+          return Column(
+            children: [
+              _buildAnswerOption(idx),
+              SizedBox(height: 8.h),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildAnswerOption(int idx) {
+    final currentKey = widget.data.keys.toList()[index];
+    final currentData = widget.data[currentKey];
+    
+    // 문제해결능력의 문제01, 02는 더 좁은 너비로 설정
+    bool isProblemSolving01or02 = widget.category == "문제해결능력" && (currentKey == "문제01" || currentKey == "문제02");
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          answers[index] = idx;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: isProblemSolving01or02 ? double.infinity : null, // 문제01, 02는 전체 너비 사용
+        padding: EdgeInsets.symmetric(
+          vertical: 15.h, 
+          horizontal: isProblemSolving01or02 ? 20.w : 12.w, // 문제01, 02는 더 넓은 패딩
+        ),
+        decoration: BoxDecoration(
+          color: answers[index] == idx ? AppColors.blue.withOpacity(0.1) : AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: answers[index] == idx 
+            ? Border.all(color: AppColors.blue, width: 2)
+            : Border.all(color: Colors.grey.shade300),
+          boxShadow: answers[index] == idx
+            ? [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ]
+            : [],
+        ),
+        child: Text(
+          currentData["question"][idx],
+          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+          style: TextStyle(
+            fontSize: isProblemSolving01or02 ? 18.sp : 16.sp, // 문제01, 02는 더 큰 폰트
+            fontWeight: FontWeight.w500,
+            color: answers[index] == idx ? AppColors.blue : AppColors.text,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: isProblemSolving01or02 ? 4 : 3, // 문제01, 02는 더 많은 줄 허용
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentKey = widget.data.keys.toList()[index];
@@ -966,6 +1037,7 @@ class _SolvingTestState extends State<SolvingTest> {
                 children: [
                   Text(
                     currentKey,
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -987,6 +1059,7 @@ class _SolvingTestState extends State<SolvingTest> {
                 child: Text(
                   currentData["title"],
                   textAlign: TextAlign.center,
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -998,146 +1071,105 @@ class _SolvingTestState extends State<SolvingTest> {
               SizedBox(height: 10.h),
               Container(
                 width: double.infinity,
-                height: widget.screenHeight * 0.35,
+                constraints: BoxConstraints(
+                  maxHeight: currentKey == "문제03" 
+                    ? widget.screenHeight * 0.35  // 문제03은 높이 증가
+                    : widget.screenHeight * 0.28,
+                ),
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage(currentData["image"]),
-                    fit: BoxFit.fill,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
               SizedBox(height: 10.h),
               Expanded(
-                child: ListView.builder(
-                  itemCount: 5,
-                  itemBuilder: (context, idx) {
-                    if (idx == 4) {
-                      if (index == 0) {
-                        return SizedBox(height: 75.h);
-                      } else {
-                        return SizedBox(height: 120.h);
-                      }
-                    }
-
-                    return Column(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              answers[index] = idx;
-                            });
-                            
-                            // 재시도 모드인 경우 즉시 결과페이지로 이동
-                            if (widget.retryIndex != null) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => BrainTrainingResultPage(
-                                    data: widget.data,
-                                    category: widget.category,
-                                    answers: answers,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(10.h),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                                  answers[index] == idx
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 8,
-                                          offset: Offset(0, 4),
-                                        ),
-                                      ]
-                                      : [],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    currentData["question"][idx],
-                                    style: TextStyle(
-                                      fontSize: 15.sp,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                      ],
-                    );
-                  },
-                ),
+                child: _buildAnswerOptions(),
               ),
             ],
           ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(color: AppColors.background),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: 15.h),
-                  // 재시도 모드가 아닐 때만 다음 문제 버튼 표시
-                  if (widget.retryIndex == null)
-                    CustomSubmitButton(
-                      btnText:
-                          index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                      isActive: answers[index] != -1,
-                      onPressed: () {
-                        if (answers[index] == -1) return;
-                        if (index < widget.data.length - 1) {
-                          setState(() {
-                            widget.forwardFunc();
-                            index++;
-                          });
-                        } else {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => BrainTrainingResultPage(
-                                    data: widget.data,
-                                    category: widget.category,
-                                    answers: answers,
-                                  ),
-                            ),
-                          );
-                        }
-                      },
-                    ),
-                  SizedBox(height: 10.h),
+                     Positioned(
+             bottom: 0,
+             left: 0,
+             right: 0,
+             child: Container(
+               decoration: BoxDecoration(color: AppColors.background),
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                 children: [
+                   SizedBox(height: 15.h),
+                   // 재시도 모드가 아닐 때만 버튼들 표시
+                   if (widget.retryIndex == null)
+                     Row(
+                       children: [
+                         Expanded(
+                           child: CustomSubmitButton(
+                             btnText: "이전 문제",
+                             isActive: index != 0,
+                             onPressed: index != 0 ? () {
+                               setState(() {
+                                 widget.prevFunc();
+                                 index--;
+                               });
+                             } : () {},
+                           ),
+                         ),
+                         SizedBox(width: 8.w),
+                         Expanded(
+                           child: CustomSubmitButton(
+                             btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                             isActive: answers[index] != -1,
+                             onPressed: () {
+                               if (answers[index] == -1) return;
+                               if (index < widget.data.length - 1) {
+                                 setState(() {
+                                   widget.forwardFunc();
+                                   index++;
+                                 });
+                               } else {
+                                 Navigator.pushReplacement(
+                                   context,
+                                   MaterialPageRoute(
+                                     builder: (_) => BrainTrainingResultPage(
+                                       data: widget.data,
+                                       category: widget.category,
+                                       answers: answers,
+                                     ),
+                                   ),
+                                 );
+                               }
+                             },
+                           ),
+                         ),
+                       ],
+                     ),
 
-                  // 재시도 모드가 아닐 때만 이전 문제 버튼 표시
-                  if (widget.retryIndex == null && index != 0)
-                    CustomSubmitButton(
-                      btnText: "이전 문제",
-                      isActive: true,
-                      onPressed: () {
-                        setState(() {
-                          widget.prevFunc();
-                          index--;
-                        });
-                      },
-                    ),
+                   // 재시도 모드일 때만 결과 확인 버튼 표시
+                   if (widget.retryIndex != null)
+                     CustomSubmitButton(
+                       btnText: "결과 확인",
+                       isActive: answers[index] != -1,
+                       onPressed: () {
+                         Navigator.pushReplacement(
+                           context,
+                           MaterialPageRoute(
+                             builder: (context) => BrainTrainingResultPage(
+                               data: widget.data,
+                               category: widget.category,
+                               answers: answers,
+                               originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                             ),
+                           ),
+                         );
+                       },
+                     ),
 
-                  SizedBox(height: 20.h),
-                ],
-              ),
-            ),
-          ),
+                   SizedBox(height: 20.h),
+                 ],
+               ),
+             ),
+           ),
         ],
       ),
     );
@@ -1190,17 +1222,26 @@ class _ColorTestState extends State<ColorTest> {
     super.initState();
     setAnswers();
     setCount();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(
-        widget.data.length,
-        (index) => List.generate(
-          widget.data[widget.data.keys.toList()[index]]["answer"].length,
-          (innerIndex) => -1,
-        ),
-      );
+      if (widget.retryAnswers != null && widget.retryAnswers is List<List>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<List>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(
+          widget.data.length,
+          (index) => List.generate(
+            widget.data[widget.data.keys.toList()[index]]["answer"].length,
+            (innerIndex) => -1,
+          ),
+        );
+      }
 
       questionCnt =
           widget.data[widget.data.keys.toList()[index]]["question"].length;
@@ -1229,6 +1270,7 @@ class _ColorTestState extends State<ColorTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -1249,6 +1291,7 @@ class _ColorTestState extends State<ColorTest> {
                 child: Text(
                   textAlign: TextAlign.center,
                   widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -1308,19 +1351,7 @@ class _ColorTestState extends State<ColorTest> {
                               // 리스트에 0 append
                             });
                             
-                            // 재시도 모드이고 터치가 완료된 경우 즉시 결과페이지로 이동
-                            if (widget.retryIndex != null && touchCount >= totalCount) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => BrainTrainingResultPage(
-                                    data: widget.data,
-                                    category: widget.category,
-                                    answers: answers,
-                                  ),
-                                ),
-                              );
-                            }
+
                           } else {
                             switch (questionCnt) {
                               case 2:
@@ -1458,61 +1489,79 @@ class _ColorTestState extends State<ColorTest> {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: totalCount == touchCount,
+                         onPressed: () {
+                           if (index != widget.data.length - 1) {
+                             if (totalCount == touchCount) {
+                               setState(() {
+                                 widget.forwardFunc();
+                                 index += 1;
+                               });
+                               setCount();
+                             }
+                           } else {
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              // 재시도 모드가 아닐 때만 다음 문제 버튼 표시
-              if (widget.retryIndex == null)
-                CustomSubmitButton(
-                  btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                  isActive: totalCount == touchCount,
-                  onPressed: () {
-                    if (index != widget.data.length - 1) {
-                      if (totalCount == touchCount) {
-                        setState(() {
-                          widget.forwardFunc();
-                          index += 1;
-                        });
-                        setCount();
-                      }
-                    } else {
-                      /*
-                        테스트 결과 페이지로 넘어가기
-                      */
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                        ),
-                      );
-                    }
-                  },
-                ),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: totalCount == touchCount,
+                   onPressed: () {
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              SizedBox(height: 10.h),
-
-              // 재시도 모드가 아닐 때만 이전 문제 버튼 표시
-              if (widget.retryIndex == null && index != 0)
-                CustomSubmitButton(
-                  btnText: "이전 문제",
-                  isActive: true,
-                  onPressed: () {
-                    setState(() {
-                      widget.prevFunc();
-                      index -= 1;
-                    });
-                  },
-                ),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );
@@ -1661,6 +1710,7 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
                     children: [
                       Text(
                         widget.data.keys.toList()[index],
+                        textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                         style: TextStyle(
                           fontFamily: 'GmarketSans',
                           fontSize: 22.sp,
@@ -1703,6 +1753,7 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
                 child: Text(
                   textAlign: TextAlign.center,
                   widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -1745,6 +1796,7 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
                   child: Text(
                     "터치",
                     textAlign: TextAlign.center,
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'Gmarketsans',
                       fontSize: 18.sp,
@@ -1756,6 +1808,7 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
               SizedBox(height: 25.h),
               Text(
                 "$touchCount번 터치",
+                textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                 style: TextStyle(
                   color: AppColors.text,
                   fontSize: 16.sp,
@@ -1766,102 +1819,98 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               SizedBox(height: 20.h),
 
-              // 재시도 모드가 아닐 때만 다음 문제/결과 확인 버튼 표시
-              if (widget.retryIndex == null)
-                CustomSubmitButton(
-                  btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                  isActive: touchCount > 0,
-                  onPressed: () {
-                    if (index != widget.data.length - 1) {
-                      if (touchCount > 0) {
-                        // 현재 문제의 답변 저장
-                        answers[index][0] = touchCount;
-                        print("왜 안멈춰");
-                        setState(() {
-                          widget.forwardFunc();
-                          index += 1;
-                          isPlaying = false;
-                          audioPlayer.stop();
-                          audioPlayer.release();
-                        });
-                        setCount();
-                      }
-                    } else {
-                      setState(() {
-                        isPlaying = false;
-                        audioPlayer.stop();
-                        audioPlayer.release();
-                      });
-                      /*
-                        테스트 결과 페이지로 넘어가기
-                      */
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => BrainTrainingResultPage(
-                                data: widget.data,
-                                category: widget.category,
-                                answers: answers,
-                              ),
-                        ),
-                      );
-                    }
-                  },
-                ),
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: touchCount > 0,
+                         onPressed: () {
+                           if (index != widget.data.length - 1) {
+                             if (touchCount > 0) {
+                               // 현재 문제의 답변 저장
+                               answers[index][0] = touchCount;
+                               setState(() {
+                                 widget.forwardFunc();
+                                 index += 1;
+                                 isPlaying = false;
+                                 audioPlayer.stop();
+                                 audioPlayer.release();
+                               });
+                               setCount();
+                             }
+                           } else {
+                             setState(() {
+                               isPlaying = false;
+                               audioPlayer.stop();
+                               audioPlayer.release();
+                             });
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              SizedBox(height: 10.h),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: touchCount > 0,
+                   onPressed: () {
+                     // 현재 문제의 답변 저장
+                     answers[index][0] = touchCount;
+                     setState(() {
+                       isPlaying = false;
+                       audioPlayer.stop();
+                       audioPlayer.release();
+                     });
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              // 재시도 모드가 아닐 때만 이전 문제 버튼 표시
-              if (widget.retryIndex == null && index != 0)
-                CustomSubmitButton(
-                  btnText: "이전 문제",
-                  isActive: true,
-                  onPressed: () {
-                    setState(() {
-                      widget.prevFunc();
-                      index -= 1;
-                    });
-                  },
-                ),
-
-              // 재시도 모드일 때만 결과 확인 버튼 표시
-              if (widget.retryIndex != null)
-                CustomSubmitButton(
-                  btnText: "결과 확인",
-                  isActive: touchCount > 0,
-                  onPressed: () {
-                    // 현재 문제의 답변 저장
-                    answers[index][0] = touchCount;
-                    setState(() {
-                      isPlaying = false;
-                      audioPlayer.stop();
-                      audioPlayer.release();
-                    });
-                    /*
-                      테스트 결과 페이지로 넘어가기
-                    */
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => BrainTrainingResultPage(
-                              data: widget.data,
-                              category: widget.category,
-                              answers: answers,
-                            ),
-                      ),
-                    );
-                  },
-                ),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );

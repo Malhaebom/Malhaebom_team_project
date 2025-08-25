@@ -54,6 +54,7 @@ class LiquidCircleProgressWidget extends StatelessWidget {
           ),
           Text(
             "$percentage%",
+            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
             style: TextStyle(
               fontFamily: 'GmarketSans',
               color: AppColors.white,
