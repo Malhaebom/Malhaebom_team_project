@@ -37,7 +37,7 @@ const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
     title: '어머니의 벙어리장갑',
     titleImg: 'assets/fairytale/어머니의벙어리장갑.png',
-    content: '1960년도 추운 겨울,\n3남매 가족의 사랑을 그리는 이야기에요.',
+    content: '1960년도 추운 겨울, 3남매\n가족의 사랑을 그리는 이야기에요.',
     video: 'assets/fairytale/mother_mitten.mp4',
     workbookJson: 'assets/fairytale/어머니의벙어리/workbook.json',
     workbookImg: 'assets/fairytale/어머니의벙어리', // 디렉토리
@@ -46,7 +46,7 @@ const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
     title: '아버지와 결혼식',
     titleImg: 'assets/fairytale/아버지와결혼식.png',
-    content: '1980년대, 부산에 사는 딸과 아버지의\n가슴이 뭉클해지는 이야기에요.',
+    content: '1980년대, 부산에 사는 딸과\n아버지의 가슴이 뭉클해지는\n이야기에요.',
     video: 'assets/fairytale/father_wedding.mp4',
     workbookJson: 'assets/fairytale/아버지와결혼식/workbook.json',
     workbookImg: 'assets/fairytale/아버지와결혼식',
@@ -55,7 +55,7 @@ const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
     title: '아들의 호빵',
     titleImg: 'assets/fairytale/아들의 호빵.png',
-    content: '1970년도에 있었던 어머니와 아들의\n따스한 과거를 담은 이야기입니다.',
+    content: '1970년도에 있었던 어머니와\n아들의 따스한 과거를 담은\n이야기입니다.',
     video: 'assets/fairytale/hobbang_son.mp4',
     workbookJson: 'assets/fairytale/아들의 호빵/workbook.json',
     workbookImg: 'assets/fairytale/아들의 호빵',
@@ -64,7 +64,7 @@ const List<FairytaleAsset> Fairytales = [
   FairytaleAsset(
     title: '할머니와 바나나',
     titleImg: 'assets/fairytale/할머니와바나나.png',
-    content: '1980년도에 있었던 할머니, 손자 주현이의\n3대 가족이 바나나를 통해\n따스한 과거를 담은 이야기입니다.',
+    content: '1980년도에 있었던 할머니, 손자\n주현이의 3대 가족이 바나나를\n통해 따스한 과거를 담은 이야기입니다.',
     video: 'assets/fairytale/grandma_banana.mp4',
     workbookJson: 'assets/fairytale/할머니와바나나/workbook.json',
     workbookImg: 'assets/fairytale/할머니와바나나',

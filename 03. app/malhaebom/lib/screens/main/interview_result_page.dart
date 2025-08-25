@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 // 프로젝트 실제 페이지/테마 사용
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
+import 'interview_session.dart'; // ← 추가: 세션 완료 마킹
 
 // ★ 서버 베이스 URL (에뮬레이터 사용 시)
 const String API_BASE = 'http://10.0.2.2:4000/str';
@@ -51,6 +52,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
   @override
   void initState() {
     super.initState();
+
+    // ✅ 결과 페이지 진입 = 이번 회차 완료 마킹(다음 번 리스트 진입 시 초기화)
+    InterviewSession.markCompleted();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _postAttemptTimeOnce();
     });
@@ -196,7 +201,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
               SizedBox(height: 20.h),
 
-              // 맨 아래: 두뇌 게임으로 이동 (아이콘 제거 + 얇은 폰트)
+              // 맨 아래: 두뇌 게임으로 이동
               SizedBox(
                 width: double.infinity,
                 height: 52.h,

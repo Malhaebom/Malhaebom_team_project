@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'interview_recording_page.dart';
-// 인터뷰 데이터 리포지토리 (프로젝트 경로에 맞게 조정하세요)
 import '../../data/interview_repo.dart';
+import 'interview_session.dart';
 
 class InterviewListPage extends StatefulWidget {
   const InterviewListPage({Key? key}) : super(key: key);
@@ -27,7 +27,6 @@ class _InterviewListPageState extends State<InterviewListPage> {
   void initState() {
     super.initState();
 
-    // repo에서 모든 항목 로드(텍스트 기반으로 목록 생성)
     final data = InterviewRepo.getAll();
 
     String summarize(String s, {int max = 18}) {
@@ -39,12 +38,14 @@ class _InterviewListPageState extends State<InterviewListPage> {
       final d = data[i];
       return _InterviewItem(
         number: d.number,
-        title: '${d.number}. ${summarize(d.speechText)}', // 목록 타이틀(큰 글씨 한 줄만)
-        promptText: d.speechText, // 녹음 페이지에 넘길 전체 지문
+        title: '${d.number}. ${summarize(d.speechText)}',
+        promptText: d.speechText,
       );
     });
 
-    _done = List<bool>.filled(_items.length, false);
+    // 회차가 완전히 끝났다면 초기화, 아니면 기존 진행도 유지
+    InterviewSession.resetIfCompleted(_items.length);
+    _done = InterviewSession.getProgress(_items.length);
   }
 
   @override
@@ -93,7 +94,6 @@ class _InterviewListPageState extends State<InterviewListPage> {
                 ),
                 child: Column(
                   children: [
-                    // 상단 안내/전설
                     Padding(
                       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 12.h),
                       child: Column(
@@ -164,7 +164,6 @@ class _InterviewListPageState extends State<InterviewListPage> {
                     ),
                     Container(height: 1, color: _divider),
 
-                    // 리스트(세퍼레이터 사용) — 큰 글씨 한 줄만 노출
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -177,23 +176,48 @@ class _InterviewListPageState extends State<InterviewListPage> {
                           done: _done[index],
                           title: item.title,
                           onTap: () async {
-                            // 녹음 화면으로 이동 시에만 mp3 경로 조회
+                            // 회차 완료 전 재녹음 금지
+                            if (_done[index]) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    '이미 완료한 지문은 회차 종료 전 재녹음할 수 없어요.',
+                                  ),
+                                ),
+                              );
+                              return;
+                            }
+
                             final data = InterviewRepo.getByIndex(index);
-                            final ok = await Navigator.push<bool>(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => InterviewRecordingPage(
+
+                            // 0ms 전환(복귀 즉시 반영)
+                            await Navigator.of(context).push<bool>(
+                              PageRouteBuilder(
+                                pageBuilder:
+                                    (_, __, ___) => InterviewRecordingPage(
                                       lineNumber: item.number,
                                       totalLines: _items.length,
                                       promptText: item.promptText,
-                                      assetPath: data?.sound, // 자동재생용 mp3
+                                      assetPath: data?.sound,
+                                    ),
+                                transitionDuration: Duration.zero,
+                                reverseTransitionDuration: Duration.zero,
+                                transitionsBuilder:
+                                    (_, a, __, child) => FadeTransition(
+                                      opacity: a,
+                                      child: child,
                                     ),
                               ),
                             );
-                            if (ok == true && mounted) {
-                              setState(() => _done[index] = true);
-                            }
+
+                            if (!mounted) return;
+
+                            // ✅ 항상 전체 진행도를 즉시 동기화 (한 항목만 세팅 X)
+                            setState(() {
+                              _done = InterviewSession.getProgress(
+                                _items.length,
+                              );
+                            });
                           },
                         );
                       },
@@ -316,8 +340,8 @@ class _LegendCircle extends StatelessWidget {
 
 class _InterviewItem {
   final int number;
-  final String title; // (번호 + 요약) — 큰 글씨 한 줄만 표시
-  final String promptText; // 녹음 페이지로 넘길 실제 지문
+  final String title;
+  final String promptText;
 
   const _InterviewItem({
     required this.number,
