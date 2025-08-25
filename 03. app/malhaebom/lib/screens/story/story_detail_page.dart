@@ -32,24 +32,99 @@ const Color kTextSub = Color(0xFF6B7280);
 class StoryDetailPage extends StatefulWidget {
   const StoryDetailPage({
     super.key,
-    required this.title, // 페이지 제목 (스토리 이름)
+    required this.title, // 초기 페이지 제목 (스토리 이름)
     required this.storyImg,
+    this.legacyDefault = false, // true면 진입 시 레거시(페이지 교체) 모드로 시작
   });
 
   final String title;
   final String storyImg;
+  final bool legacyDefault;
 
   @override
   State<StoryDetailPage> createState() => _StoryDetailPageState();
 }
 
 class _StoryDetailPageState extends State<StoryDetailPage> {
-  int _tab = 0;
+  late int _pageIndex;
+  late PageController _pageCtrl;
+  late bool _legacyMode; // true: 이전 방식(Navigator 교체), false: 슬라이드
+
+  @override
+  void initState() {
+    super.initState();
+    _legacyMode = widget.legacyDefault;
+    final initIndex = Fairytales.indexWhere((t) => t.title == widget.title);
+    _pageIndex = (initIndex >= 0) ? initIndex : 0;
+    _pageCtrl = PageController(initialPage: _pageIndex, viewportFraction: 0.85);
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _toggleMode() {
+    setState(() {
+      _legacyMode = !_legacyMode;
+    });
+  }
+
+  void _goPrev() {
+    final total = Fairytales.length;
+    final prevIndex = (_pageIndex > 0) ? _pageIndex - 1 : total - 1;
+    if (_legacyMode) {
+      final prevTale = Fairytales[prevIndex];
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => StoryDetailPage(
+                title: prevTale.title,
+                storyImg: prevTale.titleImg,
+                legacyDefault: true,
+              ),
+        ),
+      );
+    } else {
+      _animateTo(prevIndex);
+    }
+  }
+
+  void _goNext() {
+    final total = Fairytales.length;
+    final nextIndex = (_pageIndex < total - 1) ? _pageIndex + 1 : 0;
+    if (_legacyMode) {
+      final nextTale = Fairytales[nextIndex];
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder:
+              (_) => StoryDetailPage(
+                title: nextTale.title,
+                storyImg: nextTale.titleImg,
+                legacyDefault: true,
+              ),
+        ),
+      );
+    } else {
+      _animateTo(nextIndex);
+    }
+  }
+
+  void _animateTo(int index) {
+    setState(() => _pageIndex = index);
+    _pageCtrl.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final tale = byTitle(widget.title); // 스토리 메타
-    final currentIndex = Fairytales.indexWhere((t) => t.title == widget.title);
+    final tale = Fairytales[_pageIndex]; // 현재 선택된 동화
     final totalTales = Fairytales.length;
 
     return Scaffold(
@@ -66,7 +141,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             automaticallyImplyLeading: false,
             centerTitle: true,
             title: Text(
-              widget.title,
+              tale.title,
+              key: ValueKey('appbar_${tale.title}'),
               style: TextStyle(
                 fontFamily: kFont,
                 fontWeight: FontWeight.w500,
@@ -74,6 +150,18 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 color: AppColors.white,
               ),
             ),
+            actions: [
+              // 모드 토글 버튼: 슬라이드 <-> 레거시
+              IconButton(
+                tooltip: _legacyMode ? '슬라이드 모드로 전환' : '이전 방식(페이지 이동)으로 전환',
+                onPressed: _toggleMode,
+                icon: Icon(
+                  _legacyMode ? Icons.swipe : Icons.open_in_new,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(width: 6.w),
+            ],
           ),
         ),
       ),
@@ -84,7 +172,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
       body: ListView(
         padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
         children: [
-          // --- 표지 배너 (동화 이미지) ---
+          // --- 표지 배너 (동화 이미지: 좌우 스와이프 PageView) ---
           Container(
             decoration: BoxDecoration(
               color: AppColors.white,
@@ -92,73 +180,56 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
               border: Border.all(color: kDivider),
             ),
             padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 8.w),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: 160.h,
-                    maxHeight: 180.h,
+            child: SizedBox(
+              height: 190.h,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  PageView.builder(
+                    controller: _pageCtrl,
+                    onPageChanged: (i) => setState(() => _pageIndex = i),
+                    itemCount: totalTales,
+                    physics:
+                        _legacyMode
+                            ? const NeverScrollableScrollPhysics()
+                            : const BouncingScrollPhysics(),
+                    itemBuilder: (context, index) {
+                      final t = Fairytales[index];
+                      return AnimatedScale(
+                        duration: const Duration(milliseconds: 200),
+                        scale: index == _pageIndex ? 1.0 : 0.95,
+                        child: AspectRatio(
+                          aspectRatio: 3 / 4,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8.r),
+                            child: Image.asset(t.titleImg, fit: BoxFit.cover),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                  child: AspectRatio(
-                    aspectRatio: 3 / 4,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8.r),
-                      child: Image.asset(widget.storyImg, fit: BoxFit.cover),
+
+                  // 왼쪽/오른쪽 네비게이션 버튼
+                  Positioned(
+                    left: 0,
+                    child: IconButton(
+                      onPressed: _goPrev,
+                      icon: const Icon(Icons.chevron_left),
+                      color: Colors.black54,
+                      iconSize: 28.sp,
                     ),
                   ),
-                ),
-                // 왼쪽 버튼 (이전 동화 또는 마지막 동화로)
-                Positioned(
-                  left: 0,
-                  child: IconButton(
-                    onPressed: () {
-                      print('왼쪽 버튼 클릭됨!');
-                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');
-                      final previousIndex = currentIndex > 0 ? currentIndex - 1 : totalTales - 1;
-                      final previousTale = Fairytales[previousIndex];
-                      print('이전 동화: ${previousTale.title}');
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => StoryDetailPage(
-                            title: previousTale.title,
-                            storyImg: previousTale.titleImg,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.chevron_left),
-                    color: Colors.black54,
-                    iconSize: 28.sp,
+                  Positioned(
+                    right: 0,
+                    child: IconButton(
+                      onPressed: _goNext,
+                      icon: const Icon(Icons.chevron_right),
+                      color: Colors.black54,
+                      iconSize: 28.sp,
+                    ),
                   ),
-                ),
-                // 오른쪽 버튼 (다음 동화 또는 첫 번째 동화로)
-                Positioned(
-                  right: 0,
-                  child: IconButton(
-                    onPressed: () {
-                      print('오른쪽 버튼 클릭됨!');
-                      print('현재 인덱스: $currentIndex, 총 동화 수: $totalTales');
-                      final nextIndex = currentIndex < totalTales - 1 ? currentIndex + 1 : 0;
-                      final nextTale = Fairytales[nextIndex];
-                      print('다음 동화: ${nextTale.title}');
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => StoryDetailPage(
-                            title: nextTale.title,
-                            storyImg: nextTale.titleImg,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.chevron_right),
-                    color: Colors.black54,
-                    iconSize: 28.sp,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -190,8 +261,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             onTap: () {
               Navigator.of(context).push(
                 WatchHowOverlayPage.route(
-                  title: widget.title,
-                  storyImg: widget.storyImg,
+                  title: tale.title,
+                  storyImg: tale.titleImg,
                 ),
               );
             },
@@ -209,8 +280,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 MaterialPageRoute(
                   builder:
                       (context) => StoryTestinfoPage(
-                        title: widget.title,
-                        storyImg: widget.storyImg,
+                        title: tale.title,
+                        storyImg: tale.titleImg,
                       ),
                 ),
               );
@@ -225,13 +296,14 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             title: '워크북 풀어보기',
             subtitle: '재밌고 간단한 활동으로 인지능력 강화하기',
             onTap: () {
+              final ft = Fairytales[_pageIndex];
               Navigator.push(
                 context,
                 StoryWorkbookOverlayPage.route(
-                  title: widget.title,
-                  storyImg: widget.storyImg, // 오버레이에서도 이 이미지를 활용
-                  workbookJson: tale.workbookJson,
-                  workbookImgBase: tale.workbookImg,
+                  title: ft.title,
+                  storyImg: ft.titleImg,
+                  workbookJson: ft.workbookJson,
+                  workbookImgBase: ft.workbookImg,
                 ),
               );
             },
@@ -249,7 +321,8 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 MaterialPageRoute(
                   builder:
                       (context) =>
-                          StoryRecordPage(title: widget.title, totalLines: 38),
+                      // TODO: 실제 총 대사 수를 tale 데이터에 넣으셨다면 가져오도록 교체하세요.
+                      StoryRecordPage(title: tale.title, totalLines: 38),
                 ),
               );
             },

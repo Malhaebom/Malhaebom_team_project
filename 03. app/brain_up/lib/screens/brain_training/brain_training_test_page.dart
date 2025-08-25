@@ -874,6 +874,7 @@ class _SolvingTestState extends State<SolvingTest> {
                             });
                           },
                           child: Container(
+                            width: double.infinity, // 전체 너비 사용
                             padding: EdgeInsets.all(10.h),
                             decoration: BoxDecoration(
                               color: AppColors.white,
@@ -894,6 +895,7 @@ class _SolvingTestState extends State<SolvingTest> {
                                 Expanded(
                                   child: Text(
                                     currentData["question"][idx],
+                                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                                     style: TextStyle(
                                       fontSize: 15.sp,
                                       fontWeight: FontWeight.w500,
