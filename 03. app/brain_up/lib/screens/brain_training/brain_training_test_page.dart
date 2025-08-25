@@ -614,13 +614,15 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
               SizedBox(height: 10.h),
               Container(
                 width: double.infinity,
-                height: widget.screenHeight * 0.35,
+                constraints: BoxConstraints(
+                  maxHeight: widget.screenHeight * 0.28,
+                ),
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage(
                       widget.data[widget.data.keys.toList()[index]]["question"],
                     ),
-                    fit: BoxFit.fill,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),

@@ -26,7 +26,7 @@ class TrainingBtn extends StatelessWidget {
       onTap: onPressed,
       child: Container(
         width: screenWidth * 0.4,
-        height: screenHeight * 0.15,
+        height: screenHeight * 0.18, // 높이 증가
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(20),
@@ -42,15 +42,16 @@ class TrainingBtn extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(btnIcon, height: screenHeight * 0.045, color: btnColor),
-            SizedBox(height: 10.h),
+            Image.asset(btnIcon, height: screenHeight * 0.055, color: btnColor), // 아이콘 크기 증가
+            SizedBox(height: 12.h), // 여백 조정
             Text(
               btnText,
+              textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
               style: TextStyle(
                 fontFamily: 'GmarketSans',
                 color: btnColor,
                 fontWeight: FontWeight.w800,
-                fontSize: 18.sp,
+                fontSize: 16.sp, // 텍스트 크기 조정
               ),
             ),
           ],

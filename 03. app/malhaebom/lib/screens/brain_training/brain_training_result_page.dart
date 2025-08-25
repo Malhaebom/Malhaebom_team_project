@@ -1,4 +1,5 @@
 import 'package:malhaebom/screens/main/home_page.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_start_page.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/liquid_circle_progress_widget.dart';
@@ -12,11 +13,13 @@ class BrainTrainingResultPage extends StatefulWidget {
     required this.category,
     required this.data,
     required this.answers,
+    this.originalAnswers, // 기존 답변 추가
   });
 
   final String category;
   final Map<String, dynamic> data;
   final dynamic answers;
+  final dynamic originalAnswers; // 기존 답변
 
   @override
   State<BrainTrainingResultPage> createState() =>
@@ -26,6 +29,8 @@ class BrainTrainingResultPage extends StatefulWidget {
 class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
   late int correctAnswers;
   late double correctPercentage;
+  late int originalCorrectAnswers; // 기존 정답 수
+  late double originalCorrectPercentage; // 기존 정답률
 
   @override
   void initState() {
@@ -35,6 +40,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
 
   void calculateResults() {
     correctAnswers = 0;
+    originalCorrectAnswers = 0;
     final keys = widget.data.keys.toList();
     
     // answers 타입에 따른 처리
@@ -62,10 +68,59 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
           final userAnswer = complexAnswers[i];
           final correctAnswer = widget.data[keys[i]]["answer"];
           
-          // 현재는 단순화하여 처리 (실제로는 터치 패턴 비교 로직 필요)
-          bool isCorrect = userAnswer.length == correctAnswer.length;
-          if (isCorrect) {
-            correctAnswers++;
+          // 음악과터치 문제는 answer가 정수값이므로 다르게 처리
+          if (widget.category == "음악과터치") {
+            // 음악과터치는 userAnswer[0]이 실제 답변값
+            bool isCorrect = userAnswer[0] == correctAnswer;
+            if (isCorrect) {
+              correctAnswers++;
+            }
+          } else {
+            // 알록달록 문제는 터치 패턴 비교
+            bool isCorrect = userAnswer.length == correctAnswer.length;
+            if (isCorrect) {
+              correctAnswers++;
+            }
+          }
+        }
+      }
+    }
+    
+    // 기존 답변이 있는 경우 기존 점수 계산
+    if (widget.originalAnswers != null) {
+      if (widget.originalAnswers is List<int>) {
+        List<int> originalSimpleAnswers = widget.originalAnswers as List<int>;
+        
+        for (int i = 0; i < originalSimpleAnswers.length; i++) {
+          if (i < keys.length) {
+            final userAnswer = originalSimpleAnswers[i];
+            final correctAnswer = widget.data[keys[i]]["answer"];
+            
+            bool isCorrect = userAnswer == correctAnswer;
+            if (isCorrect) {
+              originalCorrectAnswers++;
+            }
+          }
+        }
+      } else if (widget.originalAnswers is List<List>) {
+        List<List> originalComplexAnswers = widget.originalAnswers as List<List>;
+        
+        for (int i = 0; i < originalComplexAnswers.length; i++) {
+          if (i < keys.length) {
+            final userAnswer = originalComplexAnswers[i];
+            final correctAnswer = widget.data[keys[i]]["answer"];
+            
+            if (widget.category == "음악과터치") {
+              bool isCorrect = userAnswer[0] == correctAnswer;
+              if (isCorrect) {
+                originalCorrectAnswers++;
+              }
+            } else {
+              bool isCorrect = userAnswer.length == correctAnswer.length;
+              if (isCorrect) {
+                originalCorrectAnswers++;
+              }
+            }
           }
         }
       }
@@ -73,19 +128,37 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
     
     // 0.0 ~ 1.0 범위의 비율로 계산 (LiquidCircleProgressWidget에서 *100 처리)
     correctPercentage = widget.data.length > 0 ? correctAnswers / widget.data.length : 0.0;
+    originalCorrectPercentage = widget.data.length > 0 ? originalCorrectAnswers / widget.data.length : 0.0;
     
     // 디버깅: 값 전달 경로 추적
     print('=== 값 전달 경로 추적 ===');
     print('correctAnswers: $correctAnswers');
+    print('originalCorrectAnswers: $originalCorrectAnswers');
     print('widget.data.length: ${widget.data.length}');
     print('correctPercentage 계산: $correctAnswers / ${widget.data.length} = $correctPercentage');
+    print('originalCorrectPercentage 계산: $originalCorrectAnswers / ${widget.data.length} = $originalCorrectPercentage');
     print('correctPercentage * 100: ${correctPercentage * 100}');
     print('(correctPercentage * 100).toInt(): ${(correctPercentage * 100).toInt()}');
+    
+    // 음악과터치 디버깅
+    if (widget.category == "음악과터치") {
+      print('=== 음악과터치 디버깅 ===');
+      print('widget.answers: $widget.answers');
+      print('widget.answers.runtimeType: ${widget.answers.runtimeType}');
+      if (widget.answers is List<List>) {
+        List<List> complexAnswers = widget.answers as List<List>;
+        for (int i = 0; i < complexAnswers.length; i++) {
+          print('answers[$i]: ${complexAnswers[i]}');
+          print('answers[$i].runtimeType: ${complexAnswers[i].runtimeType}');
+        }
+      }
+      print('=== 음악과터치 디버깅 완료 ===');
+    }
     print('=== 추적 완료 ===');
   }
 
   void _retryWrongQuestion(int questionIndex) {
-    // 틀린 문제로 돌아가기
+    // 틀린 문제로 돌아가기 (기존 답변도 함께 전달)
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -118,6 +191,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
           title: Center(
             child: Text(
               "테스트 결과",
+              textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
               style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
             ),
           ),
@@ -141,6 +215,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                     children: [
                       Text(
                         "레벤님의",
+                        textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                         style: TextStyle(
                           color: AppColors.text,
                           fontFamily: 'GmarketSans',
@@ -150,12 +225,24 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                       ),
                       Text(
                         "${widget.category} 영역 테스트 결과,\n${widget.data.length}개 중 $correctAnswers개를 맞혔어요! ",
+                        textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                         style: TextStyle(
                           color: AppColors.text,
                           fontWeight: FontWeight.w500,
                           fontSize: 14.sp,
                         ),
                       ),
+                      // 재풀이 모드인 경우 기존 점수와 비교 표시
+                      if (widget.originalAnswers != null)
+                        Text(
+                          "기존: ${widget.data.length}개 중 $originalCorrectAnswers개 → 개선: ${widget.data.length}개 중 $correctAnswers개",
+                          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12.sp,
+                          ),
+                        ),
                     ],
                   ),
                 ],
@@ -195,8 +282,14 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                               List<List> complexAnswers = widget.answers as List<List>;
                               if (index < complexAnswers.length) {
                                 final userAnswer = complexAnswers[index];
-                                // 현재는 단순화하여 처리
-                                isCorrect = userAnswer.length == correctAnswer.length;
+                                // 음악과터치 문제는 answer가 정수값이므로 다르게 처리
+                                if (widget.category == "음악과터치") {
+                                  // 음악과터치는 userAnswer[0]이 실제 답변값
+                                  isCorrect = userAnswer[0] == correctAnswer;
+                                } else {
+                                  // 알록달록 문제는 터치 패턴 비교
+                                  isCorrect = userAnswer.length == correctAnswer.length;
+                                }
                               }
                             }
                             
@@ -239,6 +332,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                                             SizedBox(width: 5.w),
                                             Text(
                                               widget.data.keys.toList()[index],
+                                              textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
                                                 fontSize: 16.sp,
@@ -265,6 +359,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                                           child: Text(
                                             widget.data[widget.data.keys
                                                 .toList()[index]]["title"],
+                                            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                                             style: TextStyle(fontSize: 13.sp),
                                             overflow: TextOverflow.ellipsis,
                                             maxLines: 1,
@@ -296,9 +391,10 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
+                    Navigator.pushAndRemoveUntil(
                       context,
                       MaterialPageRoute(builder: (context) => HomePage()),
+                      (route) => false,
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -313,7 +409,10 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                       borderRadius: BorderRadius.circular(50),
                     ),
                   ),
-                  child: Text("홈으로"),
+                  child: Text(
+                    "홈으로",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  ),
                 ),
               ),
 
@@ -323,7 +422,17 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => BrainTrainingStartPage(
+                          title: widget.category,
+                        ),
+                      ),
+                      (route) => false,
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.white,
                     foregroundColor: AppColors.blue,
@@ -336,7 +445,10 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                       borderRadius: BorderRadius.circular(50),
                     ),
                   ),
-                  child: Text("다시풀기"),
+                  child: Text(
+                    "다시풀기",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  ),
                 ),
               ),
 
