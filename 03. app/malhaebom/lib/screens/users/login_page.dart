@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+// 추가된 import
+import 'package:malhaebom/screens/users/signup_page.dart';
+import 'package:malhaebom/screens/main/home_page.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
 
@@ -33,15 +37,12 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // TODO: 실제 SNS/일반 로그인 로직 연결
+  // 로그인 버튼 → 그냥 HomePage로 이동
   Future<void> _login() async {
-    final phone = _phoneCtrl.text.trim();
-    final pw = _pwCtrl.text;
-    if (phone.isEmpty || pw.isEmpty) {
-      _snack('휴대전화번호와 비밀번호를 입력해 주세요.');
-      return;
-    }
-    _snack('로그인 시도: $phone');
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   void _loginWithGoogle() => _snack('구글로 로그인');
@@ -162,7 +163,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     SizedBox(height: 16.h),
 
-                    // 휴대전화번호 (아이디=전화번호 전용)
+                    // 휴대전화번호
                     Text(
                       '휴대전화번호',
                       style: TextStyle(
@@ -283,7 +284,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     SizedBox(height: 10.h),
 
-                    // 로그인 버튼 (#344CB7)
+                    // 로그인 버튼
                     SizedBox(
                       height: 52.h,
                       child: ElevatedButton(
@@ -321,7 +322,17 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         SizedBox(width: 6.w),
-                        _linkButton('회원가입', onTap: () => _snack('회원가입')),
+                        _linkButton(
+                          '회원가입',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SignUpPage(),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ],
@@ -336,7 +347,6 @@ class _LoginPageState extends State<LoginPage> {
 
   // ----------------- Buttons & Widgets -----------------
 
-  // Google 전용: 배경을 검정색으로, 아이콘은 원본 그대로 사용
   Widget _googleSoftButton({
     required String label,
     required String iconPath,
@@ -349,7 +359,7 @@ class _LoginPageState extends State<LoginPage> {
         borderRadius: BorderRadius.circular(12.r),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.black, // 검정 배경
+            color: Colors.black,
             borderRadius: BorderRadius.circular(12.r),
             boxShadow: const [
               BoxShadow(
@@ -364,7 +374,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ✅ 원본 PNG 아이콘 그대로
                 _assetIcon(iconPath, size: 22),
                 SizedBox(width: 8.w),
                 Text(
@@ -373,7 +382,7 @@ class _LoginPageState extends State<LoginPage> {
                     fontFamily: 'GmarketSans',
                     fontWeight: FontWeight.w700,
                     fontSize: 14.sp,
-                    color: Colors.white, // 흰 텍스트
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -384,7 +393,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Naver/Kakao 공통(가득 채운 스타일)
   Widget _snsFilledButton({
     required String label,
     required String iconPath,
@@ -423,7 +431,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // 일반 아이콘(네이버/카카오/구글에 공통 사용)
   Widget _assetIcon(String path, {double size = 22}) {
     return Image.asset(
       path,
@@ -441,7 +448,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // 하단 링크(회원가입)
   Widget _linkButton(String text, {required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
