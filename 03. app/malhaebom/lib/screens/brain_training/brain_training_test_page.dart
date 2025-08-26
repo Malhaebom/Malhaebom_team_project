@@ -987,7 +987,7 @@ class _SolvingTestState extends State<SolvingTest> {
         width: isProblemSolving01or02 ? double.infinity : null, // 문제01, 02는 전체 너비 사용
         height: 48, // 고정 높이 설정으로 세로길이 제어 (50에서 48로 조정)
         padding: EdgeInsets.symmetric(
-          vertical: 12.h, // 10.h에서 12.h로 조정
+          vertical: 10.h, // 16.h에서 10.h로 줄임
           horizontal: isProblemSolving01or02 ? 20.w : 12.w, // 문제01, 02는 더 넓은 패딩
         ),
         decoration: BoxDecoration(
@@ -1006,17 +1006,19 @@ class _SolvingTestState extends State<SolvingTest> {
             ]
             : [],
         ),
-        child: Text(
-          currentData["question"][idx],
-          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
-          style: TextStyle(
-            fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
-            fontWeight: FontWeight.w500,
-            color: answers[index] == idx ? AppColors.text : AppColors.text,
+        child: Center(
+          child: Text(
+            currentData["question"][idx],
+            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+            style: TextStyle(
+              fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
+              fontWeight: FontWeight.w500,
+              color: answers[index] == idx ? AppColors.text : AppColors.text,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-          maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
