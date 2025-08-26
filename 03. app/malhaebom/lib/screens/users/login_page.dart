@@ -100,7 +100,7 @@ class _LoginPageState extends State<LoginPage> {
                       child: Column(
                         children: [
                           Image.asset(
-                            'assets/logo/logo_top.png',
+                            'assets/logo/logo_top2.png',
                             height: 64.w,
                             fit: BoxFit.contain,
                             errorBuilder:
