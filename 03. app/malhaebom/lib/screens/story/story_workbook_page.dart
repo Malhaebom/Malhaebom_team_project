@@ -72,26 +72,31 @@ class _StoryWorkbookPageState extends State<StoryWorkbookPage> {
     return ScreenUtilInit(
       minTextAdapt: true,
       builder: (_, __) {
-        return FutureBuilder<List<WorkbookItem>>(
-          future: _future,
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
+        const fixedScale = TextScaler.linear(1.0); // 전역 글자 스케일 고정
+        final mq = MediaQuery.maybeOf(context) ?? const MediaQueryData();
+        return MediaQuery(
+          data: mq.copyWith(textScaler: fixedScale),
+          child: FutureBuilder<List<WorkbookItem>>(
+            future: _future,
+            builder: (context, snap) {
+              if (!snap.hasData) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final items = snap.data!;
+              return _WorkbookRunner(
+                title: widget.title,
+                items: items,
+                imageBaseDir: widget.imageBaseDir,
+                jsonAssetPath: widget.jsonAssetPath,
+                originalIndices:
+                    widget.subsetIndices ??
+                        List<int>.generate(items.length, (i) => i),
+                returnResultToCaller: widget.returnResultToCaller,
               );
-            }
-            final items = snap.data!;
-            return _WorkbookRunner(
-              title: widget.title,
-              items: items,
-              imageBaseDir: widget.imageBaseDir,
-              jsonAssetPath: widget.jsonAssetPath,
-              originalIndices:
-                  widget.subsetIndices ??
-                      List<int>.generate(items.length, (i) => i),
-              returnResultToCaller: widget.returnResultToCaller,
-            );
-          },
+            },
+          ),
         );
       },
     );
