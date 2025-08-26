@@ -3,81 +3,80 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
 
-// 프로젝트 실제 페이지/테마 사용
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
-import 'interview_session.dart'; // ← 추가: 세션 완료 마킹
+import 'interview_session.dart';
 
-// ★ 서버 베이스 URL (에뮬레이터 사용 시)
 const String API_BASE = 'http://10.0.2.2:4000/str';
 
-/// 카테고리 집계용
+/// 카테고리 집계
 class CategoryStat {
   final int correct;
   final int total;
   const CategoryStat({required this.correct, required this.total});
 
   double get correctRatio => total == 0 ? 0 : correct / total;
-  double get riskRatio => 1 - correctRatio; // 0(좋음) ~ 1(위험)
+  double get riskRatio => 1 - correctRatio;
 }
 
-/// 결과 페이지
-class StoryResultPage extends StatefulWidget {
+/// 인터뷰 결과 페이지
+class InterviewResultPage extends StatefulWidget {
   final int score;
   final int total;
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
-  final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
+  final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화 화행
   final DateTime testedAt;
+  final String? interviewTitle;
 
-  /// (선택) 진행한 제목
-  final String? storyTitle;
-
-  const StoryResultPage({
+  const InterviewResultPage({
     super.key,
     required this.score,
     required this.total,
     required this.byCategory,
     required this.byType,
     required this.testedAt,
-    this.storyTitle,
+    this.interviewTitle,
   });
 
   @override
-  State<StoryResultPage> createState() => _StoryResultPageState();
+  State<InterviewResultPage> createState() => _InterviewResultPageState();
 }
 
-class _StoryResultPageState extends State<StoryResultPage> {
+class _InterviewResultPageState extends State<InterviewResultPage> {
   bool _posted = false;
 
   @override
   void initState() {
     super.initState();
-
-    // ✅ 결과 페이지 진입 = 이번 회차 완료 마킹(다음 번 리스트 진입 시 초기화)
+    // 회차 완료 처리(로컬 캐시 정리)
     InterviewSession.markCompleted();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _postAttemptTimeOnce();
+      _postAttemptOnce();
     });
   }
 
-  Future<void> _postAttemptTimeOnce() async {
+  Future<void> _postAttemptOnce() async {
     if (_posted) return;
     _posted = true;
 
     try {
       final uri = Uri.parse('$API_BASE/attempt');
-
-      // UTC ISO 형식
       final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
-
-      // 사람이 보기 좋은 KST 문자열(확인용)
       final clientKst = _formatKst(widget.testedAt);
 
       final body = jsonEncode({
         'attemptTime': measuredAtIso,
         'clientKst': clientKst,
-        'storyTitle': widget.storyTitle,
+        'interviewTitle': widget.interviewTitle,
+        'score': widget.score,
+        'total': widget.total,
+        'byCategory': widget.byCategory.map(
+          (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
+        ),
+        'byType': widget.byType.map(
+          (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
+        ),
       });
 
       final res = await http.post(
@@ -85,16 +84,14 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-
-      debugPrint(
-        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
-      );
+      // ignore: avoid_print
+      print('[INTV] POST /attempt -> ${res.statusCode} ${res.body}');
     } catch (e) {
-      debugPrint('[STR] attempt POST error: $e');
+      // ignore: avoid_print
+      print('[INTV] POST /attempt error: $e');
     }
   }
 
-  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
   String _formatKst(DateTime dt) {
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
@@ -107,139 +104,141 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ 페이지 전체 글자 크기 고정
+    final fixedMedia = MediaQuery.of(
+      context,
+    ).copyWith(textScaler: const TextScaler.linear(1.0));
+
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.btnColorDark,
-        elevation: 0,
-        centerTitle: true,
-        title: Text(
-          '인지 검사',
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w600, // 얇게
-            fontSize: 18.sp,
-            color: Colors.white,
+    return MediaQuery(
+      data: fixedMedia,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.btnColorDark,
+          elevation: 0,
+          centerTitle: true,
+          title: Text(
+            '화행 인지검사',
+            style: TextStyle(
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w600,
+              fontSize: 18.sp,
+              color: Colors.white,
+            ),
           ),
         ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
-          child: Column(
-            children: [
-              _attemptChip(_formatKst(widget.testedAt)),
-              SizedBox(height: 12.h),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
+            child: Column(
+              children: [
+                _attemptChip(_formatKst(widget.testedAt)),
+                SizedBox(height: 12.h),
 
-              // 카드: 점수 요약 + 카테고리 바 4개
-              _card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Text(
-                      '인지검사 결과',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w700,
+                _card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        '인지검사 결과',
+                        style: TextStyle(
+                          fontFamily: 'GmarketSans',
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4.h),
-                    Text(
-                      '검사 결과 요약입니다.',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontSize: 13.sp,
-                        color: const Color(0xFF6B7280),
-                        fontWeight: FontWeight.w500, // 안내문 얇게
+                      SizedBox(height: 4.h),
+                      Text(
+                        '검사 결과 요약입니다.',
+                        style: TextStyle(
+                          fontFamily: 'GmarketSans',
+                          fontSize: 13.sp,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 14.h),
-                    _scoreCircle(widget.score, widget.total),
+                      SizedBox(height: 14.h),
+                      _scoreCircle(widget.score, widget.total),
 
-                    SizedBox(height: 16.h),
-                    _riskBarRow('요구', widget.byCategory['요구']),
-                    SizedBox(height: 12.h),
-                    _riskBarRow('질문', widget.byCategory['질문']),
-                    SizedBox(height: 12.h),
-                    _riskBarRow('단언', widget.byCategory['단언']),
-                    SizedBox(height: 12.h),
-                    _riskBarRow('의례화', widget.byCategory['의례화']),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 14.h),
-
-              // 카드: 검사 결과 평가 (표의 6개 지표 고정 설명)
-              _card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '검사 결과 평가',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    SizedBox(height: 12.h),
-
-                    if (showWarn) _warnBanner(),
-
-                    // 6개 지표 설명을 모두 노출
-                    ..._buildEvalItems(
-                      widget.byType,
-                    ).expand((w) => [w, SizedBox(height: 10.h)]),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 20.h),
-
-              // 맨 아래: 두뇌 게임으로 이동
-              SizedBox(
-                width: double.infinity,
-                height: 52.h,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => const BrainTrainingMainPage(),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD43B),
-                    foregroundColor: Colors.black,
-                    shape: const StadiumBorder(),
-                    elevation: 0,
+                      SizedBox(height: 16.h),
+                      _riskBarRow('요구', widget.byCategory['요구']),
+                      SizedBox(height: 12.h),
+                      _riskBarRow('질문', widget.byCategory['질문']),
+                      SizedBox(height: 12.h),
+                      _riskBarRow('단언', widget.byCategory['단언']),
+                      SizedBox(height: 12.h),
+                      _riskBarRow('의례화', widget.byCategory['의례화']),
+                    ],
                   ),
-                  child: Text(
-                    '두뇌 게임으로 이동',
-                    style: TextStyle(
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w400, // 얇게
-                      fontSize: 16.sp,
-                      letterSpacing: 0.2,
-                      height: 1.0,
+                ),
+
+                SizedBox(height: 14.h),
+
+                _card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '검사 결과 평가',
+                        style: TextStyle(
+                          fontFamily: 'GmarketSans',
+                          fontSize: 18.sp,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      SizedBox(height: 12.h),
+                      if (showWarn) _warnBanner(),
+                      ..._buildEvalItems(
+                        widget.byType,
+                      ).expand((w) => [w, SizedBox(height: 10.h)]),
+                    ],
+                  ),
+                ),
+
+                SizedBox(height: 20.h),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52.h,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (_) => const BrainTrainingMainPage(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFD43B),
+                      foregroundColor: Colors.black,
+                      shape: const StadiumBorder(),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      '두뇌 게임으로 이동',
+                      style: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 16.sp,
+                        letterSpacing: 0.2,
+                        height: 1.0,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // --- 위젯 유틸 ---
+  // ----- UI 유틸 -----
 
   Widget _card({required Widget child}) {
     return Container(
@@ -383,7 +382,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   Widget _riskBar(double position) {
-    // position: 0(양호, 녹색) ~ 1(매우 주의, 빨강)
     return SizedBox(
       height: 16.h,
       child: LayoutBuilder(
@@ -457,7 +455,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  // 표 기준 6개 지표 설명 고정 노출
   List<Widget> _buildEvalItems(Map<String, CategoryStat> _) {
     return <Widget>[
       _evalBlock(
@@ -518,7 +515,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
             body,
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w500, // 본문 얇게
+              fontWeight: FontWeight.w500,
               fontSize: 13.sp,
               color: const Color(0xFF4B5563),
               height: 1.5,

@@ -439,6 +439,7 @@ class _StoryTestPageState extends State<StoryTestPage>
     return Text(
       '${_index + 1}번. ${q.category}',
       textAlign: TextAlign.center,
+      textScaler: const TextScaler.linear(1.0),
       style: TextStyle(
         fontFamily: _kFont,
         fontWeight: FontWeight.w800,
@@ -454,6 +455,7 @@ class _StoryTestPageState extends State<StoryTestPage>
       child: Text(
         q.prompt,
         textAlign: TextAlign.center,
+        textScaler: const TextScaler.linear(1.0),
         style: TextStyle(
           fontFamily: _kFont,
           fontSize: 20.sp,
@@ -555,6 +557,7 @@ class _StoryTestPageState extends State<StoryTestPage>
             Expanded(
               child: Text(
                 text,
+                textScaler: const TextScaler.linear(1.0),
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
                   fontSize: 20.sp,

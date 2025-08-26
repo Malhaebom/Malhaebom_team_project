@@ -125,13 +125,15 @@ class _StoryResultPageState extends State<StoryResultPage> {
                   children: [
                     Text(
                       '인지검사 결과',
-                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
+                      textScaler: const TextScaler.linear(1.0),
+                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 4.h),
                     Text(
                       '검사 결과 요약입니다.',
+                      textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
-                        fontSize: 13.sp,
+                        fontSize: 18.sp,
                         color: const Color(0xFF6B7280),
                         fontWeight: FontWeight.w600,
                       ),
@@ -161,7 +163,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
                   children: [
                     Text(
                       '검사 결과 평가',
-                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
+                      textScaler: const TextScaler.linear(1.0),
+                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 12.h),
                     if (showWarn) _warnBanner(),
@@ -311,9 +314,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
             SizedBox(width: 10.w),
             Text(
               label,
+              textScaler: const TextScaler.linear(1.0),
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 13.sp,
+                fontSize: 18.sp,
                 color: const Color(0xFF4B5563),
               ),
             ),
@@ -330,7 +334,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
                 textScaler: fixedScale, // 뱃지 내부도 넘침 방지
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
-                  fontSize: 12.sp,
+                  fontSize: 17.sp,
                   color: eval.textColor,
                 ),
               ),
@@ -403,9 +407,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
           Expanded(
             child: Text(
               '인지 기능 저하가 의심됩니다. 전문가와 상담을 권장합니다.',
+              textScaler: const TextScaler.linear(1.0),
               style: TextStyle(
                 fontWeight: FontWeight.w800,
-                fontSize: 13.sp,
+                fontSize: 19.sp,
                 color: const Color(0xFF7F1D1D),
               ),
             ),
@@ -450,18 +455,20 @@ class _StoryResultPageState extends State<StoryResultPage> {
         children: [
           Text(
             title,
+            textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 14.sp,
+              fontSize: 20.sp,
               color: const Color(0xFF111827),
             ),
           ),
           SizedBox(height: 6.h),
           Text(
             body,
+            textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 13.sp,
+              fontSize: 19.sp,
               color: const Color(0xFF4B5563),
               height: 1.5,
             ),

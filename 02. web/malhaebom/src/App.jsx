@@ -5,9 +5,11 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Pages
 import Home from "./pages/Home.jsx";
 
-// 로그인 추가
-// Login
-import Login from "./pages/Login/Login.jsx"
+// 마이페이지
+import Mypage from "./pages/Mypage/Mypage.jsx"
+import Login from "./pages/Mypage/Login.jsx"
+import Join from "./pages/Mypage/Join.jsx"
+import History from "./pages/Mypage/History.jsx"
 
 // Interview 추가
 import Interview from "./pages/Interview/InterviewStart.jsx";
@@ -36,6 +38,7 @@ import ExerciseDo from "./pages/Exercise/ExerciseDo.jsx";
 import QuizLibrary from "./pages/Quiz/QuizLibrary.jsx";
 import QuizList from "./pages/Quiz/QuizList.jsx";
 import QuizPlay from "./pages/Quiz/QuizPlay.jsx";
+import QuizResult from "./pages/Quiz/QuizResult.jsx";
 
 // Context (default export 사용)
 import ScoreProvider from "./ScoreContext.jsx";
@@ -256,6 +259,52 @@ export default function App() {
             </ErrorBoundary>
           }
         />
+        <Route
+          path="/quiz/result"
+          element={
+            <ErrorBoundary name="QuizResult">
+              <QuizResult />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 마이페이지 */}
+        <Route
+          path="/mypage"
+          element={
+            <ErrorBoundary name="mypage">
+              <Mypage />
+            </ErrorBoundary>
+          }
+        />
+        {/* 로그인 */}
+        <Route
+          path="/login"
+          element={
+            <ErrorBoundary name="login">
+              <Login />
+            </ErrorBoundary>
+          }
+        />
+        {/* 회원가입 */}
+        <Route
+          path="/Join"
+          element={
+            <ErrorBoundary name="Join">
+              <Join />
+            </ErrorBoundary>
+          }
+        />
+        {/* 이력관리 */}
+        <Route
+          path="/History"
+          element={
+            <ErrorBoundary name="History">
+              <History />
+            </ErrorBoundary>
+          }
+        />
+
 
         {/* fallback */}
         <Route path="*" element={<Navigate to="/book/library" replace />} />

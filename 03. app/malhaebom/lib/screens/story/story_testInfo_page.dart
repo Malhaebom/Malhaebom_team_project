@@ -43,8 +43,9 @@ class StoryTestinfoPage extends StatelessWidget {
                 Text(
                   '질문에 대한 언어 사용 능력을 평가하여\n응답자의 인지능력을 검사합니다.',
                   textAlign: TextAlign.center,
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
-                    fontSize: 15.5.sp,
+                    fontSize: 17.5.sp,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF4B5563),
                   ),
@@ -67,24 +68,9 @@ class StoryTestinfoPage extends StatelessWidget {
                 Text(
                   '동화 내용에 기반한 문제를\n제시하는 음성이 나와요.',
                   textAlign: TextAlign.start,
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
-                    fontSize: 15.5.sp,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF4B5563),
-                  ),
-                ),
-                SizedBox(height: 14.h),
-
-                _stepTitle(
-                  icon: Icons.timer_outlined,
-                  text: '시간 제한',
-                  alignStart: true,
-                ),
-                Text(
-                  '음성이 모두 나온 후\n5초 안에 답을 체크할 수 있어요.',
-                  textAlign: TextAlign.start,
-                  style: TextStyle(
-                    fontSize: 15.5.sp,
+                    fontSize: 17.5.sp,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF4B5563),
                   ),
@@ -97,10 +83,11 @@ class StoryTestinfoPage extends StatelessWidget {
                   alignStart: true,
                 ),
                 Text(
-                  '올바른 답안을 선택하세요.\n5초 안에 선택하지 못하면\n추가 기회가 제공돼요.',
+                  '올바른 답안을 선택한 후, \n다음 버튼을 눌러\n다음 문제로 넘어가세요.',
                   textAlign: TextAlign.start,
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
-                    fontSize: 15.5.sp,
+                    fontSize: 17.5.sp,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF4B5563),
                   ),
@@ -115,8 +102,9 @@ class StoryTestinfoPage extends StatelessWidget {
                 Text(
                   '동화기반의 문제가 출제됩니다.\n동화를 꼭 보고 검사를 시작해주세요.',
                   textAlign: TextAlign.center,
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
-                    fontSize: 15.5.sp,
+                    fontSize: 17.5.sp,
                     fontWeight: FontWeight.w600,
                     color: const Color(0xFF4B5563),
                   ),
@@ -193,7 +181,8 @@ class StoryTestinfoPage extends StatelessWidget {
   }) {
     final titleText = Text(
       title,
-      style: TextStyle(fontSize: 18.5.sp, fontWeight: FontWeight.w900),
+      textScaler: const TextScaler.linear(1.0),
+      style: TextStyle(fontSize: 23.5.sp, fontWeight: FontWeight.w900),
     );
 
     return Container(
@@ -248,13 +237,14 @@ class StoryTestinfoPage extends StatelessWidget {
               color: Color(0xFFF3F4F6),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, size: 17.sp, color: Color(0xFF111827)),
+            child: Icon(icon, size: 22.sp, color: Color(0xFF111827)),
           ),
           SizedBox(width: 8.w),
           Text(
             text,
             textAlign: alignStart ? TextAlign.start : TextAlign.center,
-            style: TextStyle(fontSize: 16.5.sp, fontWeight: FontWeight.w800),
+            textScaler: const TextScaler.linear(1.0),
+            style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
           ),
         ],
       ),

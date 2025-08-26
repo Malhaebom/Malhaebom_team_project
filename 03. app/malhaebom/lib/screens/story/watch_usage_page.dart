@@ -490,7 +490,7 @@ class _BulletRow extends StatelessWidget {
               style: TextStyle(
                 fontFamily: _kFont,
                 fontWeight: weight,
-                fontSize: 18.sp,
+                fontSize: 16.sp,
                 color: color,
               ),
             ),

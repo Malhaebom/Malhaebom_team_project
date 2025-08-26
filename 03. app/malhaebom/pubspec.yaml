@@ -44,6 +44,7 @@ dependencies:
   record: ^6.1.0
   path_provider: ^2.1.2
   path: ^1.9.0
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +73,8 @@ flutter:
   #   - images/a_dot_ham.jpeg
 
   # 로그인 및 회원가입
+  - assets/logo/
+  - assets/icons/
   - assets/logo/logo_long.png
   - assets/terms_and_conditions.json
 
