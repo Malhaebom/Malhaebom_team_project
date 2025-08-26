@@ -1,180 +1,181 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom"; // ✅ 추가
 
-const Join = () => {
-  const navigate = useNavigate();
-
-  const [name, setName] = useState("");
+const Signup = () => {
+  const [nick, setNick] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordCheck, setPasswordCheck] = useState("");
+  const [birth, setBirth] = useState("");
+  const [gender, setGender] = useState("");
+  const navigate = useNavigate(); // ✅ 네비게이트 훅
 
-  const handleJoin = () => {
-    if (!name || !phone || !password || !confirmPassword) {
-      alert("모든 항목을 입력하세요.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      alert("비밀번호가 일치하지 않습니다.");
-      return;
-    }
-
-    alert("회원가입 성공! 로그인 페이지로 이동합니다.");
-    navigate("/login");
+  const labelStyle = {
+    fontSize: "16px",
+    fontWeight: "bold",
+    marginBottom: "8px",
+    display: "block",
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "15px",
-    fontSize: "18px",
-    marginBottom: "15px",
-    borderRadius: "12px",
+    padding: "12px",
+    borderRadius: "10px",
     border: "1px solid #ccc",
-    boxSizing: "border-box",
+    fontSize: "16px",
+    marginBottom: "20px",
   };
 
-  const buttonStyle = (bgColor, hoverColor) => ({
-    width: "100%",
-    padding: "15px",
-    fontSize: "20px",
-    backgroundColor: bgColor,
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    cursor: "pointer",
-    marginBottom: "20px",
-    transition: "all 0.2s",
-    textAlign: "center",
-  });
-
-  const handleMouseEnter = (e, hoverColor) =>
-    (e.currentTarget.style.backgroundColor = hoverColor);
-  const handleMouseLeave = (e, bgColor) =>
-    (e.currentTarget.style.backgroundColor = bgColor);
+  const genderButtonStyle = (selected, type) => {
+    let activeColor = type === "male" ? "#4a85d1" : "#f06292"; // 남: 파랑, 여: 분홍
+    return {
+      flex: 1,
+      padding: "15px",
+      fontSize: "18px",
+      borderRadius: "12px",
+      border: selected ? `2px solid ${activeColor}` : "1px solid #ccc",
+      backgroundColor: selected ? activeColor : "#f9f9f9",
+      color: selected ? "#fff" : "#333",
+      cursor: "pointer",
+      textAlign: "center",
+      margin: "0 5px",
+      transition: "all 0.2s",
+    };
+  };
 
   return (
-    <div className="content">
-      <div
-        className="wrap"
+    <div
+      style={{
+        maxWidth: "520px",
+        margin: "0 auto",
+        padding: "50px 20px",
+        fontFamily: "Pretendard-Regular",
+      }}
+    >
+      {/* 타이틀 */}
+      <h2
         style={{
-          maxWidth: "520px",
-          margin: "0 auto",
-          paddingTop: "80px",
-          fontFamily: "Pretendard-Regular",
+          textAlign: "center",
+          marginBottom: "30px",
+          fontFamily: "ONE-Mobile-Title",
+          fontSize: "32px",
         }}
       >
-        <img
-          src="/img/logo.png"
-          alt="말해봄 로고"
-          style={{
-            width: "200px",
-            height: "200px",
-            objectFit: "contain",
-            display: "block",
-            margin: "0 auto 20px auto",
-          }}
-        />
-        <h6
-          style={{
-            fontSize: "30px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "10px",
-          }}
+        회원가입
+      </h2>
+
+      {/* 닉네임 */}
+      <label style={labelStyle}>닉네임</label>
+      <input
+        type="text"
+        value={nick}
+        onChange={(e) => setNick(e.target.value)}
+        style={inputStyle}
+        placeholder="닉네임을 입력하세요"
+      />
+
+      {/* 휴대전화번호 */}
+      <label style={labelStyle}>휴대전화번호</label>
+      <input
+        type="text"
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        style={inputStyle}
+        placeholder="휴대전화번호를 입력하세요"
+      />
+
+      {/* 비밀번호 */}
+      <label style={labelStyle}>비밀번호</label>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={inputStyle}
+        placeholder="비밀번호를 입력하세요"
+      />
+
+      {/* 비밀번호 확인 */}
+      <label style={labelStyle}>비밀번호 확인</label>
+      <input
+        type="password"
+        value={passwordCheck}
+        onChange={(e) => setPasswordCheck(e.target.value)}
+        style={inputStyle}
+        placeholder="비밀번호를 다시 입력하세요"
+      />
+
+      {/* 생년월일 */}
+      <label style={labelStyle}>생년월일</label>
+      <input
+        type="date"
+        value={birth}
+        onChange={(e) => setBirth(e.target.value)}
+        style={inputStyle}
+      />
+
+      {/* 성별 */}
+      <label style={labelStyle}>성별</label>
+      <div style={{ display: "flex", marginBottom: "20px" }}>
+        <div
+          style={genderButtonStyle(gender === "male", "male")}
+          onClick={() => setGender("male")}
         >
-          회원가입
-        </h6>
-        <p
-          style={{
-            fontSize: "22px",
-            color: "#555",
-            textAlign: "center",
-            marginBottom: "30px",
-          }}
+          남성
+        </div>
+        <div
+          style={genderButtonStyle(gender === "female", "female")}
+          onClick={() => setGender("female")}
         >
-          정보를 입력해 주세요
-        </p>
+          여성
+        </div>
+      </div>
 
-        <input
-          type="text"
-          placeholder="이름"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          style={inputStyle}
-        />
-        <input
-          type="text"
-          placeholder="전화번호"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          style={inputStyle}
-        />
-        <input
-          type="password"
-          placeholder="비밀번호"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
-        />
-        <input
-          type="password"
-          placeholder="비밀번호 확인"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          style={inputStyle}
-        />
+      {/* 회원가입 버튼 */}
+      <button
+        style={{
+          width: "100%",
+          padding: "15px",
+          fontSize: "18px",
+          fontWeight: "bold",
+          color: "#fff",
+          backgroundColor: "#4a85d1",
+          borderRadius: "10px",
+          border: "none",
+          cursor: "pointer",
+          transition: "all 0.2s",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.backgroundColor = "#5f9cec")
+        }
+        onMouseLeave={(e) =>
+          (e.currentTarget.style.backgroundColor = "#4a85d1")
+        }
+      >
+        회원가입
+      </button>
 
-        {/* 회원가입 버튼 */}
-    <button
-  style={{
-    width: "100%",
-    padding: "15px",
-    fontSize: "20px",
-    backgroundColor: "#4a85d1",
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    cursor: "pointer",
-    marginBottom: "20px",
-    transition: "all 0.2s",
-    textAlign: "center",
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5f9cec"}
-  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4a85d1"}
-  onClick={handleJoin}
->
-  회원가입
-</button>
-
-
-        {/* 로그인 페이지 이동 */}
-        <p
+      {/* 로그인 안내 */}
+      <div
+        style={{
+          marginTop: "20px",
+          textAlign: "center",
+          fontSize: "14px",
+        }}
+      >
+        계정을 보유하고 계신가요?{" "}
+        <span
           style={{
-            textAlign: "center",
-            fontSize: "16px",
-            marginTop: "20px",
-            width: "100%",
-            display: "block",
+            color: "#4a85d1",
+            fontWeight: "bold",
+            cursor: "pointer",
           }}
+          onClick={() => navigate("/login")} // ✅ 로그인 페이지 이동
         >
-          이미 계정이 있으신가요?{" "}
-          <span
-            style={{
-              color: "#4a85d1", // 로그인과 동일
-              cursor: "pointer",
-              fontWeight: "bold",
-              display: "inline-block",
-              marginLeft: "5px",
-            }}
-            onClick={() => navigate("/login")}
-          >
-            로그인
-          </span>
-        </p>
+          로그인
+        </span>
       </div>
     </div>
   );
 };
 
-export default Join;
+export default Signup;
