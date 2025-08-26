@@ -57,15 +57,14 @@ export default function QuizList() {
     return entry ? entry[0] : "";
   }, [brainTraining, quizType]);
 
-const goToQuizPlay = (qType, quizId) => {
-  if (!listData || listData.length === 0) return;
-  const topicData = listData.map(item => ({ ...item }));
-  const quizTitle = `${bannerSuffix} 영역`; // ✅ bannerSuffix 확실히 존재
-  navigate(`/quiz/play?quizType=${qType}&quizId=${quizId}&qid=0`, {
-    state: { currentTopicArr: topicData, quizType: qType, quizTitle }
-  });
-};
-
+  const goToQuizPlay = (qType, quizId) => {
+    if (!listData || !bannerSuffix) return; // 로딩 완료 전 클릭 방지
+    const topicData = listData.map(item => ({ ...item }));
+    const quizTitle = bannerSuffix ? `${bannerSuffix} 영역` : "퀴즈";
+    navigate(`/quiz/play?quizType=${qType}&quizId=${quizId}&qid=0`, {
+      state: { currentTopicArr: topicData, quizType: qType, quizTitle }
+    });
+  };
 
   return (
     <div className="content">
@@ -86,10 +85,16 @@ const goToQuizPlay = (qType, quizId) => {
               listData.map((item, key) => (
                 <div
                   key={key}
-                  onClick={() => goToQuizPlay(quizType, key)}
-                  style={{ cursor: "pointer", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", marginBottom: "12px", transition: "background-color 0.2s ease" }}
-                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#ecececff")}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                  onClick={() => bannerSuffix && goToQuizPlay(quizType, key)}
+                  style={{
+                    cursor: bannerSuffix ? "pointer" : "not-allowed",
+                    padding: "12px",
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    marginBottom: "12px",
+                    transition: "background-color 0.2s ease",
+                    opacity: bannerSuffix ? 1 : 0.5
+                  }}
                 >
                   <div className="theater_flex">
                     <p className="tit">{quizType !== 5 ? `Level ${key + 1}` : item.title}</p>
