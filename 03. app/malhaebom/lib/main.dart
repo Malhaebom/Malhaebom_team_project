@@ -31,6 +31,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(fontFamily: 'Pretendard'),
       debugShowCheckedModeBanner: false,
       home: const LoginPage(),
+      // home: const HomePage(),
     );
   }
 }

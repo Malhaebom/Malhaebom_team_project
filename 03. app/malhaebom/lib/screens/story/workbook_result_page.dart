@@ -102,141 +102,150 @@ class _WorkbookResultPageState extends State<WorkbookResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final totalCount = _totalCount ?? (widget.originalIndices.isEmpty
-        ? 0
-        : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1));
+    const fixedScale = TextScaler.linear(1.0); // 전역 글자 스케일 고정
+    final mq = MediaQuery.maybeOf(context) ?? const MediaQueryData();
+    
+    return MediaQuery(
+      data: mq.copyWith(textScaler: fixedScale),
+      child: Builder(
+        builder: (context) {
+          final totalCount = _totalCount ?? (widget.originalIndices.isEmpty
+              ? 0
+              : (widget.originalIndices.reduce((a, b) => a > b ? a : b) + 1));
 
-    // 현재까지 맞힌 개수
-    final correctSoFar = _progress.values.where((v) => v == true).length;
+          // 현재까지 맞힌 개수
+          final correctSoFar = _progress.values.where((v) => v == true).length;
 
-    // 버튼 활성화 판단: 현재 진행상태에서 오답들만 추출
-    final wrongOriginalIndices = <int>[
-      for (final e in _progress.entries)
-        if (e.value == false) e.key,
-    ]..sort();
+          // 버튼 활성화 판단: 현재 진행상태에서 오답들만 추출
+          final wrongOriginalIndices = <int>[
+            for (final e in _progress.entries)
+              if (e.value == false) e.key,
+          ]..sort();
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.btnColorDark,
-        centerTitle: true,
-        // 오른쪽 X 제거, 왼쪽 뒤로가기만 사용
-        title: Text(
-          '${widget.title} 워크북',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 20.sp, // ↑
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
-          children: [
-            Container(
-              padding: EdgeInsets.all(16.w),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20.r),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  )
-                ],
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              backgroundColor: AppColors.btnColorDark,
+              centerTitle: true,
+              // 오른쪽 X 제거, 왼쪽 뒤로가기만 사용
+              title: Text(
+                '${widget.title} 워크북',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20.sp, // ↑
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            body: SafeArea(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
                 children: [
-                  Text(
-                    '그림으로 쉽게 푸는 워크북',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 22.sp, // ↑
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-                  Text(
-                    '총 $totalCount문항 중 $correctSoFar문제 정답입니다.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 22.sp, // ↑
-                      height: 1.25,
-                    ),
-                  ),
-                  SizedBox(height: 10.h),
-
-                  // 전설
-                  Row(
-                    children: [
-                      _legendDot(
-                        color: AppColors.btnColorDark,
-                        label: '맞힌 문제',
-                      ),
-                      SizedBox(width: 12.w),
-                      _legendX(
-                        color: const Color(0xFFEF4444),
-                        label: '틀린 문제',
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 14.h),
-
-                  // 리스트: 항상 '전체 문항'을 그린다
-                  ...List.generate(totalCount, (originalIdx) {
-                    final state = _progress[originalIdx]; // null/true/false
-                    final isWrong = state == false;
-                    final canRetakeThis = isWrong; // 오답만 단일 재도전 허용
-
-                    return Column(
-                      children: [
-                        _ResultRow(
-                          indexLabel: '${originalIdx + 1}번 문제',
-                          state: state,
-                          onTap: canRetakeThis
-                              ? () => _retakeAndMerge([originalIdx])
-                              : null,
-                        ),
-                        const Divider(height: 16),
+                  Container(
+                    padding: EdgeInsets.all(16.w),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        )
                       ],
-                    );
-                  }),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '그림으로 쉽게 푸는 워크북',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22.sp, // ↑
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+                        Text(
+                          '총 $totalCount문항 중 $correctSoFar문제 정답입니다.',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22.sp, // ↑
+                            height: 1.25,
+                          ),
+                        ),
+                        SizedBox(height: 10.h),
+
+                        // 전설
+                        Row(
+                          children: [
+                            _legendDot(
+                              color: AppColors.btnColorDark,
+                              label: '맞힌 문제',
+                            ),
+                            SizedBox(width: 12.w),
+                            _legendX(
+                              color: const Color(0xFFEF4444),
+                              label: '틀린 문제',
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // 리스트: 항상 '전체 문항'을 그린다
+                        ...List.generate(totalCount, (originalIdx) {
+                          final state = _progress[originalIdx]; // null/true/false
+                          final isWrong = state == false;
+                          final canRetakeThis = isWrong; // 오답만 단일 재도전 허용
+
+                          return Column(
+                            children: [
+                              _ResultRow(
+                                indexLabel: '${originalIdx + 1}번 문제',
+                                state: state,
+                                onTap: canRetakeThis
+                                    ? () => _retakeAndMerge([originalIdx])
+                                    : null,
+                              ),
+                              const Divider(height: 16),
+                            ],
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 18.h),
+
+                  // 틀린 문제만 다시 풀기
+                  SizedBox(
+                    height: 56.h, // ↑
+                    child: ElevatedButton(
+                      onPressed: wrongOriginalIndices.isEmpty
+                          ? null
+                          : () => _retakeAndMerge(wrongOriginalIndices),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD43B),
+                        disabledBackgroundColor: const Color(0xFFFFE8A3),
+                        foregroundColor: Colors.black,
+                        shape: const StadiumBorder(),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        wrongOriginalIndices.isEmpty
+                            ? '모든 문제를 맞혔어요!'
+                            : '틀린 문제만 다시 풀기',
+                        style: TextStyle(
+                          fontFamily: _kFont,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 20.sp, // ↑
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            SizedBox(height: 18.h),
-
-            // 틀린 문제만 다시 풀기
-            SizedBox(
-              height: 56.h, // ↑
-              child: ElevatedButton(
-                onPressed: wrongOriginalIndices.isEmpty
-                    ? null
-                    : () => _retakeAndMerge(wrongOriginalIndices),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFD43B),
-                  disabledBackgroundColor: const Color(0xFFFFE8A3),
-                  foregroundColor: Colors.black,
-                  shape: const StadiumBorder(),
-                  elevation: 0,
-                ),
-                child: Text(
-                  wrongOriginalIndices.isEmpty
-                      ? '모든 문제를 맞혔어요!'
-                      : '틀린 문제만 다시 풀기',
-                  textScaler: fixedScale,
-                  style: TextStyle(
-                    fontFamily: _kFont,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 20.sp, // ↑
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
