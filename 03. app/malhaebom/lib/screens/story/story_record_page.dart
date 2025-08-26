@@ -170,6 +170,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
+            textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontFamily: 'GmarketSans',
               fontWeight: FontWeight.w500,
@@ -225,6 +226,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
                                   Text(
                                     '이야기 주인공의 대사 따라하기',
                                     textAlign: TextAlign.center,
+                                    textScaler: const TextScaler.linear(1.0),
                                     style: TextStyle(
                                       fontFamily: 'GmarketSans',
                                       fontWeight: FontWeight.w500,
@@ -237,6 +239,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
                                   Text(
                                     '1번부터 $_count번까지\n차례대로 따라해보세요.',
                                     textAlign: TextAlign.center,
+                                    textScaler: const TextScaler.linear(1.0),
                                     style: TextStyle(
                                       fontFamily: 'GmarketSans',
                                       fontWeight: FontWeight.w500,
@@ -257,6 +260,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
                                       SizedBox(width: 6.w),
                                       Text(
                                         '녹음 완료',
+                                        textScaler: const TextScaler.linear(1.0),
                                         style: TextStyle(
                                           fontFamily: 'GmarketSans',
                                           fontWeight: FontWeight.w400,
@@ -273,6 +277,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
                                       SizedBox(width: 6.w),
                                       Text(
                                         '녹음 전',
+                                        textScaler: const TextScaler.linear(1.0),
                                         style: TextStyle(
                                           fontFamily: 'GmarketSans',
                                           fontWeight: FontWeight.w400,
@@ -370,6 +375,7 @@ class _LineRow extends StatelessWidget {
                   child: Text(
                     '$number번 대사',
                     textAlign: TextAlign.center,
+                    textScaler: const TextScaler.linear(1.0),
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontWeight: FontWeight.w800,

@@ -141,6 +141,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
           automaticallyImplyLeading: false,
           title: Text(
             '${widget.title} 연극',
+            textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontFamily: 'GmarketSans',
               fontWeight: FontWeight.w500,
@@ -166,6 +167,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
               Center(
                 child: Text(
                   '${widget.lineNumber}번 대사',
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontFamily: 'GmarketSans',
                     fontWeight: FontWeight.w800,
@@ -200,6 +202,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                       children: [
                         Text(
                           widget.lineText,
+                          textScaler: const TextScaler.linear(1.0),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontFamily: 'GmarketSans',
@@ -222,6 +225,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                             SizedBox(width: 6.w),
                             Text(
                               '탭해서 원본 듣기',
+                              textScaler: const TextScaler.linear(1.0),
                               style: TextStyle(
                                 fontFamily: 'GmarketSans',
                                 fontWeight: FontWeight.w400,
@@ -254,6 +258,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                     child: Text(
                       _isRecording ? '녹음\n중...' : '녹음\n시작',
                       textAlign: TextAlign.center,
+                      textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
                         fontFamily: 'GmarketSans',
                         fontWeight: FontWeight.w500,
@@ -278,7 +283,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                     ),
-                    label: const Text('내 녹음 듣기'),
+                    label: const Text('내 녹음 듣기', textScaler: const TextScaler.linear(1.0),),
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           _savedPath == null
@@ -469,6 +474,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
       decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
       child: Text(
         text,
+        textScaler: const TextScaler.linear(1.0),
         style: TextStyle(
           fontFamily: 'GmarketSans',
           fontWeight: FontWeight.w500,
