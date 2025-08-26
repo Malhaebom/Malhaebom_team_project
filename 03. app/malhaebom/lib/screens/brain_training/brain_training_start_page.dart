@@ -1,4 +1,5 @@
 import 'package:malhaebom/screens/brain_training/brain_training_test_page.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -18,12 +19,23 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: () async {
+        // 뒤로가기 시 BrainTrainingMainPage로 이동
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+          (route) => false,
+        );
+        return false;
+      },
+      child: Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.background,
         scrolledUnderElevation: 0,
         title: Text(
           widget.title,
+          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
           style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
         ),
       ),
@@ -44,6 +56,7 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                   SizedBox(height: 30.h),
                   Text(
                     "놀이로 하는 뇌 건강 활동!",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontSize: 18.sp,
                       fontWeight: FontWeight.w600,
@@ -52,6 +65,7 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                   SizedBox(height: 5.h),
                   Text(
                     "정답을 눌러주세요.",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w400,
@@ -59,6 +73,7 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                   ),
                   Text(
                     "문제를 푸는 동안 시간이 측정돼요:)",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontSize: 16.sp,
                       fontWeight: FontWeight.w400,
@@ -66,6 +81,7 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                   ),
                   Text(
                     "테스트 중 페이지를 나가면 기록이 저장되지 않습니다.",
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontSize: 12.sp,
                       fontWeight: FontWeight.w500,
@@ -97,6 +113,7 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

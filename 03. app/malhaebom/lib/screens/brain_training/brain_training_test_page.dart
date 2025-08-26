@@ -1,5 +1,6 @@
 import 'package:malhaebom/data/brain_training_data.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_result_page.dart';
+import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/custom_submit_button.dart';
 import 'package:flutter/material.dart';
@@ -9,9 +10,16 @@ import 'package:stop_watch_timer/stop_watch_timer.dart';
 import 'package:audioplayers/audioplayers.dart';
 
 class BrainTrainingTestPage extends StatefulWidget {
-  const BrainTrainingTestPage({super.key, required this.title});
+  const BrainTrainingTestPage({
+    super.key, 
+    required this.title,
+    this.retryIndex,
+    this.retryAnswers,
+  });
 
   final String title;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<BrainTrainingTestPage> createState() => _BrainTrainingTestPageState();
@@ -101,22 +109,42 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        automaticallyImplyLeading: false,
-        scrolledUnderElevation: 0,
-        title: Center(
-          child: Text(
-            widget.title,
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+    return WillPopScope(
+      onWillPop: () async {
+        // 재시도 모드일 때는 BrainTrainingMainPage로 이동
+        if (widget.retryIndex != null) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+            (route) => false,
+          );
+          return false;
+        }
+        // 일반 모드일 때는 BrainTrainingMainPage로 이동
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => BrainTrainingMainPage()),
+          (route) => false,
+        );
+        return false;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          automaticallyImplyLeading: false,
+          scrolledUnderElevation: 0,
+          title: Center(
+            child: Text(
+              widget.title,
+              textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+            ),
           ),
         ),
-      ),
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 40.w),
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 40.w),
           child: Column(
             children: [
               LinearPercentIndicator(
@@ -137,6 +165,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   screenHeight: screenHeight,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "기억집중")
@@ -146,6 +176,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "문제해결능력" ||
@@ -157,6 +189,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "알록달록")
@@ -166,6 +200,8 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
 
               if (widget.title == "음악과터치")
@@ -175,10 +211,13 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
                   forwardFunc: forwardFunc,
                   prevFunc: prevFunc,
                   category: widget.title,
+                  retryIndex: widget.retryIndex,
+                  retryAnswers: widget.retryAnswers,
                 ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -222,6 +261,7 @@ class _TimeDisplayState extends State<TimeDisplay> {
   Widget build(BuildContext context) {
     return Text(
       displayTime,
+      textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
       style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16.sp),
     );
   }
@@ -240,6 +280,8 @@ class SpaceTimeTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.screenHeight,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final String category;
@@ -247,6 +289,8 @@ class SpaceTimeTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final double screenHeight;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<SpaceTimeTest> createState() => _SpaceTimeTestState();
@@ -260,11 +304,20 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
   void initState() {
     super.initState();
     setAnswers();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(widget.data.length, (index) => -1);
+      if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<int>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(widget.data.length, (index) => -1);
+      }
     });
   }
 
@@ -282,6 +335,7 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -299,18 +353,17 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -470,49 +523,71 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
 
           Column(
             children: [
-              CustomSubmitButton(
-                btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                isActive: answers[index] != -1,
-                onPressed: () {
-                  if (index != widget.data.length - 1) {
-                    if (answers[index] != -1) {
-                      setState(() {
-                        widget.forwardFunc();
-                        index += 1;
-                      });
-                    }
-                  } else {
-                    /*
-                      테스트 결과 페이지로 넘어가기
-                    */
-                    Navigator.push(
+              // 재시도 모드가 아닐 때만 버튼들 표시
+              if (widget.retryIndex == null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: CustomSubmitButton(
+                        btnText: "이전 문제",
+                        isActive: index != 0,
+                        onPressed: index != 0 ? () {
+                          setState(() {
+                            widget.prevFunc();
+                            index -= 1;
+                          });
+                        } : () {},
+                      ),
+                    ),
+                    SizedBox(width: 8.w),
+                    Expanded(
+                      child: CustomSubmitButton(
+                        btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                        isActive: answers[index] != -1,
+                        onPressed: () {
+                          if (answers[index] == -1) return;
+                          if (index != widget.data.length - 1) {
+                            setState(() {
+                              widget.forwardFunc();
+                              index += 1;
+                            });
+                          } else {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => BrainTrainingResultPage(
+                                  data: widget.data,
+                                  category: widget.category,
+                                  answers: answers,
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+
+              // 재시도 모드일 때만 결과 확인 버튼 표시
+              if (widget.retryIndex != null)
+                CustomSubmitButton(
+                  btnText: "결과 확인",
+                  isActive: answers[index] != -1,
+                  onPressed: () {
+                    Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder:
-                            (context) => BrainTrainingResultPage(
-                              data: widget.data,
-                              category: widget.category,
-                            ),
+                        builder: (context) => BrainTrainingResultPage(
+                          data: widget.data,
+                          category: widget.category,
+                          answers: answers,
+                          originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                        ),
                       ),
                     );
-                  }
-                },
-              ),
-
-              SizedBox(height: 10.h),
-
-              index != 0
-                  ? CustomSubmitButton(
-                    btnText: "이전 문제",
-                    isActive: true,
-                    onPressed: () {
-                      setState(() {
-                        widget.prevFunc();
-                        index -= 1;
-                      });
-                    },
-                  )
-                  : Container(),
+                  },
+                ),
 
               SizedBox(height: 20.h),
             ],
@@ -536,6 +611,8 @@ class ConcentrationTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -543,6 +620,8 @@ class ConcentrationTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<ConcentrationTest> createState() => _ConcentrationTestState();
@@ -556,11 +635,20 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
   void initState() {
     super.initState();
     setAnswers();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(widget.data.length, (index) => -1);
+      if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<int>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(widget.data.length, (index) => -1);
+      }
     });
   }
 
@@ -578,6 +666,7 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -595,18 +684,17 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -700,57 +788,77 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: answers[index] != -1,
+                         onPressed: () {
+                           if (answers[index] == -1) return;
+                           if (index != widget.data.length - 1) {
+                             setState(() {
+                               widget.forwardFunc();
+                               index += 1;
+                             });
+                           } else {
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              CustomSubmitButton(
-                btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                isActive: answers[index] != -1,
-                onPressed: () {
-                  if (index != widget.data.length - 1) {
-                    if (answers[index] != -1) {
-                      setState(() {
-                        widget.forwardFunc();
-                        index += 1;
-                      });
-                    }
-                  } else {
-                    /*
-                      테스트 결과 페이지로 넘어가기
-                    */
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => BrainTrainingResultPage(
-                              data: widget.data,
-                              category: widget.category,
-                            ),
-                      ),
-                    );
-                  }
-                },
-              ),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: answers[index] != -1,
+                   onPressed: () {
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              SizedBox(height: 10.h),
-
-              index != 0
-                  ? CustomSubmitButton(
-                    btnText: "이전 문제",
-                    isActive: true,
-                    onPressed: () {
-                      setState(() {
-                        widget.prevFunc();
-                        index -= 1;
-                      });
-                    },
-                  )
-                  : Container(),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );
@@ -770,6 +878,8 @@ class SolvingTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -777,6 +887,8 @@ class SolvingTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<SolvingTest> createState() => _SolvingTestState();
@@ -789,7 +901,124 @@ class _SolvingTestState extends State<SolvingTest> {
   @override
   void initState() {
     super.initState();
-    answers = List.generate(widget.data.length, (index) => -1);
+    if (widget.retryAnswers != null && widget.retryAnswers is List<int>) {
+      // 재시도인 경우 기존 답변 복원
+      answers = List<int>.from(widget.retryAnswers);
+    } else {
+      answers = List.generate(widget.data.length, (index) => -1);
+    }
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
+  }
+
+  Widget _buildAnswerOptions() {
+    final currentKey = widget.data.keys.toList()[index];
+    final currentData = widget.data[currentKey];
+    final questionCount = currentData["question"].length;
+    
+    // 디버깅용 로그 추가
+    print("Category: ${widget.category}, CurrentKey: $currentKey, QuestionCount: $questionCount");
+    
+    // 문제해결능력의 문제01, 02만 세로형(1x4)으로 표시
+    if (widget.category == "문제해결능력" && (currentKey == "문제01" || currentKey == "문제02")) {
+      // 세로형 리스트로 표시
+      return ListView.builder(
+        itemCount: questionCount + 1, // 하단 여백을 위한 +1
+        itemBuilder: (context, idx) {
+          if (idx == questionCount) {
+            // 하단 여백
+            return SizedBox(height: 20.h);
+          }
+          return Column(
+            children: [
+              _buildAnswerOption(idx),
+              SizedBox(height: 8.h),
+            ],
+          );
+        },
+      );
+    } else if (questionCount == 4) {
+      // 그 외의 4개 선택지는 모두 2x2 그리드로 표시
+      return GridView.count(
+        crossAxisCount: 2,
+        childAspectRatio: 2.5,
+        crossAxisSpacing: 8.w,
+        mainAxisSpacing: 8.h,
+        padding: EdgeInsets.only(bottom: 20.h),
+        children: List.generate(questionCount, (idx) => _buildAnswerOption(idx)),
+      );
+    } else {
+      // 그 외의 경우는 기존 리스트 형태로 표시
+      return ListView.builder(
+        itemCount: questionCount + 1, // 하단 여백을 위한 +1
+        itemBuilder: (context, idx) {
+          if (idx == questionCount) {
+            // 하단 여백
+            return SizedBox(height: 20.h);
+          }
+          return Column(
+            children: [
+              _buildAnswerOption(idx),
+              SizedBox(height: 8.h),
+            ],
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildAnswerOption(int idx) {
+    final currentKey = widget.data.keys.toList()[index];
+    final currentData = widget.data[currentKey];
+    
+    // 문제해결능력의 문제01, 02는 선택지 박스 가로길이 조정
+    bool isProblemSolving01or02 = widget.category == "문제해결능력" && (currentKey == "문제01" || currentKey == "문제02");
+    
+    return InkWell(
+      onTap: () {
+        setState(() {
+          answers[index] = idx;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: isProblemSolving01or02 ? double.infinity : null, // 문제01, 02는 전체 너비 사용
+        padding: EdgeInsets.symmetric(
+          vertical: 15.h, 
+          horizontal: isProblemSolving01or02 ? 20.w : 12.w, // 문제01, 02는 더 넓은 패딩
+        ),
+        decoration: BoxDecoration(
+          color: answers[index] == idx ? AppColors.blue.withOpacity(0.1) : AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: answers[index] == idx 
+            ? Border.all(color: AppColors.blue, width: 2)
+            : Border.all(color: Colors.grey.shade300),
+          boxShadow: answers[index] == idx
+            ? [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 8,
+                offset: Offset(0, 4),
+              ),
+            ]
+            : [],
+        ),
+        child: Text(
+          currentData["question"][idx],
+          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+          style: TextStyle(
+            fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
+            fontWeight: FontWeight.w500,
+            color: answers[index] == idx ? AppColors.blue : AppColors.text,
+          ),
+          textAlign: TextAlign.center,
+          maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
   }
 
   @override
@@ -808,6 +1037,7 @@ class _SolvingTestState extends State<SolvingTest> {
                 children: [
                   Text(
                     currentKey,
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -829,6 +1059,7 @@ class _SolvingTestState extends State<SolvingTest> {
                 child: Text(
                   currentData["title"],
                   textAlign: TextAlign.center,
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
                     color: AppColors.white,
                     fontFamily: 'GmarketSans',
@@ -840,128 +1071,105 @@ class _SolvingTestState extends State<SolvingTest> {
               SizedBox(height: 10.h),
               Container(
                 width: double.infinity,
-                height: widget.screenHeight * 0.35,
+                constraints: BoxConstraints(
+                  maxHeight: currentKey == "문제03" 
+                    ? widget.screenHeight * 0.35  // 문제03은 높이 증가
+                    : widget.screenHeight * 0.28,
+                ),
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage(currentData["image"]),
-                    fit: BoxFit.fill,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
               SizedBox(height: 10.h),
               Expanded(
-                child: ListView.builder(
-                  itemCount: 5,
-                  itemBuilder: (context, idx) {
-                    if (idx == 4) {
-                      if (index == 0) {
-                        return SizedBox(height: 75.h);
-                      } else {
-                        return SizedBox(height: 120.h);
-                      }
-                    }
-
-                    return Column(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              answers[index] = idx;
-                            });
-                          },
-                          child: Container(
-                            padding: EdgeInsets.all(10.h),
-                            decoration: BoxDecoration(
-                              color: AppColors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow:
-                                  answers[index] == idx
-                                      ? [
-                                        BoxShadow(
-                                          color: Colors.black26,
-                                          blurRadius: 8,
-                                          offset: Offset(0, 4),
-                                        ),
-                                      ]
-                                      : [],
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    currentData["question"][idx],
-                                    style: TextStyle(
-                                      fontSize: 15.sp,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 8.h),
-                      ],
-                    );
-                  },
-                ),
+                child: _buildAnswerOptions(),
               ),
             ],
           ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(color: AppColors.background),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: 15.h),
-                  CustomSubmitButton(
-                    btnText:
-                        index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                    isActive: answers[index] != -1,
-                    onPressed: () {
-                      if (answers[index] == -1) return;
-                      if (index < widget.data.length - 1) {
-                        setState(() {
-                          widget.forwardFunc();
-                          index++;
-                        });
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => BrainTrainingResultPage(
-                                  data: widget.data,
-                                  category: widget.category,
-                                ),
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  SizedBox(height: 10.h),
+                     Positioned(
+             bottom: 0,
+             left: 0,
+             right: 0,
+             child: Container(
+               decoration: BoxDecoration(color: AppColors.background),
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.stretch,
+                 children: [
+                   SizedBox(height: 15.h),
+                   // 재시도 모드가 아닐 때만 버튼들 표시
+                   if (widget.retryIndex == null)
+                     Row(
+                       children: [
+                         Expanded(
+                           child: CustomSubmitButton(
+                             btnText: "이전 문제",
+                             isActive: index != 0,
+                             onPressed: index != 0 ? () {
+                               setState(() {
+                                 widget.prevFunc();
+                                 index--;
+                               });
+                             } : () {},
+                           ),
+                         ),
+                         SizedBox(width: 8.w),
+                         Expanded(
+                           child: CustomSubmitButton(
+                             btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                             isActive: answers[index] != -1,
+                             onPressed: () {
+                               if (answers[index] == -1) return;
+                               if (index < widget.data.length - 1) {
+                                 setState(() {
+                                   widget.forwardFunc();
+                                   index++;
+                                 });
+                               } else {
+                                 Navigator.pushReplacement(
+                                   context,
+                                   MaterialPageRoute(
+                                     builder: (_) => BrainTrainingResultPage(
+                                       data: widget.data,
+                                       category: widget.category,
+                                       answers: answers,
+                                     ),
+                                   ),
+                                 );
+                               }
+                             },
+                           ),
+                         ),
+                       ],
+                     ),
 
-                  if (index != 0)
-                    CustomSubmitButton(
-                      btnText: "이전 문제",
-                      isActive: true,
-                      onPressed: () {
-                        setState(() {
-                          widget.prevFunc();
-                          index--;
-                        });
-                      },
-                    ),
+                   // 재시도 모드일 때만 결과 확인 버튼 표시
+                   if (widget.retryIndex != null)
+                     CustomSubmitButton(
+                       btnText: "결과 확인",
+                       isActive: answers[index] != -1,
+                       onPressed: () {
+                         Navigator.pushReplacement(
+                           context,
+                           MaterialPageRoute(
+                             builder: (context) => BrainTrainingResultPage(
+                               data: widget.data,
+                               category: widget.category,
+                               answers: answers,
+                               originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                             ),
+                           ),
+                         );
+                       },
+                     ),
 
-                  SizedBox(height: 20.h),
-                ],
-              ),
-            ),
-          ),
+                   SizedBox(height: 20.h),
+                 ],
+               ),
+             ),
+           ),
         ],
       ),
     );
@@ -981,6 +1189,8 @@ class ColorTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -988,6 +1198,8 @@ class ColorTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<ColorTest> createState() => _ColorTestState();
@@ -1010,17 +1222,26 @@ class _ColorTestState extends State<ColorTest> {
     super.initState();
     setAnswers();
     setCount();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
   }
 
   void setAnswers() {
     setState(() {
-      answers = List.generate(
-        widget.data.length,
-        (index) => List.generate(
-          widget.data[widget.data.keys.toList()[index]]["answer"].length,
-          (index) => -1,
-        ),
-      );
+      if (widget.retryAnswers != null && widget.retryAnswers is List<List>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<List>.from(widget.retryAnswers);
+      } else {
+        answers = List.generate(
+          widget.data.length,
+          (index) => List.generate(
+            widget.data[widget.data.keys.toList()[index]]["answer"].length,
+            (innerIndex) => -1,
+          ),
+        );
+      }
 
       questionCnt =
           widget.data[widget.data.keys.toList()[index]]["question"].length;
@@ -1049,6 +1270,7 @@ class _ColorTestState extends State<ColorTest> {
                 children: [
                   Text(
                     widget.data.keys.toList()[index],
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       fontSize: 22.sp,
@@ -1066,18 +1288,17 @@ class _ColorTestState extends State<ColorTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -1129,6 +1350,8 @@ class _ColorTestState extends State<ColorTest> {
                               touchCount++;
                               // 리스트에 0 append
                             });
+                            
+
                           } else {
                             switch (questionCnt) {
                               case 2:
@@ -1139,12 +1362,14 @@ class _ColorTestState extends State<ColorTest> {
                                   touchCount++;
                                   // 리스트에 1 append
                                 });
+                                break;
 
                               case 5:
                                 setState(() {
                                   touchCount++;
                                   // 리스트에 2 append
                                 });
+                                break;
                             }
                           }
                         }
@@ -1264,58 +1489,79 @@ class _ColorTestState extends State<ColorTest> {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: totalCount == touchCount,
+                         onPressed: () {
+                           if (index != widget.data.length - 1) {
+                             if (totalCount == touchCount) {
+                               setState(() {
+                                 widget.forwardFunc();
+                                 index += 1;
+                               });
+                               setCount();
+                             }
+                           } else {
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              CustomSubmitButton(
-                btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                isActive: totalCount == touchCount,
-                onPressed: () {
-                  if (index != widget.data.length - 1) {
-                    if (totalCount == touchCount) {
-                      setState(() {
-                        widget.forwardFunc();
-                        index += 1;
-                      });
-                      setCount();
-                    }
-                  } else {
-                    /*
-                      테스트 결과 페이지로 넘어가기
-                    */
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => BrainTrainingResultPage(
-                              data: widget.data,
-                              category: widget.category,
-                            ),
-                      ),
-                    );
-                  }
-                },
-              ),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: totalCount == touchCount,
+                   onPressed: () {
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              SizedBox(height: 10.h),
-
-              index != 0
-                  ? CustomSubmitButton(
-                    btnText: "이전 문제",
-                    isActive: true,
-                    onPressed: () {
-                      setState(() {
-                        widget.prevFunc();
-                        index -= 1;
-                      });
-                    },
-                  )
-                  : Container(),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );
@@ -1335,6 +1581,8 @@ class MusicTest extends StatefulWidget {
     required this.forwardFunc,
     required this.prevFunc,
     required this.category,
+    this.retryIndex,
+    this.retryAnswers,
   });
 
   final Map<String, dynamic> data;
@@ -1342,12 +1590,14 @@ class MusicTest extends StatefulWidget {
   final VoidCallback forwardFunc;
   final VoidCallback prevFunc;
   final String category;
+  final int? retryIndex;
+  final dynamic retryAnswers;
 
   @override
   State<MusicTest> createState() => _MusicTestState();
 }
 
-class _MusicTestState extends State<MusicTest> {
+class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
   int index = 0;
   List<List> answers = [];
 
@@ -1364,7 +1614,51 @@ class _MusicTestState extends State<MusicTest> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    setAnswers();
     setCount();
+    // 재시도인 경우 해당 문제로 이동
+    if (widget.retryIndex != null) {
+      index = widget.retryIndex!;
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    audioPlayer.stop();
+    audioPlayer.dispose();
+    super.dispose();
+  }
+
+  // 앱 라이프사이클 감지: 홈버튼 누를 때 자동 재생 중지
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // 홈버튼이나 다른 앱으로 이동할 때 음악 자동 중지
+      if (isPlaying) {
+        audioPlayer.stop();
+        setState(() {
+          isPlaying = false;
+        });
+      }
+    }
+  }
+
+  void setAnswers() {
+    setState(() {
+      if (widget.retryAnswers != null && widget.retryAnswers is List<List>) {
+        // 재시도인 경우 기존 답변 복원
+        answers = List<List>.from(widget.retryAnswers);
+      } else {
+        // 음악과터치는 answer가 단일 정수값이므로 단일 값으로 초기화
+        answers = List.generate(
+          widget.data.length,
+          (index) => [-1], // 단일 값으로 초기화
+        );
+      }
+    });
   }
 
   void setCount() {
@@ -1375,14 +1669,29 @@ class _MusicTestState extends State<MusicTest> {
   }
 
   bool isPlaying = false;
-  void playAuido(int index) async {
-    setState(() {
-      isPlaying = true;
-    });
+  void playAudio(int index) async {
+    try {
+      setState(() {
+        isPlaying = true;
+      });
 
-    await audioPlayer.play(
-      AssetSource(widget.data[widget.data.keys.toList()[index]]["sound"]),
-    );
+      await audioPlayer.play(
+        AssetSource(widget.data[widget.data.keys.toList()[index]]["sound"]),
+      );
+      
+      // 재생 완료 시 상태 업데이트
+      audioPlayer.onPlayerComplete.listen((event) {
+        setState(() {
+          isPlaying = false;
+        });
+      });
+      
+    } catch (e) {
+      print('음악 재생 오류: $e');
+      setState(() {
+        isPlaying = false;
+      });
+    }
   }
 
   @override
@@ -1401,6 +1710,7 @@ class _MusicTestState extends State<MusicTest> {
                     children: [
                       Text(
                         widget.data.keys.toList()[index],
+                        textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                         style: TextStyle(
                           fontFamily: 'GmarketSans',
                           fontSize: 22.sp,
@@ -1417,10 +1727,7 @@ class _MusicTestState extends State<MusicTest> {
                               isPlaying = false;
                             });
                           } else {
-                            playAuido(index);
-                            setState(() {
-                              isPlaying = true;
-                            });
+                            playAudio(index);
                           }
                         },
                         child: Icon(
@@ -1443,18 +1750,17 @@ class _MusicTestState extends State<MusicTest> {
                   color: AppColors.blue,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Expanded(
-                  child: Text(
-                    textAlign: TextAlign.center,
-                    widget.data[widget.data.keys.toList()[index]]["title"],
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontFamily: 'GmarketSans',
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16.sp,
-                    ),
-                    overflow: TextOverflow.visible,
+                child: Text(
+                  textAlign: TextAlign.center,
+                  widget.data[widget.data.keys.toList()[index]]["title"],
+                  textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+                  style: TextStyle(
+                    color: AppColors.white,
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16.sp,
                   ),
+                  overflow: TextOverflow.visible,
                 ),
               ),
 
@@ -1479,6 +1785,8 @@ class _MusicTestState extends State<MusicTest> {
                 onTap: () {
                   setState(() {
                     touchCount += 1;
+                    // 답변 저장
+                    answers[index][0] = touchCount;
                   });
                 },
                 child: Container(
@@ -1488,6 +1796,7 @@ class _MusicTestState extends State<MusicTest> {
                   child: Text(
                     "터치",
                     textAlign: TextAlign.center,
+                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                     style: TextStyle(
                       fontFamily: 'Gmarketsans',
                       fontSize: 18.sp,
@@ -1499,6 +1808,7 @@ class _MusicTestState extends State<MusicTest> {
               SizedBox(height: 25.h),
               Text(
                 "$touchCount번 터치",
+                textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                 style: TextStyle(
                   color: AppColors.text,
                   fontSize: 16.sp,
@@ -1509,67 +1819,98 @@ class _MusicTestState extends State<MusicTest> {
             ],
           ),
 
-          Column(
-            children: [
-              SizedBox(height: 20.h),
+                     Column(
+             children: [
+               SizedBox(height: 20.h),
 
-              CustomSubmitButton(
-                btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
-                isActive: touchCount > 0,
-                onPressed: () {
-                  if (index != widget.data.length - 1) {
-                    if (touchCount > 0) {
-                      print("왜 안멈춰");
-                      setState(() {
-                        widget.forwardFunc();
-                        index += 1;
-                        isPlaying = false;
-                        audioPlayer.stop();
-                        audioPlayer.release();
-                      });
-                      setCount();
-                    }
-                  } else {
-                    setState(() {
-                      isPlaying = false;
-                      audioPlayer.stop();
-                      audioPlayer.release();
-                    });
-                    /*
-                      테스트 결과 페이지로 넘어가기
-                    */
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder:
-                            (context) => BrainTrainingResultPage(
-                              data: widget.data,
-                              category: widget.category,
-                            ),
-                      ),
-                    );
-                  }
-                },
-              ),
+               // 재시도 모드가 아닐 때만 버튼들 표시
+               if (widget.retryIndex == null)
+                 Row(
+                   children: [
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: "이전 문제",
+                         isActive: index != 0,
+                         onPressed: index != 0 ? () {
+                           setState(() {
+                             widget.prevFunc();
+                             index -= 1;
+                           });
+                         } : () {},
+                       ),
+                     ),
+                     SizedBox(width: 8.w),
+                     Expanded(
+                       child: CustomSubmitButton(
+                         btnText: index != widget.data.length - 1 ? "다음 문제" : "결과 확인",
+                         isActive: touchCount > 0,
+                         onPressed: () {
+                           if (index != widget.data.length - 1) {
+                             if (touchCount > 0) {
+                               // 현재 문제의 답변 저장
+                               answers[index][0] = touchCount;
+                               setState(() {
+                                 widget.forwardFunc();
+                                 index += 1;
+                                 isPlaying = false;
+                                 audioPlayer.stop();
+                                 audioPlayer.release();
+                               });
+                               setCount();
+                             }
+                           } else {
+                             setState(() {
+                               isPlaying = false;
+                               audioPlayer.stop();
+                               audioPlayer.release();
+                             });
+                             Navigator.pushReplacement(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => BrainTrainingResultPage(
+                                   data: widget.data,
+                                   category: widget.category,
+                                   answers: answers,
+                                 ),
+                               ),
+                             );
+                           }
+                         },
+                       ),
+                     ),
+                   ],
+                 ),
 
-              SizedBox(height: 10.h),
+               // 재시도 모드일 때만 결과 확인 버튼 표시
+               if (widget.retryIndex != null)
+                 CustomSubmitButton(
+                   btnText: "결과 확인",
+                   isActive: touchCount > 0,
+                   onPressed: () {
+                     // 현재 문제의 답변 저장
+                     answers[index][0] = touchCount;
+                     setState(() {
+                       isPlaying = false;
+                       audioPlayer.stop();
+                       audioPlayer.release();
+                     });
+                     Navigator.pushReplacement(
+                       context,
+                       MaterialPageRoute(
+                         builder: (context) => BrainTrainingResultPage(
+                           data: widget.data,
+                           category: widget.category,
+                           answers: answers,
+                           originalAnswers: widget.retryAnswers, // 기존 답변 전달
+                         ),
+                       ),
+                     );
+                   },
+                 ),
 
-              index != 0
-                  ? CustomSubmitButton(
-                    btnText: "이전 문제",
-                    isActive: true,
-                    onPressed: () {
-                      setState(() {
-                        widget.prevFunc();
-                        index -= 1;
-                      });
-                    },
-                  )
-                  : Container(),
-
-              SizedBox(height: 20.h),
-            ],
-          ),
+               SizedBox(height: 20.h),
+             ],
+           ),
         ],
       ),
     );

@@ -243,6 +243,9 @@ flutter:
   - assets/fairytale/할머니와바나나/test/19/
   - assets/fairytale/할머니와바나나/test/20/
 
+  # 인터뷰
+  - assets/interview/
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

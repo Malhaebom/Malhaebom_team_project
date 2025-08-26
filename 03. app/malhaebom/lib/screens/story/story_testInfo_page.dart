@@ -4,6 +4,9 @@ import 'package:malhaebom/theme/colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+const _kFont = 'GmarketSans';
+const _ctaYellow = Color(0xFFFACC15); // 비디오 페이지와 동일 CTA 색
+
 class StoryTestinfoPage extends StatelessWidget {
   final String title;
   final String storyImg;
@@ -120,74 +123,26 @@ class StoryTestinfoPage extends StatelessWidget {
                 ),
                 SizedBox(height: 18.h),
 
+                // ===== 버튼 영역: 비디오 페이지와 동일 모양 =====
                 Row(
                   children: [
-                    // 네: overlay 페이지로 이동
                     Expanded(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFE066),
-                          foregroundColor: Colors.black,
-                          padding: EdgeInsets.symmetric(vertical: 14.h),
-                          shape: const StadiumBorder(),
-                          elevation: 0,
-                        ),
-                        onPressed: () => _goToOverlay(context),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '네',
-                              style: TextStyle(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            SizedBox(height: 3.h),
-                            Text(
-                              '검사할게요.',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: _ChoiceButton(
+                        top: '네',
+                        bottom: '검사할게요.',
+                        background: _ctaYellow,
+                        foreground: Colors.black,
+                        onTap: () => _goToOverlay(context),
                       ),
                     ),
                     SizedBox(width: 12.w),
-
-                    // 아니요: 뒤로(=디테일 페이지로 복귀)
                     Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                          backgroundColor: const Color(0xFFE9E9EB),
-                          foregroundColor: Colors.black,
-                          padding: EdgeInsets.symmetric(vertical: 14.h),
-                          shape: const StadiumBorder(),
-                        ),
-                        onPressed: () => _goBackToDetail(context),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '아니요',
-                              style: TextStyle(
-                                fontSize: 20.sp,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            SizedBox(height: 3.h),
-                            Text(
-                              '다 안 봤어요.',
-                              style: TextStyle(
-                                fontSize: 14.sp,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
+                      child: _ChoiceButton(
+                        top: '아니요',
+                        bottom: '다 안 봤어요.',
+                        background: const Color(0xFFE9E9EB),
+                        foreground: const Color(0xFF5B5B5B),
+                        onTap: () => _goBackToDetail(context),
                       ),
                     ),
                   ],
@@ -205,31 +160,26 @@ class StoryTestinfoPage extends StatelessWidget {
   void _goToOverlay(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) => StoryTestOverlayPage(title: title, storyImg: storyImg),
+        pageBuilder: (_, __, ___) =>
+            StoryTestOverlayPage(title: title, storyImg: storyImg),
         transitionsBuilder:
             (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 220),
       ),
     );
-    // 만약 네임드 라우트를 쓰고 있다면:
-    // Navigator.pushNamed(context, '/storyTestOverlay', arguments: {'title': title});
   }
 
   void _goBackToDetail(BuildContext context) {
     if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop(); // 스택에 바로 이전 화면(=detail)이 있으면 pop으로 복귀
+      Navigator.of(context).pop();
       return;
     }
-    // 스택 초기에 직접 진입한 경우 대비 폴백
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => StoryDetailPage(title: title, storyImg: storyImg),
       ),
     );
-
-    // 네임드 라우트를 쓰는 경우 대안:
-    // Navigator.of(context).pushNamedAndRemoveUntil('/storyDetail', (route) => false, arguments: {'title': title});
   }
 
   // ===== UI 유틸 =====
@@ -307,6 +257,71 @@ class StoryTestinfoPage extends StatelessWidget {
             style: TextStyle(fontSize: 16.5.sp, fontWeight: FontWeight.w800),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ====== 버튼 컴포넌트 ======
+class _ChoiceButton extends StatelessWidget {
+  final String top;
+  final String bottom;
+  final Color background;
+  final Color foreground;
+  final VoidCallback onTap;
+
+  const _ChoiceButton({
+    required this.top,
+    required this.bottom,
+    required this.background,
+    required this.foreground,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const fixedScale = TextScaler.linear(1.0); // 버튼 내부 글씨 스케일 고정
+
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(14.r),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14.r),
+        child: Container(
+          height: 64.h,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                top,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: fixedScale,
+                style: TextStyle(
+                  fontFamily: _kFont,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 20.sp,
+                  color: foreground,
+                ),
+              ),
+              SizedBox(height: 2.h),
+              Text(
+                bottom,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: fixedScale,
+                style: TextStyle(
+                  fontFamily: _kFont,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.sp,
+                  color: foreground.withOpacity(.9),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

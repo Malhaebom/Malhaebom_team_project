@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:malhaebom/screens/story/story_testInfo_page.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -33,32 +35,83 @@ class WatchUsagePage extends StatefulWidget {
   State<WatchUsagePage> createState() => _WatchUsagePageState();
 }
 
-class _WatchUsagePageState extends State<WatchUsagePage> {
+class _WatchUsagePageState extends State<WatchUsagePage>
+    with WidgetsBindingObserver {
   late final VideoPlayerController _controller;
   bool _initialized = false;
   bool _isNetwork = false;
 
+  // 유튜브식 컨트롤
+  bool _controlsVisible = false;
+  Timer? _hideTimer;
+  static const _autoHideDuration = Duration(seconds: 2);
+
+  // 다른 화면 다녀온 뒤 볼륨 복원용
+  double _savedVolume = 1.0;
+
+  void _showControls({bool autoHide = true}) {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = true);
+    if (autoHide) {
+      _hideTimer = Timer(_autoHideDuration, () {
+        if (mounted) setState(() => _controlsVisible = false);
+      });
+    }
+  }
+
+  void _hideControls() {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = false);
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    debugPrint('[WatchUsagePage] incoming title=${widget.title}');
+    debugPrint('[WatchUsagePage] incoming videoSource=${widget.videoSource}');
     _isNetwork = widget.videoSource.startsWith('http');
-    _controller =
-        _isNetwork
-            ? VideoPlayerController.networkUrl(Uri.parse(widget.videoSource))
-            : VideoPlayerController.asset(widget.videoSource);
+    _controller = _isNetwork
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.videoSource))
+        : VideoPlayerController.asset(widget.videoSource);
+
+    _controller.addListener(() {
+      final err = _controller.value.errorDescription;
+      if (err != null) debugPrint('🎯 VideoPlayer errorDescription: $err');
+      if (mounted) setState(() {}); // 아이콘 상태 반영
+    });
 
     _controller
       ..setLooping(true)
-      ..initialize().then((_) {
+      ..initialize().then((_) async {
         if (!mounted) return;
+        _savedVolume = _controller.value.volume;
+        await _controller.setVolume(_savedVolume);
         setState(() => _initialized = true);
+        _showControls(); // 진입 시 잠깐 노출
+      }).catchError((e, st) {
+        debugPrint('🎯 initialize() failed: $e');
       });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _hideTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  // 앱이 백그라운드/비활성화되면 자동 멈춤
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if ((state == AppLifecycleState.inactive ||
+            state == AppLifecycleState.paused) &&
+        _initialized &&
+        _controller.value.isPlaying) {
+      _controller.pause();
+    }
   }
 
   void _togglePlay() {
@@ -66,31 +119,76 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
     setState(() {
       _controller.value.isPlaying ? _controller.pause() : _controller.play();
     });
+    _showControls(); // 토글 시 잠깐 보였다가 자동 숨김
   }
 
   Future<void> _openFullscreen() async {
     if (!_initialized) return;
-    final pos = await _controller.position ?? Duration.zero;
+    final posBefore = await _controller.position ?? Duration.zero;
     final bool wasPlaying = _controller.value.isPlaying;
-    _controller.pause();
+    await _controller.pause(); // 중복 재생 방지
 
-    await Navigator.of(context).push(
+    final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
-        builder:
-            (_) => _FullscreenVideoPage(
-              source: widget.videoSource,
-              isNetwork: _isNetwork,
-              start: pos,
-            ),
+        builder: (_) => _FullscreenVideoPage(
+          source: widget.videoSource,
+          isNetwork: _isNetwork,
+          start: posBefore,
+        ),
       ),
     );
 
-    await _controller.seekTo(pos);
-    if (wasPlaying) _controller.play();
+    if (!mounted) return;
+
+    final Duration newPos =
+        (result != null && result['pos'] is Duration)
+            ? result['pos'] as Duration
+            : posBefore;
+    final bool playNow =
+        (result != null && result['playing'] is bool)
+            ? result['playing'] as bool
+            : wasPlaying;
+
+    await _controller.seekTo(newPos);
+    if (playNow) {
+      await _controller.play();
+    } else {
+      await _controller.pause();
+    }
+    _showControls();
+  }
+
+  // 인지검사로 이동 전 멈춤 + 볼륨 0, 복귀 시 볼륨 복원
+  Future<void> _startTest() async {
+    if (_initialized) {
+      try {
+        _savedVolume = _controller.value.volume;
+        await _controller.pause();
+        await _controller.setVolume(0);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StoryTestinfoPage(
+          title: widget.title,
+          storyImg: widget.storyImg,
+        ),
+      ),
+    );
+    if (_initialized) {
+      try {
+        await _controller.setVolume(_savedVolume);
+      } catch (_) {}
+    }
+    _showControls();
   }
 
   @override
   Widget build(BuildContext context) {
+    final bool isPlaying = _initialized && _controller.value.isPlaying;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.white,
@@ -108,9 +206,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
         ),
       ),
       backgroundColor: AppColors.background,
-
       body: ListView(
-        padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0), // ↓ 하단 여백 제거
+        padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0),
         children: [
           // 동영상
           Stack(
@@ -121,42 +218,69 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
                 child: AspectRatio(
                   aspectRatio:
                       _initialized ? _controller.value.aspectRatio : 16 / 9,
-                  child:
-                      _initialized
-                          ? VideoPlayer(_controller)
-                          : Container(color: const Color(0xFFE5E7EB)),
+                  child: _initialized
+                      ? VideoPlayer(_controller)
+                      : Container(color: const Color(0xFFE5E7EB)),
                 ),
               ),
-              // 플레이 토글 — 살짝 아래 보정
+
+              // 화면 아무데나 탭 -> 컨트롤 보이기/숨기기
               Positioned.fill(
                 child: GestureDetector(
-                  onTap: _togglePlay,
                   behavior: HitTestBehavior.translucent,
-                  child: AnimatedOpacity(
-                    opacity:
-                        !_initialized || !_controller.value.isPlaying ? 1 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: Align(
-                      alignment: const Alignment(0, 0.02),
+                  onTap: () => _controlsVisible ? _hideControls() : _showControls(),
+                ),
+              ),
+
+              // 가운데 큰 재생/일시정지 토글 (컨트롤 보일 때만)
+              AnimatedOpacity(
+                opacity: _controlsVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: IgnorePointer(
+                  ignoring: !_controlsVisible,
+                  child: GestureDetector(
+                    onTap: _togglePlay,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: EdgeInsets.all(12.w),
                       child: Icon(
-                        Icons.play_arrow_rounded,
-                        size: 120.sp,
-                        color: AppColors.btnColorDark,
+                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        size: 88.sp,
+                        color: Colors.white,
                       ),
                     ),
                   ),
                 ),
               ),
-              // 전체화면
+
+              // 전체화면 버튼 (컨트롤 보일 때만, 아이콘 크게 + 터치영역 확장)
               Positioned(
                 right: 10.w,
                 bottom: 10.w,
-                child: GestureDetector(
-                  onTap: _openFullscreen,
-                  child: Icon(
-                    Icons.crop_free,
-                    size: 26.sp,
-                    color: AppColors.btnColorDark,
+                child: AnimatedOpacity(
+                  opacity: _controlsVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: IgnorePointer(
+                    ignoring: !_controlsVisible,
+                    child: Material(
+                      color: Colors.black45,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _openFullscreen,
+                        child: Padding(
+                          padding: EdgeInsets.all(8.w),
+                          child: Icon(
+                            Icons.crop_free,
+                            size: 36.sp, // ← 크게
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -169,8 +293,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
           _CenteredMaxWidth(
             child: _GuideBox(
               title: 'Q. 어떻게 사용하나요?',
-              centerTitle: true, // ← 제목 가운데
-              centerBody: false, // 목록은 좌측 정렬 유지
+              centerTitle: true,
+              centerBody: false,
               bullets: const [
                 _BulletItem(
                   icon: Icons.play_arrow_rounded,
@@ -192,8 +316,8 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
           _CenteredMaxWidth(
             child: _GuideBox(
               title: 'Q. 동화를 모두 들으셨나요?',
-              centerTitle: true, // ← 제목 가운데
-              centerBody: true, // ← 본문도 가운데
+              centerTitle: true,
+              centerBody: true,
               subtitle: '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
               actions: [
                 Expanded(
@@ -202,15 +326,7 @@ class _WatchUsagePageState extends State<WatchUsagePage> {
                     bottom: '검사할게요.',
                     background: _ctaYellow,
                     foreground: Colors.black,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => StoryTestinfoPage(title: widget.title, storyImg: widget.storyImg,),
-                        ),
-                      );
-                    },
+                    onTap: _startTest, // ← 이동 전 멈춤/볼륨 처리
                   ),
                 ),
                 SizedBox(width: 10.w),
@@ -378,6 +494,9 @@ class _ChoiceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 버튼 내부 텍스트는 스케일 고정 + 말줄임으로 넘침 방지
+    const fixedScale = TextScaler.linear(1.0);
+
     return Material(
       color: background,
       borderRadius: BorderRadius.circular(14.r),
@@ -390,19 +509,24 @@ class _ChoiceButton extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 상단(네/아니요) — 더 크게
               Text(
                 top,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: fixedScale,
                 style: TextStyle(
                   fontFamily: _kFont,
                   fontWeight: FontWeight.w800,
-                  fontSize: 20.sp, // ↑ 16 → 20
+                  fontSize: 20.sp,
                   color: foreground,
                 ),
               ),
               SizedBox(height: 2.h),
               Text(
                 bottom,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textScaler: fixedScale,
                 style: TextStyle(
                   fontFamily: _kFont,
                   fontWeight: FontWeight.w600,
@@ -438,6 +562,26 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
   late final VideoPlayerController _ctrl;
   bool _ready = false;
 
+  // 유튜브식 컨트롤
+  bool _controlsVisible = false;
+  Timer? _hideTimer;
+  static const _autoHideDuration = Duration(seconds: 2);
+
+  void _showControls({bool autoHide = true}) {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = true);
+    if (autoHide) {
+      _hideTimer = Timer(_autoHideDuration, () {
+        if (mounted) setState(() => _controlsVisible = false);
+      });
+    }
+  }
+
+  void _hideControls() {
+    _hideTimer?.cancel();
+    setState(() => _controlsVisible = false);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -447,10 +591,9 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    _ctrl =
-        widget.isNetwork
-            ? VideoPlayerController.networkUrl(Uri.parse(widget.source))
-            : VideoPlayerController.asset(widget.source);
+    _ctrl = widget.isNetwork
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.source))
+        : VideoPlayerController.asset(widget.source);
 
     _ctrl
       ..setLooping(true)
@@ -459,11 +602,13 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
         await _ctrl.play();
         if (!mounted) return;
         setState(() => _ready = true);
+        _showControls(); // 진입 시 잠깐 표시
       });
   }
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
     _ctrl.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations([
@@ -478,48 +623,88 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
     setState(() {
       _ctrl.value.isPlaying ? _ctrl.pause() : _ctrl.play();
     });
+    _showControls();
+  }
+
+  Future<void> _popWithResult() async {
+    final pos = await _ctrl.position ?? Duration.zero;
+    final playing = _ctrl.value.isPlaying;
+    Navigator.pop(context, {'pos': pos, 'playing': playing});
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        alignment: Alignment.center,
-        children: [
-          Center(
-            child: AspectRatio(
-              aspectRatio: _ready ? _ctrl.value.aspectRatio : 16 / 9,
-              child: _ready ? VideoPlayer(_ctrl) : const SizedBox.shrink(),
+    final isPlaying = _ready && _ctrl.value.isPlaying;
+
+    return WillPopScope(
+      onWillPop: () async {
+        await _popWithResult(); // 제스처/백버튼으로 나갈 때도 현재 상태 반환
+        return false;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: Stack(
+          alignment: Alignment.center,
+          children: [
+            Center(
+              child: AspectRatio(
+                aspectRatio: _ready ? _ctrl.value.aspectRatio : 16 / 9,
+                child: _ready ? VideoPlayer(_ctrl) : const SizedBox.shrink(),
+              ),
             ),
-          ),
-          Positioned(
-            top: 12.h,
-            left: 12.w,
-            child: IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close, color: Colors.white),
+
+            // 탭으로 컨트롤 표시/숨김
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () =>
+                    _controlsVisible ? _hideControls() : _showControls(),
+                behavior: HitTestBehavior.translucent,
+              ),
             ),
-          ),
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _toggle,
-              behavior: HitTestBehavior.translucent,
-              child: AnimatedOpacity(
-                opacity: !_ready || !_ctrl.value.isPlaying ? 1 : 0,
-                duration: const Duration(milliseconds: 150),
-                child: const Align(
-                  alignment: Alignment(0, 0.02),
-                  child: Icon(
-                    Icons.play_arrow_rounded,
-                    size: 120,
-                    color: Colors.white70,
+
+            // 가운데 토글 아이콘
+            AnimatedOpacity(
+              opacity: _controlsVisible ? 1 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: IgnorePointer(
+                ignoring: !_controlsVisible,
+                child: GestureDetector(
+                  onTap: _toggle,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Icon(
+                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      size: 120,
+                      color: Colors.white70,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+
+            // 닫기 버튼 (컨트롤 보일 때만)
+            Positioned(
+              top: 12.h,
+              left: 12.w,
+              child: AnimatedOpacity(
+                opacity: _controlsVisible ? 1 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: IgnorePointer(
+                  ignoring: !_controlsVisible,
+                  child: IconButton(
+                    onPressed: _popWithResult,
+                    iconSize: 30,
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

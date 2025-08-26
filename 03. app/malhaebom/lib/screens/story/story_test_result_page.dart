@@ -7,8 +7,9 @@ import 'package:malhaebom/theme/colors.dart';
 
 // ★ 서버 베이스 URL (에뮬레이터 사용 시)
 const String API_BASE = 'http://10.0.2.2:4000/str';
-// 실제 기기(Wi‑Fi 동일망)에서 테스트 시 PC IP로 바꾸세요.
-// 예: const String API_BASE = 'http://192.168.0.15:4000/str';
+
+// ✅ 버튼/칩/원 내부처럼 “넘치면 안 되는 컨테이너”에서 쓸 고정 스케일러
+const TextScaler fixedScale = TextScaler.linear(1.0);
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -27,8 +28,6 @@ class StoryResultPage extends StatefulWidget {
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
   final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
   final DateTime testedAt;
-
-  /// 선택: 어떤 동화로 테스트했는지 제목 표시하고 싶으면 넘겨줘
   final String? storyTitle;
 
   const StoryResultPage({
@@ -51,10 +50,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
   @override
   void initState() {
     super.initState();
-    // 프레임 이후 1회만 서버 전송
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _postAttemptTimeOnce();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _postAttemptTimeOnce());
   }
 
   Future<void> _postAttemptTimeOnce() async {
@@ -63,17 +59,13 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
     try {
       final uri = Uri.parse('$API_BASE/attempt');
-
-      // UTC ISO 형식 (서버에서 파싱하기 가장 안전)
       final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
-
-      // 사람이 보기 좋은 KST 문자열(확인용)
       final clientKst = _formatKst(widget.testedAt);
 
       final body = jsonEncode({
-        'attemptTime': measuredAtIso, // ★ 서버에서 req.body.attemptTime
-        'clientKst': clientKst, // (선택) 서버 로그 가독성용
-        'storyTitle': widget.storyTitle, // (선택) 어떤 동화로 했는지
+        'attemptTime': measuredAtIso,
+        'clientKst': clientKst,
+        'storyTitle': widget.storyTitle,
       });
 
       final res = await http.post(
@@ -81,10 +73,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-
-      debugPrint(
-        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
-      );
+      debugPrint('[STR] attempt POST status=${res.statusCode} body=${res.body}');
     } catch (e) {
       debugPrint('[STR] attempt POST error: $e');
     }
@@ -92,7 +81,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   // ---- KST(Asia/Seoul) 변환 & 포맷 ----
   String _formatKst(DateTime dt) {
-    // 어떤 타임존에서 들어와도 UTC로 환산 후 +9h 하여 KST로 표시
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
     final m = kst.month.toString().padLeft(2, '0');
@@ -127,7 +115,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(_formatKst(widget.testedAt)),
+              _attemptChip(_formatKst(widget.testedAt)), // ✅ 시간 텍스트 스케일 고정
               SizedBox(height: 12.h),
 
               // 카드: 점수 요약 + 카테고리 바 4개
@@ -137,10 +125,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
                   children: [
                     Text(
                       '인지검사 결과',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 4.h),
                     Text(
@@ -152,7 +137,8 @@ class _StoryResultPageState extends State<StoryResultPage> {
                       ),
                     ),
                     SizedBox(height: 14.h),
-                    _scoreCircle(widget.score, widget.total),
+
+                    _scoreCircle(widget.score, widget.total), // ✅ 원 내부 텍스트 고정
 
                     SizedBox(height: 16.h),
                     _riskBarRow('요구', widget.byCategory['요구']),
@@ -175,19 +161,12 @@ class _StoryResultPageState extends State<StoryResultPage> {
                   children: [
                     Text(
                       '검사 결과 평가',
-                      style: TextStyle(
-                        fontSize: 18.sp,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
                     ),
                     SizedBox(height: 12.h),
-
                     if (showWarn) _warnBanner(),
-
-                    // 부족한 항목만 노출
-                    ..._buildEvalItems(
-                      widget.byType,
-                    ).expand((w) => [w, SizedBox(height: 10.h)]),
+                    ..._buildEvalItems(widget.byType)
+                        .expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
@@ -198,31 +177,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
               SizedBox(
                 width: double.infinity,
                 height: 52.h,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    // 결과 페이지를 대체하고 두뇌훈련 메인으로
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (_) => BrainTrainingMainPage(),
-                      ),
-                      (route) => false,
-                    );
-                  },
-                  icon: const Icon(Icons.videogame_asset_rounded),
-                  label: Text(
-                    '두뇌 게임으로 이동',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16.sp,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD43B),
-                    foregroundColor: Colors.black,
-                    shape: const StadiumBorder(),
-                    elevation: 0,
-                  ),
-                ),
+                child: _brainCta(), // ✅ 아이콘/텍스트 함께 스케일 or 함께 고정
               ),
             ],
           ),
@@ -252,6 +207,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // ✅ 시간 칩: 텍스트 스케일 고정 + 잘림 방지(한 줄/ellipsis)
   Widget _attemptChip(String formattedKst) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
@@ -265,18 +221,24 @@ class _StoryResultPageState extends State<StoryResultPage> {
         children: [
           Text(
             '1회차',
+            textScaler: fixedScale,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.w900,
-              fontSize: 13.sp,
+              fontSize: 18.sp,
               color: AppColors.btnColorDark,
             ),
           ),
           SizedBox(width: 10.w),
           Text(
             formattedKst,
+            textScaler: fixedScale, // ← 시스템 글씨 키워도 여기선 고정
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 13.sp,
+              fontSize: 18.sp,
               color: const Color(0xFF111827),
             ),
           ),
@@ -285,16 +247,21 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
+    final double d = 140.w;         // 원 지름
+    final double big = d * 0.40;    // 큰 숫자 폰트
+    final double small = d * 0.20;  // /분모 폰트
+
     return SizedBox(
-      width: 140.w,
-      height: 140.w,
+      width: d,
+      height: d,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Container(
-            width: 140.w,
-            height: 140.w,
+            width: d,
+            height: d,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFEF4444), width: 8),
@@ -306,19 +273,24 @@ class _StoryResultPageState extends State<StoryResultPage> {
             children: [
               Text(
                 '$score',
+                textScaler: fixedScale,
+                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: big),
                 style: TextStyle(
-                  fontSize: 48.sp,
+                  fontSize: big,
                   fontWeight: FontWeight.w900,
                   color: const Color(0xFFEF4444),
-                  height: 0.9,
+                  height: 1.0,
                 ),
               ),
               Text(
                 '/$total',
+                textScaler: fixedScale,
+                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: small),
                 style: TextStyle(
-                  fontSize: 16.sp,
+                  fontSize: small,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFFEF4444),
+                  height: 1.0,
                 ),
               ),
             ],
@@ -355,6 +327,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
               ),
               child: Text(
                 eval.text,
+                textScaler: fixedScale, // 뱃지 내부도 넘침 방지
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 12.sp,
@@ -452,36 +425,14 @@ class _StoryResultPageState extends State<StoryResultPage> {
       }
     }
 
-    addIfLow(
-      '직접화행',
-      '직접화행',
-      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.',
-    );
-    addIfLow(
-      '간접화행',
-      '간접화행',
-      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.',
-    );
-    addIfLow(
-      '질문화행',
-      '질문화행',
-      '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.',
-    );
-    addIfLow(
-      '단언화행',
-      '단언화행',
-      '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.',
-    );
-    addIfLow(
-      '의례화화행',
-      '의례화화행',
-      '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.',
-    );
+    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
+    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
+    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
+    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
+    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
 
     if (items.isEmpty) {
-      items.add(
-        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'),
-      );
+      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
     }
     return items;
   }
@@ -564,6 +515,33 @@ class _StoryResultPageState extends State<StoryResultPage> {
         position: risk,
       );
     }
+  }
+
+  // ✅ 아이콘/텍스트를 함께 고정 스케일로 맞추고, 아이콘 크기를 폰트에 연동
+  Widget _brainCta() {
+    final double font = 22.sp;
+    final double iconSize = font * 1.25; // 텍스트 대비 살짝 크게
+
+    return ElevatedButton.icon(
+      onPressed: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
+          (route) => false,
+        );
+      },
+      icon: Icon(Icons.videogame_asset_rounded, size: iconSize),
+      label: Text(
+        '두뇌 게임으로 이동',
+        textScaler: fixedScale,
+        style: TextStyle(fontWeight: FontWeight.w900, fontSize: font),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFFFD43B),
+        foregroundColor: Colors.black,
+        shape: const StadiumBorder(),
+        elevation: 0,
+      ),
+    );
   }
 }
 

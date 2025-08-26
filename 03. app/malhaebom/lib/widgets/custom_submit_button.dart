@@ -29,7 +29,10 @@ class CustomSubmitButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(50),
           ),
         ),
-        child: Text(btnText),
+        child: Text(
+          btnText,
+          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+        ),
       ),
     );
   }

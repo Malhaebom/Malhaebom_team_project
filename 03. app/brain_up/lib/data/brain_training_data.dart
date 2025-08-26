@@ -119,18 +119,18 @@ class BrainTrainingData {
 
   static Map<String, dynamic> solving = {
     "문제01": {
-      "title": "주어진 상황에 대한 가장 적절한 대처 방법을 선택하세요.",
+      "title": "적절한 대처법을 선택하세요.",
       "image": "assets/training/brain/solving/01.png",
       "question": [
         "출입문을 발로 찬다.",
         "문에 바짝 기대어 기다린다.",
-        "응급벨을 누르고 대화를 시도한다.",
+        "응급벨을 눌러 대화를 시도한다.",
         "문틈에 손을 끼워 억지로 연다.",
       ],
       "answer": 2,
     },
     "문제02": {
-      "title": "주어진 상황에 대한 가장 적절한 대처 방법을 선택하세요.",
+      "title": "적절한 대처법을 선택하세요.",
       "image": "assets/training/brain/solving/02.png",
       "question": [
         "파란(초록) 신호가 켜지기 전에 건넌다.",
@@ -201,55 +201,55 @@ class BrainTrainingData {
 
   static Map<String, dynamic> language = {
     "문제01": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/01.png",
       "question": ["깡충깡충", "엉거주춤", "느릿느릿", "주섬주섬"],
       "answer": 0,
     },
     "문제02": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/02.png",
       "question": ["꽥꽥", "멍멍", "꿀꿀", "깔깔"],
       "answer": 1,
     },
     "문제03": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/03.png",
       "question": ["깡충깡충", "엉금엉금", "파닥파닥", "재빠르게"],
       "answer": 1,
     },
     "문제04": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/04.png",
       "question": ["토실토실", "울퉁불퉁", "알록달록", "펄떡펄떡"],
       "answer": 1,
     },
     "문제05": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/05.png",
       "question": ["새빨갛게", "새파랗게", "샛노랗게", "새하얗게"],
       "answer": 2,
     },
     "문제06": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/06.png",
       "question": ["알록달록", "나풀나풀", "토실토실", "헐레벌떡"],
       "answer": 3,
     },
     "문제07": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/07.png",
       "question": ["삐약삐약", "야옹야옹", "응애응애", "키득키득"],
       "answer": 2,
     },
     "문제08": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/08.png",
       "question": ["둥실둥실", "반짝반짝", "노릇노릇", "폴짝폴짝"],
       "answer": 0,
     },
     "문제09": {
-      "title": "(   )안에 들어갈 적절한 단어를 고르세요.",
+      "title": "(   )안에 들어갈 단어를 고르세요.",
       "image": "assets/training/brain/language/09.png",
       "question": ["까악까악", "음메음메", "야옹야옹", "삐약삐약"],
       "answer": 3,

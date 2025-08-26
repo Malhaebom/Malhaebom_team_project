@@ -492,6 +492,7 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -613,13 +614,15 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
               SizedBox(height: 10.h),
               Container(
                 width: double.infinity,
-                height: widget.screenHeight * 0.35,
+                constraints: BoxConstraints(
+                  maxHeight: widget.screenHeight * 0.28,
+                ),
                 decoration: BoxDecoration(
                   image: DecorationImage(
                     image: AssetImage(
                       widget.data[widget.data.keys.toList()[index]]["question"],
                     ),
-                    fit: BoxFit.fill,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
@@ -726,6 +729,7 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -870,6 +874,7 @@ class _SolvingTestState extends State<SolvingTest> {
                             });
                           },
                           child: Container(
+                            width: double.infinity, // 전체 너비 사용
                             padding: EdgeInsets.all(10.h),
                             decoration: BoxDecoration(
                               color: AppColors.white,
@@ -890,6 +895,7 @@ class _SolvingTestState extends State<SolvingTest> {
                                 Expanded(
                                   child: Text(
                                     currentData["question"][idx],
+                                    textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                                     style: TextStyle(
                                       fontSize: 15.sp,
                                       fontWeight: FontWeight.w500,
@@ -937,6 +943,7 @@ class _SolvingTestState extends State<SolvingTest> {
                                 (_) => BrainTrainingResultPage(
                                   data: widget.data,
                                   category: widget.category,
+                                  answers: answers,
                                 ),
                           ),
                         );
@@ -1291,6 +1298,7 @@ class _ColorTestState extends State<ColorTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );
@@ -1545,6 +1553,7 @@ class _MusicTestState extends State<MusicTest> {
                             (context) => BrainTrainingResultPage(
                               data: widget.data,
                               category: widget.category,
+                              answers: answers,
                             ),
                       ),
                     );

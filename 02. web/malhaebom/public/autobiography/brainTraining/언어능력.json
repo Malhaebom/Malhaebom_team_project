@@ -1,7 +1,7 @@
 [{
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_2.png",
         "question": ["깡충깡충", "엉거주춤", "느릿느릿", "주섬주섬"],
         "answer": 0
@@ -9,7 +9,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_3.png",
         "question": ["꽥꽥", "멍멍", "꿀꿀", "깔깔"],
         "answer": 1
@@ -17,7 +17,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_4.png",
         "question": ["깡충깡충", "엉금엉금", "파닥파닥", "재빠르게"],
         "answer": 1
@@ -25,7 +25,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_5.png",
         "question": ["토실토실", "울퉁불퉁", "알록달록", "펄떡펄떡"],
         "answer": 1
@@ -33,7 +33,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_6.png",
         "question": ["새빨갛게", "새파랗게", "샛노랗게", "새하얗게"],
         "answer": 2
@@ -41,7 +41,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_7.png",
         "question": ["알록달록", "나풀나풀", "토실토실", "헐레벌떡"],
         "answer": 3
@@ -49,7 +49,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_8.png",
         "question": ["삐약삐약", "야옹야옹", "응애응애", "키득키득"],
         "answer": 2
@@ -57,7 +57,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_9.png",
         "question": ["둥실둥실", "반짝반짝", "노릇노릇", "폴짝폴짝"],
         "answer": 0
@@ -65,7 +65,7 @@
 }, {
     "type": 0,
     "question": [{
-        "title": "괄호 \"( )\" 안에 들어갈 적절한 단어를 고르세요.",
+        "title": "괄호 \"( )\" 안에 들어갈 단어를 고르세요.",
         "image": "image/p_language_10.png",
         "question": ["까악까악", "음메음메", "야옹야옹", "삐약삐약"],
         "answer": 3

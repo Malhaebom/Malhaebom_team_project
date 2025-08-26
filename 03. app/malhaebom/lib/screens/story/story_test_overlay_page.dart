@@ -1,11 +1,4 @@
 // story_test_overlay_page.dart
-//
-// 화행 인지검사 : 문제 미리보기/안내 오버레이
-// - 상단 우측 '나가기' 캡슐
-// - 가운데 카드(파란 헤더 + 흰 본문)
-// - 선지 4개(1번 기본 선택 표시, 텍스트는 Bold 아님)
-// - 하단 노란 '문제 풀기' 버튼(더 크고, 가장자리와 더 붙게)
-
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/screens/story/story_test_page.dart';
@@ -36,11 +29,10 @@ class StoryTestOverlayPage extends StatefulWidget {
         opaque: false,
         barrierColor: _overlayBg,
         transitionDuration: const Duration(milliseconds: 160),
-        pageBuilder:
-            (_, __, ___) =>
-                StoryTestOverlayPage(title: title, storyImg: storyImg),
-        transitionsBuilder:
-            (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+        pageBuilder: (_, __, ___) =>
+            StoryTestOverlayPage(title: title, storyImg: storyImg),
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
       );
 
   @override
@@ -52,215 +44,224 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // ===== 중앙 카드 =====
-            Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: 300.w, maxWidth: 320.w),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(22.r),
-                    border: Border.all(color: _cardBorder),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // --- 파란 헤더 ---
-                      Container(
-                        width: double.infinity,
-                        padding: EdgeInsets.fromLTRB(18.w, 16.h, 18.w, 18.h),
-                        color: AppColors.btnColorDark,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // "5초 안에" (얇게)
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12.w,
-                                vertical: 6.h,
+    // ★ 전역 글자 스케일 1.0 고정
+    final mq = MediaQuery.of(context);
+    const fixedScale = TextScaler.linear(1.0);
+
+    return MediaQuery(
+      data: mq.copyWith(textScaler: fixedScale),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // ===== 중앙 카드 =====
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: 300.w, maxWidth: 320.w),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(22.r),
+                      border: Border.all(color: _cardBorder),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // --- 파란 헤더 ---
+                        Container(
+                          width: double.infinity,
+                          padding: EdgeInsets.fromLTRB(18.w, 16.h, 18.w, 18.h),
+                          color: AppColors.btnColorDark,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // "5초 안에" (얇게)
+                              Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 12.w,
+                                  vertical: 6.h,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.18),
+                                  borderRadius: BorderRadius.circular(16.r),
+                                ),
+                                child: Text(
+                                  '5초 안에',
+                                  style: TextStyle(
+                                    fontFamily: _kFont,
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 12.sp,
+                                    height: 1.1,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(16.r),
-                              ),
-                              child: Text(
-                                '5초 안에',
+                              SizedBox(height: 8.h),
+                              // 큰 타이틀(굵게 유지)
+                              Text(
+                                '맞는 답안 고르기',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: _kFont,
-                                  fontWeight: FontWeight.w400,
-                                  fontSize: 12.sp,
-                                  height: 1.1,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 22.sp,
+                                  height: 1.15,
                                   color: Colors.white,
                                 ),
                               ),
-                            ),
-                            SizedBox(height: 8.h),
-                            // 큰 타이틀(굵게 유지)
-                            Text(
-                              '맞는 답안 고르기',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: _kFont,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 22.sp,
-                                height: 1.15,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
 
-                      // --- 본문(흰 배경) ---
-                      Padding(
-                        padding: EdgeInsets.fromLTRB(18.w, 14.h, 18.w, 18.h),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // 안내 문구 (얇게)
-                            Text(
-                              '정답을 체크해 주세요!',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: _kFont,
-                                fontWeight: FontWeight.w400,
-                                fontSize: 14.sp,
-                                height: 1.25,
-                                color: _bodyGray,
-                              ),
-                            ),
-                            SizedBox(height: 14.h),
-
-                            // 상황 지문 (얇게)
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                '준비물이 필요하면 계란을 팔아서 준비한다.\n'
-                                '형제들이 어머니에게 어떻게 말했을까요?',
-                                textAlign: TextAlign.left,
+                        // --- 본문(흰 배경) ---
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(18.w, 14.h, 18.w, 18.h),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // 안내 문구 (얇게)
+                              Text(
+                                '정답을 체크해 주세요!',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: _kFont,
                                   fontWeight: FontWeight.w400,
-                                  fontSize: 12.sp,
-                                  height: 1.45,
+                                  fontSize: 14.sp,
+                                  height: 1.25,
                                   color: _bodyGray,
                                 ),
                               ),
-                            ),
-                            SizedBox(height: 12.h),
+                              SizedBox(height: 14.h),
 
-                            // 보기 4개 (Bold 아님 + 더 큼)
-                            _OptionTile(
-                              index: 1,
-                              label: '계란 주세요.',
-                              selected: _selected == 0,
-                              onTap: () => setState(() => _selected = 0),
-                            ),
-                            SizedBox(height: 8.h),
-                            _OptionTile(
-                              index: 2,
-                              label: '계란 먹고 싶어요.',
-                              selected: _selected == 1,
-                              onTap: () => setState(() => _selected = 1),
-                            ),
-                            SizedBox(height: 8.h),
-                            _OptionTile(
-                              index: 3,
-                              label: '준비물 주세요.',
-                              selected: _selected == 2,
-                              onTap: () => setState(() => _selected = 2),
-                            ),
-                            SizedBox(height: 8.h),
-                            _OptionTile(
-                              index: 4,
-                              label: '준비물 사주세요.',
-                              selected: _selected == 3,
-                              onTap: () => setState(() => _selected = 3),
-                            ),
-                          ],
+                              // 상황 지문 (얇게)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  '준비물이 필요하면 계란을 팔아서 준비한다.\n'
+                                  '형제들이 어머니에게 어떻게 말했을까요?',
+                                  textAlign: TextAlign.left,
+                                  style: TextStyle(
+                                    fontFamily: _kFont,
+                                    fontWeight: FontWeight.w400,
+                                    fontSize: 12.sp,
+                                    height: 1.45,
+                                    color: _bodyGray,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 12.h),
+
+                              // 보기 4개 (Bold 아님 + 더 큼)
+                              _OptionTile(
+                                index: 1,
+                                label: '계란 주세요.',
+                                selected: _selected == 0,
+                                onTap: () => setState(() => _selected = 0),
+                              ),
+                              SizedBox(height: 8.h),
+                              _OptionTile(
+                                index: 2,
+                                label: '계란 먹고 싶어요.',
+                                selected: _selected == 1,
+                                onTap: () => setState(() => _selected = 1),
+                              ),
+                              SizedBox(height: 8.h),
+                              _OptionTile(
+                                index: 3,
+                                label: '준비물 주세요.',
+                                selected: _selected == 2,
+                                onTap: () => setState(() => _selected = 2),
+                              ),
+                              SizedBox(height: 8.h),
+                              _OptionTile(
+                                index: 4,
+                                label: '준비물 사주세요.',
+                                selected: _selected == 3,
+                                onTap: () => setState(() => _selected = 3),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // ===== 상단 우측 '나가기' 캡슐 =====
+              Positioned(
+                top: 12.h,
+                right: 12.w,
+                child: GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 16.w,
+                      vertical: 8.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(18.r),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: Text(
+                      '나가기',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: _kFont,
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.w600,
+                        height: 1.1,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ===== 하단 노란 CTA (더 크고, 더 붙게) =====
+              Positioned(
+                left: 16.w, // 24 -> 16 (가장자리와 더 붙게)
+                right: 16.w,
+                bottom: 20.h, // 28 -> 20
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (_) => StoryTestPage(
+                          title: widget.title,
+                          storyImg: widget.storyImg,
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // ===== 상단 우측 '나가기' 캡슐 =====
-            Positioned(
-              top: 12.h,
-              right: 12.w,
-              child: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 12.w,
-                    vertical: 6.h,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black26,
-                    borderRadius: BorderRadius.circular(18.r),
-                    border: Border.all(color: Colors.white, width: 1),
-                  ),
-                  child: Text(
-                    '나가기',
-                    style: TextStyle(
-                      fontFamily: _kFont,
-                      fontSize: 13.sp,
-                      fontWeight: FontWeight.w600,
-                      height: 1.1,
-                      color: Colors.white,
+                    );
+                  },
+                  child: Container(
+                    height: 64.h, // 48 -> 64
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: _ctaYellow,
+                      borderRadius: BorderRadius.circular(32.r),
+                    ),
+                    child: Text(
+                      '문제 풀기',
+                      maxLines: 1, // ★ 안전망
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: _kFont,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 20.sp,
+                        height: 1.0,
+                        color: Colors.black,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-
-            // ===== 하단 노란 CTA (더 크고, 더 붙게) =====
-            Positioned(
-              left: 16.w, // 24 -> 16 (가장자리와 더 붙게)
-              right: 16.w,
-              bottom: 20.h, // 28 -> 20
-              child: GestureDetector(
-                onTap: () {
-                  // TODO: 실제 문제 풀기 화면 이동
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                      builder:
-                          (_) => StoryTestPage(
-                            title: widget.title,
-                            storyImg: widget.storyImg,
-                          ),
-                    ),
-                  );
-                },
-                child: Container(
-                  height: 64.h, // 48 -> 64
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: _ctaYellow,
-                    borderRadius: BorderRadius.circular(32.r),
-                  ),
-                  child: Text(
-                    '문제 풀기',
-                    style: TextStyle(
-                      fontFamily: _kFont,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 20.sp, // 16 -> 20
-                      height: 1.0,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -314,6 +315,8 @@ class _OptionTile extends StatelessWidget {
                 ),
                 child: Text(
                   '$index',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: _kFont,
                     fontWeight: FontWeight.w500, // 굵지 않게
@@ -328,9 +331,11 @@ class _OptionTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
+                  maxLines: 1, // ★ 안전망
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontFamily: _kFont,
-                    fontWeight: FontWeight.w500, // **Bold 아님**
+                    fontWeight: FontWeight.w500, // Bold 아님
                     fontSize: 16.5.sp, // 더 크게
                     height: 1.22,
                     color: textColor,

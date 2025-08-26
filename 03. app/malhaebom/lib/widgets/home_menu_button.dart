@@ -65,6 +65,7 @@ class HomeMenuButton extends StatelessWidget {
                 children: [
                   Text(
                     btnName,
+                    textScaler: const TextScaler.linear(1.0),
                     style: TextStyle(
                       fontFamily: 'GmarketSans',
                       color: AppColors.white,
