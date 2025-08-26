@@ -11,6 +11,15 @@ export default function Home() {
     AOS.init();
   }, []);
 
+  const boxStyle = {
+    borderRadius: "20px", // 모서리 둥글기
+    overflow: "hidden",    // 이미지가 밖으로 튀어나오지 않도록
+  };
+
+  const imgStyle = {
+    borderRadius: "20px", // 이미지 둥글기 통일
+  };
+
   return (
     <div className="content">
       <div className="wrap">
@@ -35,14 +44,15 @@ export default function Home() {
 
           <div className="ct_home ct_inner">
             {/* 회상 인터뷰 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="1000">
+            <div className="box" data-aos="fade-up" data-aos-duration="1000" style={boxStyle}>
               <div>
-                <h2>인지검사</h2>
+                <h2>회상 훈련</h2>
                 <p>추억을 나누며 기억을 되살려요</p>
                 <img
                   src="/img/home_icon04.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
                   alt="회상 훈련"
+                  style={imgStyle}
                 />
               </div>
               <button type="button" onClick={() => navigate("/interview/interviewstart")}>
@@ -51,7 +61,7 @@ export default function Home() {
             </div>
 
             {/* 회상동화 활동 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="1500">
+            <div className="box" data-aos="fade-up" data-aos-duration="1500" style={boxStyle}>
               <div>
                 <h2>회상동화 활동</h2>
                 <p>이야기를 듣고 활동해요</p>
@@ -59,6 +69,7 @@ export default function Home() {
                   src="/img/home_icon01.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
                   alt="화상동화 활동"
+                  style={imgStyle}
                 />
               </div>
               <button type="button" onClick={() => navigate("/book")}>
@@ -67,7 +78,7 @@ export default function Home() {
             </div>
 
             {/* 두뇌 단련 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="2000">
+            <div className="box" data-aos="fade-up" data-aos-duration="2000" style={boxStyle}>
               <div>
                 <h2>두뇌 단련</h2>
                 <p>놀이를 통해 뇌를 단련해요</p>
@@ -75,6 +86,7 @@ export default function Home() {
                   src="/img/home_icon02.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
                   alt="두뇌 단련"
+                  style={imgStyle}
                 />
               </div>
               <button type="button" onClick={() => navigate("/quiz/library")}>
@@ -82,30 +94,19 @@ export default function Home() {
               </button>
             </div>
 
-            {/* 신체 단련 */}
-            {/* <div className="box" data-aos="fade-up" data-aos-duration="2500">
+            {/* 마이페이지 */}
+            <div className="box" data-aos="fade-up" data-aos-duration="2500" onClick={() => navigate("/Mypage")} style={boxStyle}>
               <div>
-                <h2>신체 단련</h2>
-                <p>몸을 튼튼하게 만들어요</p>
+                <h2>마이페이지</h2>
+                <p>누구님 환영합니다.</p>
                 <img
                   src="/img/home_icon03.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
-                  alt="신체 단련"
+                  alt="마이페이지"
+                  style={imgStyle}
                 />
               </div>
-              <button type="button" onClick={() => navigate("/exercise")}>
-                시작하기
-              </button>
-            </div> */}
-          </div>
-
-          {/* 하단 로그인 이동 영역 */}
-          <div
-            className="ct_banner"
-            style={{ background: "#488eca", marginTop: "100px", cursor: "pointer" }}
-            onClick={() => navigate("/login")}
-          >
-            로그인 하러가기
+            </div>
           </div>
         </div>
       </div>

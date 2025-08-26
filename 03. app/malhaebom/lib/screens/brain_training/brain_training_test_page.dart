@@ -927,16 +927,16 @@ class _SolvingTestState extends State<SolvingTest> {
       return ListView.builder(
         itemCount: questionCount + 1, // 하단 여백을 위한 +1
         itemBuilder: (context, idx) {
-          if (idx == questionCount) {
-            // 하단 여백
-            return SizedBox(height: 20.h);
-          }
-          return Column(
-            children: [
-              _buildAnswerOption(idx),
-              SizedBox(height: 8.h),
-            ],
-          );
+                     if (idx == questionCount) {
+             // 하단 여백
+             return SizedBox(height: 12.h); // 15.h에서 12.h로 줄임
+           }
+           return Column(
+             children: [
+               _buildAnswerOption(idx),
+               SizedBox(height: 6.h), // 8.h에서 6.h로 줄임
+             ],
+           );
         },
       );
     } else if (questionCount == 4) {
@@ -985,15 +985,16 @@ class _SolvingTestState extends State<SolvingTest> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: isProblemSolving01or02 ? double.infinity : null, // 문제01, 02는 전체 너비 사용
+        height: 48, // 고정 높이 설정으로 세로길이 제어 (50에서 48로 조정)
         padding: EdgeInsets.symmetric(
-          vertical: 15.h, 
+          vertical: 10.h, // 16.h에서 10.h로 줄임
           horizontal: isProblemSolving01or02 ? 20.w : 12.w, // 문제01, 02는 더 넓은 패딩
         ),
         decoration: BoxDecoration(
-          color: answers[index] == idx ? AppColors.blue.withOpacity(0.1) : AppColors.white,
+          color: answers[index] == idx ? AppColors.yellow : AppColors.white,
           borderRadius: BorderRadius.circular(12),
           border: answers[index] == idx 
-            ? Border.all(color: AppColors.blue, width: 2)
+            ? Border.all(color: AppColors.yellow, width: 2)
             : Border.all(color: Colors.grey.shade300),
           boxShadow: answers[index] == idx
             ? [
@@ -1005,17 +1006,19 @@ class _SolvingTestState extends State<SolvingTest> {
             ]
             : [],
         ),
-        child: Text(
-          currentData["question"][idx],
-          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
-          style: TextStyle(
-            fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
-            fontWeight: FontWeight.w500,
-            color: answers[index] == idx ? AppColors.blue : AppColors.text,
+        child: Center(
+          child: Text(
+            currentData["question"][idx],
+            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+            style: TextStyle(
+              fontSize: 15.sp, // 모든 문제에서 동일한 폰트 크기 사용
+              fontWeight: FontWeight.w500,
+              color: answers[index] == idx ? AppColors.text : AppColors.text,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
+            overflow: TextOverflow.ellipsis,
           ),
-          textAlign: TextAlign.center,
-          maxLines: 3, // 모든 문제에서 동일한 줄 수 허용
-          overflow: TextOverflow.ellipsis,
         ),
       ),
     );
