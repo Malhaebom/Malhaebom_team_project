@@ -11,8 +11,7 @@ export default function QuizLibrary() {
   useEffect(() => { AOS.init({ once: true }); }, []);
 
   const goHome = () => (window.location.href = "/");
-  const goToQuizList = (quizType) => navigate(`/quiz/library/list?quizType=${quizType}`);
-
+ const goToQuizPlay = (quizType) => navigate(`/quiz/play?quizType=${quizType}&quizId=0&qid=0`);
   // 원본과 동일한 슬라이드 옵션(옆 카드 살짝 보이기)
   const settings = {
     slidesToShow: 1,
@@ -34,11 +33,8 @@ export default function QuizLibrary() {
     { label: "기억집중", icon: "fa-brain", color: "#ff7300", type: 1 },
     { label: "문제해결능력", icon: "fa-pen-to-square", color: "#dbc900", type: 2 },
     { label: "계산능력", icon: "fa-calculator", color: "#00b837", type: 3 },
-    // { label: "알록달록", icon: "fa-palette", color: "#005eff", type: 4 },
     { label: "언어능력", icon: "fa-language", color: "#755000", type: 4 },
-    { label: "음악과 터치"
-      , icon: "fa-headset", color: "#bb00ff", type: 5 }
-    // { label: "건강정보", icon: "fa-circle-question", color: "#ff00c8", type: 7 },
+    { label: "음악과 터치", icon: "fa-headset", color: "#bb00ff", type: 5 }
   ];
 
   return (
@@ -89,7 +85,7 @@ export default function QuizLibrary() {
                   <i className={`fa-solid ${icon} fa-4x`} style={{ color }} />
                 </div>
                 <div className="slider_tit"><h2>{label}</h2></div>
-                <button type="button" onClick={() => goToQuizList(type)}>시작하기</button>
+                <button type="button" onClick={() => goToQuizPlay(type)}>시작하기</button>
               </div>
             ))}
           </Slider>

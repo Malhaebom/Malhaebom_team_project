@@ -1,3 +1,4 @@
+// src/pages/Quiz/QuizPlay.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import AOS from "aos";
@@ -8,40 +9,31 @@ export default function QuizPlay() {
   const navigate = useNavigate();
   const BASE = import.meta.env.BASE_URL || "/";
 
-  const quizType = Number(searchParams.get("quizType") ?? "0");
-  const quizId = Number(searchParams.get("quizId") ?? "0");
-  const qid = Number(searchParams.get("qid") ?? "0");
-
-  const [brainTraining, setBrainTraining] = useState(null);
+  const quizType = Number(searchParams.get("quizType") ?? 0); // 주제 선택
   const [brainTrainingArr, setBrainTrainingArr] = useState(null);
-  const [title, setTitle] = useState("");
+  const [currentTopicArr, setCurrentTopicArr] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Type2용
   const [progress, setProgress] = useState(0);
   const [submitDataArr, setSubmitDataArr] = useState([]);
   const [answerDataArr, setAnswerDataArr] = useState([]);
-
-  // Type3용
   const [cnt, setCnt] = useState(0);
 
   useEffect(() => {
     AOS.init();
   }, []);
 
+  // 문제 데이터 로드
   useEffect(() => {
     (async () => {
       try {
-        const btRes = await fetch(`${BASE}autobiography/brainTraining.json`);
-        const bt = await btRes.json();
-        setBrainTraining(bt);
-
         const files = [
           "시공간파악.json",
           "기억집중.json",
           "문제해결능력.json",
           "계산능력.json",
           "언어능력.json",
-          "음악과터치.json"
+          "음악과터치.json",
         ];
         const arr = await Promise.all(
           files.map((f) =>
@@ -49,80 +41,89 @@ export default function QuizPlay() {
           )
         );
         setBrainTrainingArr(arr);
-
-        const entry = Object.entries(bt).find(([, _], idx) => idx === quizType);
-        setTitle(entry ? entry[0] : "");
       } catch (e) {
         console.error(e);
       }
     })();
-  }, [BASE, quizType]);
+  }, [BASE]);
+
+  // 현재 주제별 배열 세팅
+  useEffect(() => {
+    if (!brainTrainingArr) return;
+    setCurrentTopicArr(brainTrainingArr[quizType] ?? []);
+    setCurrentIndex(0);
+    setSubmitDataArr([]);
+    setAnswerDataArr([]);
+    setProgress(0);
+    setCnt(0);
+  }, [brainTrainingArr, quizType]);
 
   const current = useMemo(() => {
-    if (!brainTrainingArr) return null;
-    return brainTrainingArr?.[quizType]?.[quizId] ?? null;
-  }, [brainTrainingArr, quizType, quizId]);
+    if (!currentTopicArr) return null;
+    return currentTopicArr[currentIndex] ?? null;
+  }, [currentTopicArr, currentIndex]);
 
   const goHome = () => (window.location.href = "/");
   const goBack = () => window.history.back();
 
+  // 결과 페이지 이동
+  const goResult = (submitArr, answerArr) => {
+    console.log("goResult 호출", submitArr, answerArr, currentIndex);
+    navigate("/quiz/result", {
+      state: {
+        submitDataArr: submitArr,
+        answerDataArr: answerArr,
+        currentTopicArr,
+      },
+    });
+  };
+
+  // Type0, Type1 제출
   const SubmitType0 = (submitData) => {
+    if (!current) return;
     const answerData = Number(current?.question?.[0]?.answer ?? -1);
-    if (answerData === submitData) {
-      if (confirm("정답입니다! 다른문제도 도전해볼까요?")) {
-        window.history.back();
-      } else {
-        window.location.href = "/quiz/library";
-      }
+    const newSubmitArr = [...submitDataArr, submitData];
+    const newAnswerArr = [...answerDataArr, answerData];
+
+    setSubmitDataArr(newSubmitArr);
+    setAnswerDataArr(newAnswerArr);
+
+    if (currentIndex + 1 < currentTopicArr.length) {
+      setCurrentIndex(currentIndex + 1);
     } else {
-      if (confirm("오답입니다! 한번 더 생각해볼까요?")) {
-        // stay
-      } else {
-        window.history.back();
-      }
+      goResult(newSubmitArr, newAnswerArr);
     }
   };
 
+  // Type2 제출
   const SubmitType2 = (submitData) => {
     if (!current) return;
     const maxIndex = current.question.length;
 
-    const nextProgress = progress + 100 / maxIndex;
-    setProgress(nextProgress);
+    const newSubmitArr = [...submitDataArr, submitData];
+    const newAnswerArr = [
+      ...answerDataArr,
+      current.question[submitDataArr.length].answer,
+    ];
 
-    const newSubmit = [...submitDataArr, submitData];
-    const newAnswer = [...answerDataArr, current.question[qid].answer];
-    setSubmitDataArr(newSubmit);
-    setAnswerDataArr(newAnswer);
+    setSubmitDataArr(newSubmitArr);
+    setAnswerDataArr(newAnswerArr);
 
-    if (qid + 1 === maxIndex) {
-      setTimeout(() => {
-        let yes = 0;
-        for (let i = 0; i < newAnswer.length; i++) {
-          if (Number(newAnswer[i]) === Number(newSubmit[i])) yes++;
-        }
-        if (yes === maxIndex) {
-          if (confirm(`(${yes} / ${maxIndex})\n정답입니다! 다른문제도 도전해볼까요?`)) {
-            navigate(`/quiz/library/list?quizType=${quizType}`);
-          } else {
-            window.location.href = "/quiz/library";
-          }
-        } else {
-          if (confirm(`(${yes} / ${maxIndex})\n오답입니다! 한번 더 생각해볼까요?`)) {
-            setProgress(0);
-            setSubmitDataArr([]);
-            setAnswerDataArr([]);
-            navigate(`/quiz/play?quizType=${quizType}&quizId=${quizId}&qid=0`);
-          } else {
-            navigate(`/quiz/library/list?quizType=${quizType}`);
-          }
-        }
-      }, 750);
-    } else {
-      navigate(`/quiz/play?quizType=${quizType}&quizId=${quizId}&qid=${qid + 1}`);
+    setProgress((newSubmitArr.length / maxIndex) * 100);
+
+    if (newSubmitArr.length === maxIndex) {
+      if (currentIndex + 1 < currentTopicArr.length) {
+        setCurrentIndex(currentIndex + 1);
+        setProgress(0);
+        setSubmitDataArr([]);
+        setAnswerDataArr([]);
+      } else {
+        goResult(newSubmitArr, newAnswerArr);
+      }
     }
   };
 
+  // Type3 카운트
   const CountUpType3 = () => setCnt((c) => c + 1);
 
   const PlaySoundType3 = () => {
@@ -134,19 +135,20 @@ export default function QuizPlay() {
   };
 
   const SubmitType3 = () => {
+    if (!current) return;
     const answer = Number(current?.question?.[0]?.answer ?? -1);
-    if (cnt === answer) {
-      if (confirm("정답입니다! 다른문제도 도전해볼까요?")) {
-        window.history.back();
-      } else {
-        window.location.href = "/quiz/library";
-      }
+
+    const newSubmitArr = [...submitDataArr, cnt];
+    const newAnswerArr = [...answerDataArr, answer];
+
+    setSubmitDataArr(newSubmitArr);
+    setAnswerDataArr(newAnswerArr);
+
+    if (currentIndex + 1 < currentTopicArr.length) {
+      setCurrentIndex(currentIndex + 1);
+      setCnt(0);
     } else {
-      if (confirm("오답입니다! 한번 더 생각해볼까요?")) {
-        // stay
-      } else {
-        window.history.back();
-      }
+      goResult(newSubmitArr, newAnswerArr);
     }
   };
 
@@ -156,7 +158,7 @@ export default function QuizPlay() {
         <div className="wrap">
           <header>
             <div className="hd_inner">
-              <div className="hd_tit">{title || "두뇌 단련"}</div>
+              <div className="hd_tit">두뇌 단련</div>
             </div>
           </header>
           <div className="inner">로딩 중...</div>
@@ -173,26 +175,30 @@ export default function QuizPlay() {
         <header>
           <div className="hd_inner">
             <div className="hd_tit">
-              <div className="alert alert-dark text-center" role="alert">{title}</div>
+              <div className="alert alert-dark text-center" role="alert">
+                두뇌 단련
+              </div>
             </div>
             <div className="hd_left">
-              <a onClick={goBack}><i className="xi-angle-left-min" /></a>
+              <a onClick={goBack}>
+                <i className="xi-angle-left-min" />
+              </a>
             </div>
             <div className="hd_right">
-              <a onClick={goHome}><i className="xi-home-o" /></a>
+              <a onClick={goHome}>
+                <i className="xi-home-o" />
+              </a>
             </div>
           </div>
         </header>
 
         <div className="inner">
-          {type !== 4 && (
-            <div className="ct_banner">
-              <div className="alert alert-dark text-center" role="alert">Level {quizId + 1}</div>
-            </div>
-          )}
-
           <div className="ct_inner">
-            <div className="ct_brain" data-aos="fade-up" data-aos-duration="1000">
+            <div
+              className="ct_brain"
+              data-aos="fade-up"
+              data-aos-duration="1000"
+            >
               <div className="ct_tit">{current.question?.[0]?.title}</div>
 
               {/* Type 0 */}
@@ -204,28 +210,22 @@ export default function QuizPlay() {
                       style={{ width: "100%", borderRadius: 10 }}
                     />
                   </div>
-
-                  {(quizType === 2 || quizType === 3 || quizType === 5) ? (
-                    <div className="bt_flex bt_flex_4">
-                      {current.question[0].question?.map((text, idx) => (
-                        <button key={idx} className="question_bt" type="button" onClick={() => SubmitType0(idx)}>
-                          {text}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="bt_flex bt_flex_4">
-                      {[1, 2, 3, 4].map((n, idx) => (
-                        <button key={idx} className="question_bt" type="button" onClick={() => SubmitType0(idx)}>
-                          {n}번
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="bt_flex bt_flex_4">
+                    {current.question[0].question?.map((text, idx) => (
+                      <button
+                        key={idx}
+                        className="question_bt"
+                        type="button"
+                        onClick={() => SubmitType0(idx)}
+                      >
+                        {text}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
 
-              {/* Type 1 (O/X) */}
+              {/* Type 1 */}
               {type === 1 && (
                 <>
                   <div className="ct_img">
@@ -235,33 +235,67 @@ export default function QuizPlay() {
                     />
                   </div>
                   <div className="bt_flex bt_flex_2">
-                    <button className="question_bt" type="button" onClick={() => SubmitType0(0)}>O</button>
-                    <button className="question_bt" type="button" onClick={() => SubmitType0(1)}>X</button>
+                    <button
+                      className="question_bt"
+                      type="button"
+                      onClick={() => SubmitType0(0)}
+                    >
+                      O
+                    </button>
+                    <button
+                      className="question_bt"
+                      type="button"
+                      onClick={() => SubmitType0(1)}
+                    >
+                      X
+                    </button>
                   </div>
                 </>
               )}
 
-              {/* Type 2 (좌/우 & 진행률) */}
+              {/* Type 2 */}
               {type === 2 && (
                 <>
                   <div className="ct_img">
                     <img
-                      src={`${BASE}autobiography/brainTraining/${current.question[qid].image}`}
+                      src={`${BASE}autobiography/brainTraining/${
+                        current.question[submitDataArr.length].image
+                      }`}
                       style={{ width: "100%", borderRadius: 10 }}
                     />
                   </div>
-                  <progress id="progressbar" value={progress} min="0" max="100" style={{ width: "100%" }} />
+                  <progress
+                    id="progressbar"
+                    value={progress}
+                    min="0"
+                    max="100"
+                    style={{ width: "100%" }}
+                  />
                   <div className="bt_flex bt_flex_2">
-                    <button className="question_bt" type="button" onClick={() => SubmitType2(0)}>왼쪽</button>
-                    <button className="question_bt bt_color" type="button" onClick={() => SubmitType2(1)}>오른쪽</button>
+                    <button
+                      className="question_bt"
+                      type="button"
+                      onClick={() => SubmitType2(0)}
+                    >
+                      왼쪽
+                    </button>
+                    <button
+                      className="question_bt bt_color"
+                      type="button"
+                      onClick={() => SubmitType2(1)}
+                    >
+                      오른쪽
+                    </button>
                   </div>
                 </>
               )}
 
-              {/* Type 3 (노래 + 터치 카운트) */}
+              {/* Type 3 */}
               {type === 3 && (
                 <>
-                  <div className="ct_tit_sub">[ 실제로 노래를 부르며 터치해 보세요 ]</div>
+                  <div className="ct_tit_sub">
+                    [ 실제로 노래를 부르며 터치해 보세요 ]
+                  </div>
                   <div className="ct_img">
                     <img
                       src={`${BASE}autobiography/brainTraining/${current.question[0].image}`}
@@ -275,23 +309,23 @@ export default function QuizPlay() {
                     </audio>
                   </div>
                   <div className="bt_ bt_touch">
-                    <button className="bt_color" type="button" onClick={CountUpType3}>{cnt}번</button>
+                    <button
+                      className="bt_color"
+                      type="button"
+                      onClick={CountUpType3}
+                    >
+                      {cnt}번
+                    </button>
                     <div className="bt_flex bt_flex_2">
-                      <button type="button" onClick={PlaySoundType3}>노래 재생하기</button>
-                      <button type="button" onClick={SubmitType3}>제출하기</button>
+                      <button type="button" onClick={PlaySoundType3}>
+                        노래 재생하기
+                      </button>
+                      <button type="button" onClick={SubmitType3}>
+                        제출하기
+                      </button>
                     </div>
                   </div>
                 </>
-              )}
-
-              {/* Type 4 (배너) */}
-              {type === 4 && (
-                <div className="ct_imgbanner">
-                  <img
-                    src={`${BASE}autobiography/brainTraining/${current.question[0].image}`}
-                    style={{ width: "100%", borderRadius: 10 }}
-                  />
-                </div>
               )}
             </div>
           </div>
