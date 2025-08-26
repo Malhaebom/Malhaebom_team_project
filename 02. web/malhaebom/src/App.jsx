@@ -36,6 +36,7 @@ import ExerciseDo from "./pages/Exercise/ExerciseDo.jsx";
 import QuizLibrary from "./pages/Quiz/QuizLibrary.jsx";
 import QuizList from "./pages/Quiz/QuizList.jsx";
 import QuizPlay from "./pages/Quiz/QuizPlay.jsx";
+import QuizResult from "./pages/Quiz/QuizResult.jsx";
 
 // Context (default export 사용)
 import ScoreProvider from "./ScoreContext.jsx";
@@ -253,6 +254,14 @@ export default function App() {
           element={
             <ErrorBoundary name="QuizPlay">
               <QuizPlay />
+            </ErrorBoundary>
+          }
+        />
+        <Route
+          path="/quiz/result"
+          element={
+            <ErrorBoundary name="QuizResult">
+              <QuizResult />
             </ErrorBoundary>
           }
         />
