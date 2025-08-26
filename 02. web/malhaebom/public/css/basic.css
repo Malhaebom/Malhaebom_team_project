@@ -22,8 +22,8 @@ img {vertical-align:middle;}
 a {text-decoration:none; color:#333;}
 .clear:after {content:""; display:block; clear:both;}
 h1 {font-family:'ONE-Mobile-Title';}
-button {width:100%; border:none; background:#4ad1cb; color:#fff; font-size:1em; font-weight:bold; border-radius:5px; padding:8px; color:#fff; transition:all .2s;}
-button:hover {background:#61e0da;}
+button {width:100%; border:none; background:#488eca; color:#fff; font-size:1em; font-weight:bold; border-radius:5px; padding:8px; color:#fff; transition:all .2s;}
+button:hover {background:#1b3d58;}
 /* for IE 11 */
 select::-ms-expand {display:none;}
 .select {width:100%; padding:13px 20px; margin-top:20px; font-family:inherit; background:url(../img/arrow.png) no-repeat 95% 50%; -webkit-appearance:none; -moz-appearance:none; appearance:none; border:1px solid #999; background-color:#fff; border-radius:5px; font-family:'Pretendard-Regular'; font-size:1em;}

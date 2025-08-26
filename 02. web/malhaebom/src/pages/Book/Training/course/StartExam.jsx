@@ -1,31 +1,22 @@
 // src/pages/Book/Training/course/StartExam.jsx
 import { useNavigate } from "react-router-dom";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
-import { useScores } from "../../../../ScoreContext.jsx";
-
 
 export default function StartExam() {
   const query = useQuery();
   const examId = Number(query.get("examId") ?? "0");
   const navigate = useNavigate();
-  const {
-    setScoreAD,
-    setScoreAI,
-    setScoreB,
-    setScoreC,
-    setScoreD,
-    resetScores,
-  } = useScores();
 
   const [bookTitle, setBookTitle] = useState("");
   const [exam, setExam] = useState(null);
   const [examDirectory, setExamDirectory] = useState("");
-
-  // 버튼 강조용 상태
   const [activeBtn, setActiveBtn] = useState(0);
+
+  // 문제별 점수 관리 (0: 틀림, 1: 맞음, null: 미선택)
+  const [scores, setScores] = useState(Array(20).fill(null));
 
   // 오디오 refs
   const audio0Ref = useRef(null);
@@ -34,22 +25,33 @@ export default function StartExam() {
   const audio3Ref = useRef(null);
   const audio4Ref = useRef(null);
 
+  // 이전 examId 저장용
+  const prevExamIdRef = useRef(null);
+
   // 초기화
   useEffect(() => {
     AOS.init();
   }, []);
 
-  // 최초 진입 시 알림 + 점수 초기화(첫 문제일 때만)
+  // 최초 진입 / 앞으로 이동 시 알림
   useEffect(() => {
-    if (examId === 0) {
+    if (prevExamIdRef.current === null) {
+      // 최초 진입
       alert("문제를 시작합니다");
-      resetScores();
-    } else {
+      setScores(Array(20).fill(null)); // 점수 초기화
+    } else if (examId > prevExamIdRef.current) {
+      // 앞으로 이동
       alert("다음 문제를 시작합니다");
+    } else if (examId < prevExamIdRef.current) {
+      // 뒤로 이동 시 해당 문제 점수 초기화
+      const newScores = [...scores];
+      newScores[examId] = null;
+      setScores(newScores);
     }
-  }, [examId, resetScores]);
+    prevExamIdRef.current = examId;
+  }, [examId]);
 
-  // fairytale 제목
+  // 제목 불러오기
   useEffect(() => {
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
   }, []);
@@ -62,6 +64,7 @@ export default function StartExam() {
       navigate(`/book/training/course/exam?bookId=0`);
       return;
     }
+
     fetch(`/autobiography/${examPath}`)
       .then((r) => {
         if (!r.ok) throw new Error("exam JSON 로드 실패");
@@ -81,7 +84,6 @@ export default function StartExam() {
   useEffect(() => {
     if (!exam) return;
 
-    // 버튼 스타일 초기화
     setActiveBtn(0);
 
     const a0 = audio0Ref.current;
@@ -92,25 +94,11 @@ export default function StartExam() {
 
     if (!a0 || !a1 || !a2 || !a3 || !a4) return;
 
-    const onEnd0 = () => {
-      a1.play();
-      setActiveBtn(1);
-    };
-    const onEnd1 = () => {
-      a2.play();
-      setActiveBtn(2);
-    };
-    const onEnd2 = () => {
-      a3.play();
-      setActiveBtn(3);
-    };
-    const onEnd3 = () => {
-      a4.play();
-      setActiveBtn(4);
-    };
-    const onEnd4 = () => {
-      setActiveBtn(0); // 모두 종료 후 초기화
-    };
+    const onEnd0 = () => { a1.play(); setActiveBtn(1); };
+    const onEnd1 = () => { a2.play(); setActiveBtn(2); };
+    const onEnd2 = () => { a3.play(); setActiveBtn(3); };
+    const onEnd3 = () => { a4.play(); setActiveBtn(4); };
+    const onEnd4 = () => { setActiveBtn(0); };
 
     a0.addEventListener("ended", onEnd0);
     a1.addEventListener("ended", onEnd1);
@@ -118,7 +106,6 @@ export default function StartExam() {
     a3.addEventListener("ended", onEnd3);
     a4.addEventListener("ended", onEnd4);
 
-    // 재시작 로직
     try {
       a0.currentTime = 0;
       a1.currentTime = 0;
@@ -127,14 +114,9 @@ export default function StartExam() {
       a4.currentTime = 0;
     } catch {}
 
-    a0.load();
-    a1.load();
-    a2.load();
-    a3.load();
-    a4.load();
+    a0.load(); a1.load(); a2.load(); a3.load(); a4.load();
 
     a0.play().catch(() => {
-      // 자동재생이 막히면 사용자 상호작용 유도
       console.warn("자동재생이 차단되었습니다. 첫 오디오를 클릭해 주세요.");
     });
 
@@ -144,10 +126,9 @@ export default function StartExam() {
       a2.removeEventListener("ended", onEnd2);
       a3.removeEventListener("ended", onEnd3);
       a4.removeEventListener("ended", onEnd4);
+
       [a0, a1, a2, a3, a4].forEach((a) => {
-        try {
-          a.pause();
-        } catch {}
+        try { a.pause(); } catch {}
       });
     };
   }, [exam, examId]);
@@ -158,26 +139,15 @@ export default function StartExam() {
     const current = exam.data[examId];
     const isCorrect = Number(current.answer) === Number(choiceIdx);
 
-    // 1~20번 문항별 영역 매핑 (Vue 로직 그대로)
-    const qNum = examId + 1;
-    if (isCorrect) {
-      if (qNum <= 4) {
-        setScoreAD((v) => v + 1);
-      } else if (qNum <= 8) {
-        setScoreAI((v) => v + 1);
-      } else if (qNum <= 12) {
-        setScoreB((v) => v + 1);
-      } else if (qNum <= 16) {
-        setScoreC((v) => v + 1);
-      } else if (qNum <= 20) {
-        setScoreD((v) => v + 1);
-      }
-    }
+    const newScores = [...scores];
+    newScores[examId] = isCorrect ? 1 : 0; // 문제 단위 점수 저장
+    setScores(newScores);
 
-    if (qNum < 20) {
+    if (examId + 1 < 20) {
       navigate(`/book/training/course/exam/start?examId=${examId + 1}`);
     } else {
       alert("화행검사가 끝났습니다");
+      // 최종 점수 계산 가능: newScores.reduce((a,b)=>a+b,0)
       navigate(`/book/training/course/exam/result`);
     }
   };
@@ -204,42 +174,33 @@ export default function StartExam() {
         <div className="inner">
           <div className="ct_banner">{current?.type}</div>
           <div className="ct_inner">
-            <div
-              className="ct_question_a"
-              data-aos="fade-up"
-              data-aos-duration="1000"
-            >
+            <div className="ct_question_a" data-aos="fade-up" data-aos-duration="1000">
               <p>{current?.title}</p>
 
               {/* 문제 오디오 */}
               <audio ref={audio0Ref} className="examAudio0">
-                <source
-                  src={`${examDirectory}/${examId + 1}/문제.mp3`}
-                  type="audio/mpeg"
-                />
+                <source src={`${examDirectory}/${examId + 1}/문제.mp3`} type="audio/mpeg" />
               </audio>
 
-              {/* 보기 4개 + 보기 오디오 */}
+              {/* 보기 4개 */}
               {current?.list?.map((value, idx) => {
                 const n = idx + 1;
                 const isActive = activeBtn === n;
                 return (
                   <div key={idx}>
                     <button
-                      className={`question_bt alert text-center ${
-                        isActive ? "alert-danger" : "alert-dark"
-                      }`}
+                      className={`question_bt alert text-center ${isActive ? "alert-danger" : "alert-dark"}`}
                       id={`examBtn${n}`}
                       type="button"
                       onClick={() => handleClickChoice(idx)}
                     >
                       {n}. {value}
                     </button>
-                    <audio ref={[audio1Ref, audio2Ref, audio3Ref, audio4Ref][idx]} className={`examAudio${n}`}>
-                      <source
-                        src={`${examDirectory}/${examId + 1}/${n}.mp3`}
-                        type="audio/mpeg"
-                      />
+                    <audio
+                      ref={[audio1Ref, audio2Ref, audio3Ref, audio4Ref][idx]}
+                      className={`examAudio${n}`}
+                    >
+                      <source src={`${examDirectory}/${examId + 1}/${n}.mp3`} type="audio/mpeg" />
                     </audio>
                   </div>
                 );

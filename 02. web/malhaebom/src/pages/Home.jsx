@@ -37,7 +37,7 @@ export default function Home() {
             {/* 회상 인터뷰 */}
             <div className="box" data-aos="fade-up" data-aos-duration="1000">
               <div>
-                <h2>회상 훈련</h2>
+                <h2>인지검사</h2>
                 <p>추억을 나누며 기억을 되살려요</p>
                 <img
                   src="/img/home_icon04.png"
@@ -102,7 +102,7 @@ export default function Home() {
           {/* 하단 로그인 이동 영역 */}
           <div
             className="ct_banner"
-            style={{ background: "#344CB7", marginTop: "100px", cursor: "pointer" }}
+            style={{ background: "#488eca", marginTop: "100px", cursor: "pointer" }}
             onClick={() => navigate("/login")}
           >
             로그인 하러가기

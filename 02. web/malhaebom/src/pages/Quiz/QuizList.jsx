@@ -8,15 +8,12 @@ export default function QuizList() {
   const navigate = useNavigate();
   const BASE = import.meta.env.BASE_URL || "/";
 
-  const quizType = Number(searchParams.get("quizType") ?? "0");
-
+  const quizType = Number(searchParams.get("quizType") ?? 0);
   const [brainTraining, setBrainTraining] = useState(null);
   const [brainTrainingArr, setBrainTrainingArr] = useState(null);
   const [title, setTitle] = useState("");
 
-  useEffect(() => {
-    AOS.init();
-  }, []);
+  useEffect(() => { AOS.init(); }, []);
 
   useEffect(() => {
     (async () => {
@@ -33,10 +30,9 @@ export default function QuizList() {
           "언어능력.json",
           "음악과터치.json"
         ];
+
         const arr = await Promise.all(
-          files.map((f) =>
-            fetch(`${BASE}autobiography/brainTraining/${f}`).then((r) => r.json())
-          )
+          files.map(f => fetch(`${BASE}autobiography/brainTraining/${f}`).then(r => r.json()))
         );
         setBrainTrainingArr(arr);
 
@@ -49,8 +45,6 @@ export default function QuizList() {
   }, [BASE, quizType]);
 
   const goHome = () => (window.location.href = "/quiz/library");
-  const goToQuizPlay = (qType, quizId) =>
-    navigate(`/quiz/play?quizType=${qType}&quizId=${quizId}&qid=0`);
 
   const listData = useMemo(() => {
     if (!brainTrainingArr) return [];
@@ -63,26 +57,25 @@ export default function QuizList() {
     return entry ? entry[0] : "";
   }, [brainTraining, quizType]);
 
+  const goToQuizPlay = (qType, quizId) => {
+    if (!listData || !bannerSuffix) return; // 로딩 완료 전 클릭 방지
+    const topicData = listData.map(item => ({ ...item }));
+    const quizTitle = bannerSuffix ? `${bannerSuffix} 영역` : "퀴즈";
+    navigate(`/quiz/play?quizType=${qType}&quizId=${quizId}&qid=0`, {
+      state: { currentTopicArr: topicData, quizType: qType, quizTitle }
+    });
+  };
+
   return (
     <div className="content">
       <div className="wrap">
         <header>
           <div className="hd_inner">
             <div className="hd_tit">
-              <div className="alert alert-dark text-center" role="alert">
-                {title}
-              </div>
+              <div className="alert alert-dark text-center">{title}</div>
             </div>
-            <div className="hd_left">
-              <a onClick={() => window.history.back()}>
-                <i className="xi-angle-left-min" />
-              </a>
-            </div>
-            <div className="hd_right">
-              <a onClick={goHome}>
-                <i className="xi-home-o" />
-              </a>
-            </div>
+            <div className="hd_left"><a onClick={() => window.history.back()}><i className="xi-angle-left-min" /></a></div>
+            <div className="hd_right"><a onClick={goHome}><i className="xi-home-o" /></a></div>
           </div>
         </header>
 
@@ -92,31 +85,26 @@ export default function QuizList() {
               listData.map((item, key) => (
                 <div
                   key={key}
-                  onClick={() => goToQuizPlay(quizType, key)}
+                  onClick={() => bannerSuffix && goToQuizPlay(quizType, key)}
                   style={{
-                    cursor: "pointer",
+                    cursor: bannerSuffix ? "pointer" : "not-allowed",
                     padding: "12px",
                     border: "1px solid #ddd",
                     borderRadius: "8px",
                     marginBottom: "12px",
                     transition: "background-color 0.2s ease",
+                    opacity: bannerSuffix ? 1 : 0.5
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#ecececff")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
                 >
                   <div className="theater_flex">
-                    <p className="tit">
-                      {quizType !== 5 ? `Level ${key + 1}` : item.title}
-                    </p>
+                    <p className="tit">{quizType !== 5 ? `Level ${key + 1}` : item.title}</p>
                   </div>
                   <p style={{ marginTop: "8px" }}>
                     {quizType !== 5 ? `${bannerSuffix}을 길러봅시다.` : item?.question?.[0]?.title}
                   </p>
                 </div>
               ))
-            ) : (
-              <p>로딩 중...</p>
-            )}
+            ) : <p>로딩 중...</p>}
           </div>
         </div>
       </div>
