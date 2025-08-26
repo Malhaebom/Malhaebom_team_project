@@ -97,7 +97,6 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
     super.dispose();
   }
 
-  // ====== (디버그) 빌드에 포함된 모든 자산 중 특정 텍스트를 포함하는 항목을 출력 ======
   Future<void> _debugDumpAssets({String? contains}) async {
     try {
       final jsonStr = await rootBundle.loadString('AssetManifest.json');
@@ -118,19 +117,16 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
     }
   }
 
-  /// rootBundle.load()에 쓸 "풀 경로" 보정: assets/ 접두어가 없으면 붙여 준다.
   String _ensureAssetFullPath(String raw) {
     return raw.startsWith('assets/') ? raw : 'assets/$raw';
   }
 
-  /// audioplayers 의 AssetSource 키: assets/ 접두어를 제거한 경로 사용
   String _toAssetKey(String rawOrFull) {
     return rawOrFull.startsWith('assets/')
         ? rawOrFull.substring('assets/'.length)
         : rawOrFull;
   }
 
-  // ====== UI ======
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -354,21 +350,15 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
       return;
     }
 
-    // rootBundle.load()용 풀경로/AssetSource용 키를 각각 준비
-    final full = _ensureAssetFullPath(
-      raw,
-    ); // ex) fairytale/... -> assets/fairytale/...
-    final key = _toAssetKey(full); // ex) assets/fairytale/... -> fairytale/...
+    final full = _ensureAssetFullPath(raw);
+    final key = _toAssetKey(full);
 
     try {
-      // 존재 여부 사전 확인
       await rootBundle.load(full);
 
-      // 내 녹음이 재생 중이면 정지
       await _myPlayer.stop();
       if (mounted) setState(() => _isMyPlaying = false);
 
-      // 토글 동작
       if (_isAssetPlaying) {
         await _assetPlayer.pause();
         if (mounted) setState(() => _isAssetPlaying = false);
@@ -380,9 +370,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
 
       if (mounted) setState(() => _isAssetPlaying = true);
     } on FlutterError {
-      // 빌드에 들어간 자산을 보여줘서 어디가 틀렸는지 바로 진단
       await _debugDumpAssets(contains: p.basename(full));
-      // 상위 폴더명으로도 한 번 더 검색(한글/공백 문제 조기 파악)
       final parent = p.basename(p.dirname(full));
       if (parent.isNotEmpty) {
         await _debugDumpAssets(contains: parent);
