@@ -30,7 +30,7 @@ class _StoryMainPageState extends State<StoryMainPage> {
             child: Scaffold(
               // ===== 파란 AppBar (얇고 크게) =====
               appBar: PreferredSize(
-                preferredSize: Size.fromHeight(62.h),
+                preferredSize: Size.fromHeight(kToolbarHeight),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(24),
@@ -43,12 +43,13 @@ class _StoryMainPageState extends State<StoryMainPage> {
                     elevation: 0,
                     title: Text(
                       '회상 동화',
+                      textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
                         fontFamily: _kFont,
                         fontWeight: FontWeight.w500, // 얇게
-                        fontSize: 28.sp, // 크게
+                        fontSize: 30.sp, // 크게
                         color: Colors.white,
-                        height: 1.0,
+                        // height: 1.0,
                       ),
                     ),
                   ),
@@ -128,6 +129,7 @@ class _StoryMainPageState extends State<StoryMainPage> {
                                           tale.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
+                                          textScaler: const TextScaler.linear(1.0),
                                           style: TextStyle(
                                             fontFamily: _kFont,
                                             fontSize: 19.sp,
@@ -142,8 +144,9 @@ class _StoryMainPageState extends State<StoryMainPage> {
                                           tale.content ?? '소개 문구가 준비 중입니다.',
                                           softWrap: true,
                                           overflow: TextOverflow.ellipsis,
-                                          maxLines: 3, // ← 줄 수를 늘려서 더 많이 보이게
+                                          maxLines: 4, // ← 줄 수를 늘려서 더 많이 보이게
                                           textAlign: TextAlign.start,
+                                          textScaler: const TextScaler.linear(1.0),
                                           style: TextStyle(
                                             fontFamily: _kFont,
                                             fontSize:

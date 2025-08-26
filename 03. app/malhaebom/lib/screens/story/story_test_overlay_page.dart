@@ -128,7 +128,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                                 style: TextStyle(
                                   fontFamily: _kFont,
                                   fontWeight: FontWeight.w400,
-                                  fontSize: 14.sp,
+                                  fontSize: 16.sp,
                                   height: 1.25,
                                   color: _bodyGray,
                                 ),
@@ -145,7 +145,7 @@ class _StoryTestOverlayPageState extends State<StoryTestOverlayPage> {
                                   style: TextStyle(
                                     fontFamily: _kFont,
                                     fontWeight: FontWeight.w400,
-                                    fontSize: 12.sp,
+                                    fontSize: 14.sp,
                                     height: 1.45,
                                     color: _bodyGray,
                                   ),

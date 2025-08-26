@@ -1,3 +1,4 @@
+// lib/screens/story/watch_usage_page.dart
 import 'dart:io';
 import 'dart:async';
 import 'package:malhaebom/screens/story/story_testInfo_page.dart';
@@ -189,179 +190,198 @@ class _WatchUsagePageState extends State<WatchUsagePage>
   Widget build(BuildContext context) {
     final bool isPlaying = _initialized && _controller.value.isPlaying;
 
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        foregroundColor: Colors.black87,
-        centerTitle: true,
-        elevation: 0,
-        title: Text(
-          widget.title,
-          style: TextStyle(
-            fontFamily: _kFont,
-            fontWeight: FontWeight.w500,
-            fontSize: 20.sp,
-            color: Colors.black87,
+    // ★ 페이지 전체의 텍스트 스케일 고정
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: const TextScaler.linear(1.0),
+      ),
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          foregroundColor: Colors.black87,
+          centerTitle: true,
+          elevation: 0,
+          title: Text(
+            widget.title,
+            textScaler: const TextScaler.linear(1.0),
+            style: TextStyle(
+              fontFamily: _kFont,
+              fontWeight: FontWeight.w500,
+              fontSize: 28.sp,
+              color: Colors.black87,
+            ),
           ),
         ),
-      ),
-      backgroundColor: AppColors.background,
-      body: ListView(
-        padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0),
-        children: [
-          // 동영상
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8.r),
-                child: AspectRatio(
-                  aspectRatio:
-                      _initialized ? _controller.value.aspectRatio : 16 / 9,
-                  child: _initialized
-                      ? VideoPlayer(_controller)
-                      : Container(color: const Color(0xFFE5E7EB)),
-                ),
-              ),
-
-              // 화면 아무데나 탭 -> 컨트롤 보이기/숨기기
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTap: () => _controlsVisible ? _hideControls() : _showControls(),
-                ),
-              ),
-
-              // 가운데 큰 재생/일시정지 토글 (컨트롤 보일 때만)
-              AnimatedOpacity(
-                opacity: _controlsVisible ? 1 : 0,
-                duration: const Duration(milliseconds: 180),
-                child: IgnorePointer(
-                  ignoring: !_controlsVisible,
-                  child: GestureDetector(
-                    onTap: _togglePlay,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.black45,
-                        shape: BoxShape.circle,
-                      ),
-                      padding: EdgeInsets.all(12.w),
-                      child: Icon(
-                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        size: 88.sp,
-                        color: Colors.white,
-                      ),
-                    ),
+        backgroundColor: AppColors.background,
+        body: ListView(
+          padding: EdgeInsets.fromLTRB(18.w, 12.h, 18.w, 0),
+          children: [
+            // 동영상
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8.r),
+                  child: AspectRatio(
+                    aspectRatio:
+                        _initialized ? _controller.value.aspectRatio : 16 / 9,
+                    child: _initialized
+                        ? VideoPlayer(_controller)
+                        : Container(color: const Color(0xFFE5E7EB)),
                   ),
                 ),
-              ),
 
-              // 전체화면 버튼 (컨트롤 보일 때만, 아이콘 크게 + 터치영역 확장)
-              Positioned(
-                right: 10.w,
-                bottom: 10.w,
-                child: AnimatedOpacity(
+                // 화면 아무데나 탭 -> 컨트롤 보이기/숨기기
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTap: () =>
+                        _controlsVisible ? _hideControls() : _showControls(),
+                  ),
+                ),
+
+                // 가운데 큰 재생/일시정지 토글 (컨트롤 보일 때만)
+                AnimatedOpacity(
                   opacity: _controlsVisible ? 1 : 0,
                   duration: const Duration(milliseconds: 180),
                   child: IgnorePointer(
                     ignoring: !_controlsVisible,
-                    child: Material(
-                      color: Colors.black45,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _openFullscreen,
-                        child: Padding(
-                          padding: EdgeInsets.all(8.w),
-                          child: Icon(
-                            Icons.crop_free,
-                            size: 36.sp, // ← 크게
-                            color: Colors.white,
+                    child: GestureDetector(
+                      onTap: _togglePlay,
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          color: Colors.black45,
+                          shape: BoxShape.circle,
+                        ),
+                        padding: EdgeInsets.all(12.w),
+                        child: Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 88.sp,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 전체화면 버튼 (컨트롤 보일 때만, 아이콘 크게 + 터치영역 확장)
+                Positioned(
+                  right: 10.w,
+                  bottom: 10.w,
+                  child: AnimatedOpacity(
+                    opacity: _controlsVisible ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: IgnorePointer(
+                      ignoring: !_controlsVisible,
+                      child: Material(
+                        color: Colors.black45,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _openFullscreen,
+                          child: Padding(
+                            padding: EdgeInsets.all(8.w),
+                            child: Icon(
+                              Icons.crop_free,
+                              size: 36.sp, // ← 크게
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
+              ],
+            ),
+
+            SizedBox(height: 16.h),
+
+            // Q1 카드 — 제목만 가운데
+            _CenteredMaxWidth(
+              child: _GuideBox(
+                title: 'Q. 어떻게 사용하나요?',
+                centerTitle: true,
+                centerBody: false,
+                bullets: const [
+                  _BulletItem(
+                    icon: Icons.play_arrow_rounded,
+                    text: '동영상을 재생해줘요.',
+                    dim: false,
+                  ),
+                  _BulletItem(
+                    icon: Icons.crop_free,
+                    text: '동영상을 전체 화면으로 보여줘요.',
+                    dim: true,
+                  ),
+                ],
               ),
-            ],
-          ),
-
-          SizedBox(height: 16.h),
-
-          // Q1 카드 — 제목만 가운데
-          _CenteredMaxWidth(
-            child: _GuideBox(
-              title: 'Q. 어떻게 사용하나요?',
-              centerTitle: true,
-              centerBody: false,
-              bullets: const [
-                _BulletItem(
-                  icon: Icons.play_arrow_rounded,
-                  text: '동영상을 재생해줘요.',
-                  dim: false,
-                ),
-                _BulletItem(
-                  icon: Icons.crop_free,
-                  text: '동영상을 전체 화면으로 보여줘요.',
-                  dim: true,
-                ),
-              ],
             ),
-          ),
 
-          SizedBox(height: 12.h),
+            SizedBox(height: 12.h),
 
-          // Q2 카드 — 제목/본문 모두 가운데
-          _CenteredMaxWidth(
-            child: _GuideBox(
-              title: 'Q. 동화를 모두 들으셨나요?',
-              centerTitle: true,
-              centerBody: true,
-              subtitle: '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
-              actions: [
-                Expanded(
-                  child: _ChoiceButton(
-                    top: '네',
-                    bottom: '검사할게요.',
-                    background: _ctaYellow,
-                    foreground: Colors.black,
-                    onTap: _startTest, // ← 이동 전 멈춤/볼륨 처리
+            // Q2 카드 — 제목/본문 모두 가운데
+            _CenteredMaxWidth(
+              child: _GuideBox(
+                title: 'Q. 동화를 모두 들으셨나요?',
+                centerTitle: true,
+                centerBody: true,
+                subtitle:
+                    '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
+                actions: [
+                  Expanded(
+                    child: _ChoiceButton(
+                      top: '네',
+                      bottom: '검사할게요.',
+                      background: _ctaYellow,
+                      foreground: Colors.black,
+                      onTap: _startTest, // ← 이동 전 멈춤/볼륨 처리
+                    ),
                   ),
-                ),
-                SizedBox(width: 10.w),
-                Expanded(
-                  child: _ChoiceButton(
-                    top: '아니요',
-                    bottom: '다 안 봤어요.',
-                    background: const Color(0xFFE9E9EB),
-                    foreground: const Color(0xFF5B5B5B),
-                    onTap: () => Navigator.pop(context),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: _ChoiceButton(
+                      top: '아니요',
+                      bottom: '다 안 봤어요.',
+                      background: const Color(0xFFE9E9EB),
+                      foreground: const Color(0xFF5B5B5B),
+                      onTap: () => Navigator.pop(context),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 리스트 아이템을 가운데로 모으고 폭 제한
+/// 리스트 아이템을 가운데로 모으되, 폭 고정 해제
 class _CenteredMaxWidth extends StatelessWidget {
   const _CenteredMaxWidth({required this.child});
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final double maxW = 340.w.clamp(300.0, 360.0);
-    return Align(
-      alignment: Alignment.center,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxW),
-        child: child,
-      ),
+    // 부모(ListView)의 실제 가용 폭을 그대로 사용
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double usable = constraints.maxWidth; // ListView padding 반영된 폭
+        return Align(
+          alignment: Alignment.center,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: usable, // 꽉 채우기
+              maxWidth: usable, // 화면 크기 따라 유동
+            ),
+            child: child,
+          ),
+        );
+      },
     );
   }
 }
@@ -401,10 +421,11 @@ class _GuideBox extends StatelessWidget {
           Text(
             title,
             textAlign: centerTitle ? TextAlign.center : TextAlign.start,
+            textScaler: const TextScaler.linear(1.0), // ★ 고정
             style: TextStyle(
               fontFamily: _kFont,
               fontWeight: FontWeight.w700,
-              fontSize: 16.sp,
+              fontSize: 23.sp,
               color: Colors.black87,
             ),
           ),
@@ -419,10 +440,11 @@ class _GuideBox extends StatelessWidget {
             Text(
               subtitle!,
               textAlign: centerBody ? TextAlign.center : TextAlign.start,
+              textScaler: const TextScaler.linear(1.0), // ★ 고정
               style: TextStyle(
                 fontFamily: _kFont,
                 fontWeight: FontWeight.w400,
-                fontSize: 13.sp,
+                fontSize: 16.sp,
                 height: 1.4,
                 color: const Color(0xFF6B6B6B),
               ),
@@ -464,10 +486,11 @@ class _BulletRow extends StatelessWidget {
           Expanded(
             child: Text(
               item.text,
+              textScaler: const TextScaler.linear(1.0), // ★ 고정
               style: TextStyle(
                 fontFamily: _kFont,
                 fontWeight: weight,
-                fontSize: 14.sp,
+                fontSize: 16.sp,
                 color: color,
               ),
             ),
@@ -636,74 +659,82 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
   Widget build(BuildContext context) {
     final isPlaying = _ready && _ctrl.value.isPlaying;
 
-    return WillPopScope(
-      onWillPop: () async {
-        await _popWithResult(); // 제스처/백버튼으로 나갈 때도 현재 상태 반환
-        return false;
-      },
-      child: Scaffold(
-        backgroundColor: Colors.black,
-        body: Stack(
-          alignment: Alignment.center,
-          children: [
-            Center(
-              child: AspectRatio(
-                aspectRatio: _ready ? _ctrl.value.aspectRatio : 16 / 9,
-                child: _ready ? VideoPlayer(_ctrl) : const SizedBox.shrink(),
-              ),
-            ),
-
-            // 탭으로 컨트롤 표시/숨김
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () =>
-                    _controlsVisible ? _hideControls() : _showControls(),
-                behavior: HitTestBehavior.translucent,
-              ),
-            ),
-
-            // 가운데 토글 아이콘
-            AnimatedOpacity(
-              opacity: _controlsVisible ? 1 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: IgnorePointer(
-                ignoring: !_controlsVisible,
-                child: GestureDetector(
-                  onTap: _toggle,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.black45,
-                      shape: BoxShape.circle,
-                    ),
-                    padding: const EdgeInsets.all(12),
-                    child: Icon(
-                      isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                      size: 120,
-                      color: Colors.white70,
-                    ),
-                  ),
+    // ★ 전체화면 페이지도 텍스트 스케일 고정(미래에 텍스트 추가될 경우 대비)
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(
+        textScaler: const TextScaler.linear(1.0),
+      ),
+      child: WillPopScope(
+        onWillPop: () async {
+          await _popWithResult(); // 제스처/백버튼으로 나갈 때도 현재 상태 반환
+          return false;
+        },
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            alignment: Alignment.center,
+            children: [
+              Center(
+                child: AspectRatio(
+                  aspectRatio: _ready ? _ctrl.value.aspectRatio : 16 / 9,
+                  child: _ready ? VideoPlayer(_ctrl) : const SizedBox.shrink(),
                 ),
               ),
-            ),
 
-            // 닫기 버튼 (컨트롤 보일 때만)
-            Positioned(
-              top: 12.h,
-              left: 12.w,
-              child: AnimatedOpacity(
+              // 탭으로 컨트롤 표시/숨김
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () =>
+                      _controlsVisible ? _hideControls() : _showControls(),
+                  behavior: HitTestBehavior.translucent,
+                ),
+              ),
+
+              // 가운데 토글 아이콘
+              AnimatedOpacity(
                 opacity: _controlsVisible ? 1 : 0,
                 duration: const Duration(milliseconds: 180),
                 child: IgnorePointer(
                   ignoring: !_controlsVisible,
-                  child: IconButton(
-                    onPressed: _popWithResult,
-                    iconSize: 30,
-                    icon: const Icon(Icons.close, color: Colors.white),
+                  child: GestureDetector(
+                    onTap: _toggle,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: Icon(
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        size: 120,
+                        color: Colors.white70,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+
+              // 닫기 버튼 (컨트롤 보일 때만)
+              Positioned(
+                top: 12.h,
+                left: 12.w,
+                child: AnimatedOpacity(
+                  opacity: _controlsVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: IgnorePointer(
+                    ignoring: !_controlsVisible,
+                    child: IconButton(
+                      onPressed: _popWithResult,
+                      iconSize: 30,
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

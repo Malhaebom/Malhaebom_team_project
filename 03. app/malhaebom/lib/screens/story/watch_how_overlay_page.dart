@@ -1,6 +1,4 @@
 // watch_how_overlay_page.dart
-// ▼ FairytaleAsset / byTitle 가 들어있는 파일 경로로 바꿔줘!
-//   예) 'package:malhaebom/data/fairytale_data.dart' 또는 '.../fairytale_asset.dart'
 import 'package:malhaebom/data/fairytale_assets.dart';
 import 'package:malhaebom/data/fairytale_data.dart';
 
@@ -8,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/theme/colors.dart';
-import 'package:malhaebom/data/fairytale_assets.dart';
 import 'watch_usage_page.dart';
 
 const _kFont = 'GmarketSans';
@@ -83,6 +80,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                               ),
                               child: Text(
                                 '동화 시청 방법',
+                                textScaler: const TextScaler.linear(1.0),
                                 style: TextStyle(
                                   fontFamily: _kFont,
                                   fontWeight: FontWeight.w600,
@@ -94,6 +92,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                             SizedBox(height: 8.h),
                             Text(
                               '어떻게 사용하나요?',
+                              textScaler: const TextScaler.linear(1.0),
                               style: TextStyle(
                                 fontFamily: _kFont,
                                 fontWeight: FontWeight.w700,
@@ -139,11 +138,13 @@ class WatchHowOverlayPage extends StatelessWidget {
                           _row(
                             icon: Icons.play_arrow_rounded,
                             text: '동영상을 재생해줘요.',
+                            // textScaler: const TextScaler.linear(1.0),
                           ),
                           SizedBox(height: 8.h),
                           _row(
                             icon: Icons.crop_free, // 전체 화면 아이콘
                             text: '동영상을 전체 화면으로 보여줘요.',
+                            // textScaler: const TextScaler.linear(1.0),
                             dim: true,
                           ),
                         ],
@@ -172,6 +173,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                 onPressed: () => Navigator.pop(context),
                 child: Text(
                   '나가기',
+                  textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontFamily: _kFont,
                     fontWeight: FontWeight.w600,
@@ -209,6 +211,7 @@ class WatchHowOverlayPage extends StatelessWidget {
                   ),
                   child: Text(
                     '동화 보러가기',
+                    textScaler: const TextScaler.linear(1.0),
                     style: TextStyle(
                       fontFamily: _kFont,
                       fontWeight: FontWeight.w800,
@@ -229,6 +232,7 @@ class WatchHowOverlayPage extends StatelessWidget {
     required IconData icon,
     required String text,
     bool dim = false,
+    TextScaler? textScaler,
   }) {
     final color = dim ? Colors.black38 : Colors.black87;
     final weight = dim ? FontWeight.w400 : FontWeight.w500;
@@ -239,6 +243,7 @@ class WatchHowOverlayPage extends StatelessWidget {
         Expanded(
           child: Text(
             text,
+            textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontFamily: _kFont,
               fontWeight: weight,
