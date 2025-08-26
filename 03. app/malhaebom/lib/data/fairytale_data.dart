@@ -1,6 +1,6 @@
 class FairytaleData {
   Map<String, dynamic> data = {
-    "어머니의 벙어리장갑": {
+    "어머니의 벙어리 장갑": {
       "image": "assets/fairytale/어머니의벙어리.png",
       "video": "assets/fairytale/어머니의벙어리.mp4",
       "test": [

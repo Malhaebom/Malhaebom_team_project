@@ -272,7 +272,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
           centerTitle: true,
           automaticallyImplyLeading: false,
           title: Text(
-            '회상 훈련',
+            '인지 검사',
             style: TextStyle(
               fontFamily: 'GmarketSans',
               fontWeight: FontWeight.w500,

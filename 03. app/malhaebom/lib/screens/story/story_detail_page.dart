@@ -133,16 +133,17 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRRect(
           borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(30),
-            bottomRight: Radius.circular(30),
+            bottomLeft: Radius.circular(24),
+            bottomRight: Radius.circular(24),
           ),
           child: AppBar(
             backgroundColor: AppColors.btnColorDark,
-            automaticallyImplyLeading: false,
+            // automaticallyImplyLeading: false,
             centerTitle: true,
             title: Text(
               tale.title,
               key: ValueKey('appbar_${tale.title}'),
+              textScaler: const TextScaler.linear(1.0),
               style: TextStyle(
                 fontFamily: kFont,
                 fontWeight: FontWeight.w500,
@@ -150,18 +151,18 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
                 color: AppColors.white,
               ),
             ),
-            actions: [
-              // 모드 토글 버튼: 슬라이드 <-> 레거시
-              IconButton(
-                tooltip: _legacyMode ? '슬라이드 모드로 전환' : '이전 방식(페이지 이동)으로 전환',
-                onPressed: _toggleMode,
-                icon: Icon(
-                  _legacyMode ? Icons.swipe : Icons.open_in_new,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: 6.w),
-            ],
+            // actions: [
+            //   // 모드 토글 버튼: 슬라이드 <-> 레거시
+            //   IconButton(
+            //     tooltip: _legacyMode ? '슬라이드 모드로 전환' : '이전 방식(페이지 이동)으로 전환',
+            //     onPressed: _toggleMode,
+            //     icon: Icon(
+            //       _legacyMode ? Icons.swipe : Icons.open_in_new,
+            //       color: Colors.white,
+            //     ),
+            //   ),
+            //   SizedBox(width: 6.w),
+            // ],
           ),
         ),
       ),
@@ -240,10 +241,11 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             child: Text(
               '동화 시청만으로 인지검사와 다양한 활동까지!',
               textAlign: TextAlign.center,
+              textScaler: const TextScaler.linear(1.0),
               style: TextStyle(
                 fontFamily: kFont,
                 fontWeight: FontWeight.w400,
-                fontSize: 13.sp,
+                fontSize: 14.sp,
                 color: kTextSub,
                 height: 1.35,
               ),
@@ -257,7 +259,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             iconAsset: kIcoLock,
             fallbackIcon: Icons.lock_outline,
             title: '동화보기',
-            subtitle: '영상으로 재생되는 동화 시청하기',
+            subtitle: '영상으로 재생되는\n동화 시청하기',
             onTap: () {
               Navigator.of(context).push(
                 WatchHowOverlayPage.route(
@@ -273,7 +275,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             iconAsset: kIcoCheck,
             fallbackIcon: Icons.assignment_turned_in_outlined,
             title: '화행 인지검사',
-            subtitle: '동화 퀴즈 풀고 인지능력 진단받기',
+            subtitle: '동화 퀴즈 풀고\n인지능력 진단받기',
             onTap: () {
               Navigator.push(
                 context,
@@ -294,7 +296,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             iconAsset: kIcoPencil,
             fallbackIcon: Icons.brush_outlined,
             title: '워크북 풀어보기',
-            subtitle: '재밌고 간단한 활동으로 인지능력 강화하기',
+            subtitle: '재밌고 간단한 활동으로\n인지능력 강화하기',
             onTap: () {
               final ft = Fairytales[_pageIndex];
               Navigator.push(
@@ -314,7 +316,7 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
             iconAsset: kIcoDrama,
             fallbackIcon: Icons.record_voice_over_outlined,
             title: '동화 연극하기',
-            subtitle: '이야기 주인공의 대사 따라하기',
+            subtitle: '이야기 주인공의\n대사 따라하기',
             onTap: () {
               Navigator.push(
                 context,
@@ -360,11 +362,11 @@ class _ActionPill extends StatelessWidget {
               errorBuilder:
                   (_, __, ___) => Icon(
                     fallbackIcon,
-                    size: 22.sp,
+                    size: 25.sp,
                     color: const Color(0xFF374151),
                   ),
             )
-            : Icon(fallbackIcon, size: 22.sp, color: const Color(0xFF374151));
+            : Icon(fallbackIcon, size: 25.sp, color: const Color(0xFF374151));
 
     return Material(
       color: Colors.transparent,
@@ -399,22 +401,24 @@ class _ActionPill extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
                         fontFamily: kFont,
                         fontWeight: FontWeight.w900,
-                        fontSize: 20.sp,
+                        fontSize: 23.sp,
                         color: kTextDark,
                       ),
                     ),
                     SizedBox(height: 4.h),
                     Text(
                       subtitle,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                      textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
                         fontFamily: kFont,
                         fontWeight: FontWeight.w400,
-                        fontSize: 12.5.sp,
+                        fontSize: 15.5.sp,
                         color: kTextSub,
                       ),
                     ),

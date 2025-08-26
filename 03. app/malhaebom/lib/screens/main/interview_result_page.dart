@@ -117,7 +117,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         elevation: 0,
         centerTitle: true,
         title: Text(
-          '화행 인지검사',
+          '인지 검사',
           style: TextStyle(
             fontFamily: 'GmarketSans',
             fontWeight: FontWeight.w600, // 얇게

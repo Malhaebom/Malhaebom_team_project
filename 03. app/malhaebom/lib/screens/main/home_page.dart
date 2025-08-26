@@ -235,7 +235,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   SizedBox(height: 10.h),
                                   Text(
-                                    "인지능력 검사",
+                                    "인지 검사",
                                     textScaler: const TextScaler.linear(1.0),
                                     style: TextStyle(
                                       fontFamily: 'GmarketSans',
