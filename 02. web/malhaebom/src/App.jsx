@@ -9,7 +9,8 @@ import Home from "./pages/Home.jsx";
 import Mypage from "./pages/Mypage/Mypage.jsx"
 import Login from "./pages/Mypage/Login.jsx"
 import Join from "./pages/Mypage/Join.jsx"
-import History from "./pages/Mypage/History.jsx"
+import BookHistory from "./pages/Mypage/BookHistory.jsx"
+import InterviewHistory from "./pages/Mypage/InterviewHistory.jsx"
 
 // Interview 추가
 import Interview from "./pages/Interview/InterviewStart.jsx";
@@ -295,12 +296,22 @@ export default function App() {
             </ErrorBoundary>
           }
         />
-        {/* 이력관리 */}
+        {/* 동화 화행 검사 이력 */}
         <Route
-          path="/History"
+          path="/BookHistory"
           element={
-            <ErrorBoundary name="History">
-              <History />
+            <ErrorBoundary name="BookHistory">
+              <BookHistory />
+            </ErrorBoundary>
+          }
+        />
+
+             {/* 인지 검사 이력 관리 */}
+        <Route
+          path="/InterviewHistory"
+          element={
+            <ErrorBoundary name="InterviewHistory">
+              <InterviewHistory />
             </ErrorBoundary>
           }
         />

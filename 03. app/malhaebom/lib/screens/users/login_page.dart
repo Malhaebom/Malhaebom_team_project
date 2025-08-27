@@ -1,7 +1,16 @@
-// lib/user/login_page.dart
+// lib/screens/users/login_page.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+
+// 추가된 import
+import 'package:malhaebom/screens/users/signup_page.dart';
+import 'package:malhaebom/screens/main/home_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -11,8 +20,20 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  // ================== 서버 주소 ==================
+  // 에뮬레이터에서 PC의 localhost로 접속: http://10.0.2.2:4000
+  // 실제 기기 USB 연결은: adb reverse tcp:4000 tcp:4000 한 뒤 http://localhost:4000 가능
+  static const String API_BASE = 'http://10.0.2.2:4000'; // ★ 에뮬레이터용
+
+  // SNS 콜백 스킴/호스트/경로 (Manifest의 data와 동일해야 함)
+  static const String CALLBACK_SCHEME = 'myapp';
+  static const String CALLBACK_HOST = 'auth';
+  static const String CALLBACK_PATH = '/callback';
+  static const String CALLBACK_URI =
+      '$CALLBACK_SCHEME://$CALLBACK_HOST$CALLBACK_PATH'; // ★ 명시적 redirect_uri
+
   // Colors
-  static const Color kPrimary = Color(0xFF344CB7); // 일반 버튼/텍스트 버튼 색
+  static const Color kPrimary = Color(0xFF344CB7);
   static const Color kDivider = Color(0xFFE5E7EB);
   static const Color kTextDark = Color(0xFF111827);
   static const Color kTextSub = Color(0xFF6B7280);
@@ -20,11 +41,12 @@ class _LoginPageState extends State<LoginPage> {
   // Brand colors
   static const Color kNaver = Color(0xFF03C75A);
   static const Color kKakao = Color(0xFFFEE500);
-  static const Color kGoogleBorder = Color(0xFFE5E7EB);
+  static const Color kGoogleBorder = Color(0xFFE5E5E5);
 
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
   bool _autoLogin = true;
+  bool _loggingIn = false;
 
   @override
   void dispose() {
@@ -33,20 +55,139 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // TODO: 실제 SNS/일반 로그인 로직 연결
   Future<void> _login() async {
-    final phone = _phoneCtrl.text.trim();
-    final pw = _pwCtrl.text;
-    if (phone.isEmpty || pw.isEmpty) {
-      _snack('휴대전화번호와 비밀번호를 입력해 주세요.');
+    if (_loggingIn) return;
+
+    final userId = _phoneCtrl.text.trim();
+    final pwd = _pwCtrl.text;
+    if (userId.isEmpty || pwd.isEmpty) {
+      _snack('전화번호/비밀번호를 입력해 주세요.');
       return;
     }
-    _snack('로그인 시도: $phone');
+
+    setState(() => _loggingIn = true);
+    try {
+      final uri = Uri.parse('$API_BASE/userLogin/login');
+
+      final resp = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': userId, 'pwd': pwd}),
+      );
+
+      if (!mounted) return;
+
+      if (resp.statusCode == 200) {
+        final j = jsonDecode(resp.body) as Map<String, dynamic>;
+        final token = j['token'] as String?;
+        final user = j['user'] as Map<String, dynamic>?;
+
+        if (token == null) {
+          _snack('로그인 응답에 토큰이 없습니다.');
+          return;
+        }
+
+        if (_autoLogin) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+          if (user != null) {
+            await prefs.setString('auth_user', jsonEncode(user));
+          }
+        }
+
+        // ★ 스택 정리 후 홈으로 즉시 전환
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+          (route) => false,
+        );
+      } else if (resp.statusCode == 401) {
+        _snack('아이디 또는 비밀번호가 올바르지 않습니다.');
+      } else {
+        final msg = _extractMessage(resp.body) ?? '서버 오류가 발생했습니다.';
+        _snack('오류(${resp.statusCode}): $msg');
+      }
+    } catch (e) {
+      _snack('네트워크 오류: $e');
+    } finally {
+      if (mounted) setState(() => _loggingIn = false);
+    }
   }
 
-  void _loginWithGoogle() => _snack('구글로 로그인');
-  void _loginWithNaver() => _snack('네이버로 로그인');
-  void _loginWithKakao() => _snack('카카오로 로그인');
+  // ================== SNS 로그인 공통 함수 ==================
+  Future<void> _startSnsLogin(String provider) async {
+    try {
+      // ★ 서버에게 redirect_uri를 명시 전달 (무한 로딩/재시도 루프 방지에 중요)
+      final authUrl =
+          '$API_BASE/auth/$provider?redirect_uri=${Uri.encodeComponent(CALLBACK_URI)}';
+
+      final result = await FlutterWebAuth2.authenticate(
+        url: authUrl,
+        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
+        // preferEphemeral: true, // ← 4.1.0에는 이 인자가 없음
+      );
+
+      final uri = Uri.parse(result);
+
+      if (uri.host != CALLBACK_HOST || uri.path != CALLBACK_PATH) {
+        _snack('잘못된 콜백 URL입니다.');
+        return;
+      }
+
+      final error = uri.queryParameters['error'];
+      if (error != null) {
+        _snack('SNS 로그인 실패: $error');
+        return;
+      }
+
+      final token = uri.queryParameters['token'];
+      final snsUserId = uri.queryParameters['sns_user_id'];
+      final snsNick = uri.queryParameters['sns_nick'];
+      final snsLoginType = uri.queryParameters['sns_login_type'] ?? provider;
+
+      if (token == null || snsUserId == null) {
+        _snack('SNS 로그인 응답이 올바르지 않습니다.');
+        return;
+      }
+
+      if (_autoLogin) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
+        await prefs.setString(
+          'auth_user',
+          jsonEncode({
+            'user_id': snsUserId,
+            'nick': snsNick ?? '',
+            'sns_login_type': snsLoginType,
+          }),
+        );
+      }
+
+      if (!mounted) return;
+
+      // ★ 스택 완전 초기화 후 홈으로
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomePage()),
+        (route) => false,
+      );
+    } catch (e) {
+      _snack('SNS 로그인 중 오류: $e');
+    }
+  }
+
+  String? _extractMessage(String body) {
+    try {
+      final j = jsonDecode(body) as Map<String, dynamic>;
+      final m = j['message'];
+      if (m is String && m.trim().isNotEmpty) return m;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _loginWithGoogle() => _startSnsLogin('google');
+  void _loginWithNaver() => _startSnsLogin('naver');
+  void _loginWithKakao() => _startSnsLogin('kakao');
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -54,7 +195,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ 글자 크기 고정
     final fixedMedia = MediaQuery.of(
       context,
     ).copyWith(textScaler: const TextScaler.linear(1.0));
@@ -115,7 +255,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
 
-                    // SNS 로그인 (구글/네이버/카카오)
+                    // SNS 로그인
                     _googleSoftButton(
                       label: '구글로 로그인',
                       iconPath: 'assets/icons/google_icon.png',
@@ -162,7 +302,7 @@ class _LoginPageState extends State<LoginPage> {
 
                     SizedBox(height: 16.h),
 
-                    // 휴대전화번호 (아이디=전화번호 전용)
+                    // 휴대전화번호
                     Text(
                       '휴대전화번호',
                       style: TextStyle(
@@ -283,11 +423,11 @@ class _LoginPageState extends State<LoginPage> {
 
                     SizedBox(height: 10.h),
 
-                    // 로그인 버튼 (#344CB7)
+                    // 로그인 버튼
                     SizedBox(
                       height: 52.h,
                       child: ElevatedButton(
-                        onPressed: _login,
+                        onPressed: _loggingIn ? null : _login,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kPrimary,
                           foregroundColor: Colors.white,
@@ -301,7 +441,17 @@ class _LoginPageState extends State<LoginPage> {
                             fontSize: 16.sp,
                           ),
                         ),
-                        child: const Text('로그인'),
+                        child:
+                            _loggingIn
+                                ? SizedBox(
+                                  height: 18.w,
+                                  width: 18.w,
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                                : const Text('로그인'),
                       ),
                     ),
 
@@ -321,7 +471,17 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         SizedBox(width: 6.w),
-                        _linkButton('회원가입', onTap: () => _snack('회원가입')),
+                        _linkButton(
+                          '회원가입',
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const SignUpPage(),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ],
@@ -336,7 +496,6 @@ class _LoginPageState extends State<LoginPage> {
 
   // ----------------- Buttons & Widgets -----------------
 
-  // Google 전용: 배경을 검정색으로, 아이콘은 원본 그대로 사용
   Widget _googleSoftButton({
     required String label,
     required String iconPath,
@@ -349,7 +508,7 @@ class _LoginPageState extends State<LoginPage> {
         borderRadius: BorderRadius.circular(12.r),
         child: Ink(
           decoration: BoxDecoration(
-            color: Colors.black, // 검정 배경
+            color: Colors.black,
             borderRadius: BorderRadius.circular(12.r),
             boxShadow: const [
               BoxShadow(
@@ -364,7 +523,6 @@ class _LoginPageState extends State<LoginPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // ✅ 원본 PNG 아이콘 그대로
                 _assetIcon(iconPath, size: 22),
                 SizedBox(width: 8.w),
                 Text(
@@ -373,7 +531,7 @@ class _LoginPageState extends State<LoginPage> {
                     fontFamily: 'GmarketSans',
                     fontWeight: FontWeight.w700,
                     fontSize: 14.sp,
-                    color: Colors.white, // 흰 텍스트
+                    color: Colors.white,
                   ),
                 ),
               ],
@@ -384,7 +542,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Naver/Kakao 공통(가득 채운 스타일)
   Widget _snsFilledButton({
     required String label,
     required String iconPath,
@@ -423,7 +580,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // 일반 아이콘(네이버/카카오/구글에 공통 사용)
   Widget _assetIcon(String path, {double size = 22}) {
     return Image.asset(
       path,
@@ -441,7 +597,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // 하단 링크(회원가입)
   Widget _linkButton(String text, {required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,

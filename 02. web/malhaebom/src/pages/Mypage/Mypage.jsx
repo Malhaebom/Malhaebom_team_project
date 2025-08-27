@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 
 const Mypage = () => {
   const navigate = useNavigate();
-  const [nick, setNick] = useState("홍길동"); // 예시, 실제는 로그인 정보 가져오기
+  const [nick, setNick] = useState("홍길동"); // 실제 로그인 정보로 변경 가능
 
-  // 버튼 스타일 통합 함수
+  // 버튼 스타일 함수
   const buttonStyle = (bgColor, hoverColor) => ({
     width: "100%",
     padding: "15px",
@@ -20,8 +20,10 @@ const Mypage = () => {
     textAlign: "center",
   });
 
-  const handleMouseEnter = (e, hoverColor) => (e.currentTarget.style.backgroundColor = hoverColor);
-  const handleMouseLeave = (e, bgColor) => (e.currentTarget.style.backgroundColor = bgColor);
+  const handleMouseEnter = (e, hoverColor) =>
+    (e.currentTarget.style.backgroundColor = hoverColor);
+  const handleMouseLeave = (e, bgColor) =>
+    (e.currentTarget.style.backgroundColor = bgColor);
 
   return (
     <div
@@ -29,7 +31,7 @@ const Mypage = () => {
         maxWidth: "520px",
         margin: "0 auto",
         padding: "80px 20px",
-        fontFamily: 'Pretendard-Regular',
+        fontFamily: "Pretendard-Regular",
       }}
     >
       {/* 타이틀 */}
@@ -37,7 +39,7 @@ const Mypage = () => {
         style={{
           textAlign: "center",
           marginBottom: "30px",
-          fontFamily: 'ONE-Mobile-Title',
+          fontFamily: "ONE-Mobile-Title",
           fontSize: "32px",
         }}
       >
@@ -81,14 +83,24 @@ const Mypage = () => {
           로그인 하러가기
         </button>
 
-        {/* 이력관리 이동 버튼 */}
+        {/* 동화 화행검사 결과 이동 */}
         <button
-          style={buttonStyle("#4E6C50", "#3f5a41")} // 초록 계열
+          style={buttonStyle("#4E6C50", "#3f5a41")}
           onMouseEnter={(e) => handleMouseEnter(e, "#3f5a41")}
           onMouseLeave={(e) => handleMouseLeave(e, "#4E6C50")}
-          onClick={() => navigate("/history")}
+          onClick={() => navigate("/bookHistory")}
         >
-          이력 관리
+          동화 화행검사 결과
+        </button>
+
+        {/* 인지능력검사 결과 이동 */}
+        <button
+          style={buttonStyle("#9C27B0", "#7B1FA2")}
+          onMouseEnter={(e) => handleMouseEnter(e, "#7B1FA2")}
+          onMouseLeave={(e) => handleMouseLeave(e, "#9C27B0")}
+          onClick={() => navigate("/InterviewHistory")}
+        >
+          인지능력검사 결과
         </button>
       </div>
     </div>
