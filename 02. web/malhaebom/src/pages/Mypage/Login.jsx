@@ -42,10 +42,10 @@ const Login = () => {
     width: "100%",
     padding: "15px",
     fontSize: "18px",
-    marginBottom: "15px",
     borderRadius: "12px",
     border: "1px solid #ccc",
     boxSizing: "border-box",
+    marginBottom: "12px",
   };
 
   const buttonStyle = (bgColor, hoverColor) => ({
@@ -57,7 +57,7 @@ const Login = () => {
     border: "none",
     borderRadius: "12px",
     cursor: "pointer",
-    marginBottom: "20px",
+    marginBottom: "12px",
     transition: "all 0.2s",
     textAlign: "center",
   });
