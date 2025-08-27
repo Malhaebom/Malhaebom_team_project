@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
+import Background from "../../../Background/Background";
 
 export default function PlayList() {
   const query = useQuery();
@@ -71,6 +72,8 @@ export default function PlayList() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={title} />
         <div className="inner">

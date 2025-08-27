@@ -3,6 +3,7 @@ import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx"; // ScoreContext가 src 바로 아래라면 이렇게
+import Background from "../../../Background/Background";
 
 
 export default function ResultExam() {
@@ -52,12 +53,14 @@ export default function ResultExam() {
   ];
 
   const goHome = () => {
-    // 기존 경로 유지
-    location.href = "/book/training?bookId=0";
+    // 메인 페이지로 이동
+    location.href = "/";
   };
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={bookTitle} showBack={false} />
         <div className="inner">

@@ -5,6 +5,7 @@ import useQuery from "../../../../hooks/useQuery"; // 경로: src/hooks/useQuery
 import Header from "../../../../components/Header"; // 경로: src/components/Header.jsx
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../../../Background/Background";
 
 export default function Read() {
   const query = useQuery();
@@ -72,6 +73,8 @@ export default function Read() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div id="app" className="wrap">
         <Header title={title} />
         <div className="inner">

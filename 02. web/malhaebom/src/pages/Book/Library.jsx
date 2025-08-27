@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../Background/Background";
 // slick CSS는 index.html에서 CDN 로드 전제로 둡니다.
 
 export default function BookLibrary() {
@@ -132,6 +133,8 @@ export default function BookLibrary() {
         .ct_slide01 .slick-slide > div > div { display: flex; flex-direction: column; height: 100%; }
         .ct_slide01 .slider_img { text-align: center; }
       `}</style>
+            {/* 공통 배경 추가 */}
+      <Background />
 
       <div className="wrap">
         <header>

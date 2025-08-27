@@ -5,6 +5,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Pages
 import Home from "./pages/Home.jsx";
 
+// Background
+import Background from "./pages/Background/Background.jsx";
+
 // 마이페이지
 import Mypage from "./pages/Mypage/Mypage.jsx"
 import Login from "./pages/Mypage/Login.jsx"
@@ -75,29 +78,30 @@ class ErrorBoundary extends React.Component {
 }
 
 // (임시) import 확인용 — 필요없으면 제거하세요.
-console.table({
-  Home: !!Home,
-  Course: !!Course,
-  ExamTut: !!ExamTut,
-  StartExam: !!StartExam,
-  ResultExam: !!ResultExam,
-  PlayList: !!PlayList,
-  PlayStart: !!PlayStart,
-  Read: !!Read,
-  Workbook: !!Workbook,
-  WorkbookStart: !!WorkbookStart,
-  BookLibrary: !!BookLibrary,
-  ExerciseList: !!ExerciseList,
-  ExerciseDo: !!ExerciseDo,
-  QuizLibrary: !!QuizLibrary,
-  QuizList: !!QuizList,
-  QuizPlay: !!QuizPlay,
-  ScoreProvider: !!ScoreProvider,
-});
+// console.table({
+//   Home: !!Home,
+//   Course: !!Course,
+//   ExamTut: !!ExamTut,
+//   StartExam: !!StartExam,
+//   ResultExam: !!ResultExam,
+//   PlayList: !!PlayList,
+//   PlayStart: !!PlayStart,
+//   Read: !!Read,
+//   Workbook: !!Workbook,
+//   WorkbookStart: !!WorkbookStart,
+//   BookLibrary: !!BookLibrary,
+//   ExerciseList: !!ExerciseList,
+//   ExerciseDo: !!ExerciseDo,
+//   QuizLibrary: !!QuizLibrary,
+//   QuizList: !!QuizList,
+//   QuizPlay: !!QuizPlay,
+//   ScoreProvider: !!ScoreProvider,
+// });
 
 export default function App() {
   return (
     <ScoreProvider>
+      
       <Routes>
         {/* 홈 */}
         <Route

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Slider from "react-slick";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../../Background/Background";
 
 export default function Course() {
   const [searchParams] = useSearchParams();
@@ -84,6 +85,8 @@ export default function Course() {
         .ct_slide01 .slick-list { padding: 0 50px !important; }
         .slider_img { position:relative; height:200px; }
       `}</style>
+                  {/* 공통 배경 추가 */}
+      <Background />
 
       <div className="wrap">
         <header>

@@ -1,5 +1,6 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import Background from "../Background/Background";
 
 export default function QuizResult() {
   const location = useLocation();
@@ -37,6 +38,8 @@ export default function QuizResult() {
 
   return (
     <div className="content">
+            {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <header>
           <div className="hd_inner">
