@@ -53,8 +53,8 @@ export default function ResultExam() {
   ];
 
   const goHome = () => {
-    // 기존 경로 유지
-    location.href = "/book/training?bookId=0";
+    // 메인 페이지로 이동
+    location.href = "/";
   };
 
   return (

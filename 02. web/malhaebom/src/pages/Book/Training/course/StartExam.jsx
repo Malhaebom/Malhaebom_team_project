@@ -5,16 +5,19 @@ import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import Background from "../../../Background/Background";
+import { useScores } from "../../../../ScoreContext.jsx";
+import { scoreBucketByQuestionNumber } from "../utils.js";
 
 export default function StartExam() {
   const query = useQuery();
   const examId = Number(query.get("examId") ?? "0");
   const navigate = useNavigate();
+  const { setScoreAD, setScoreAI, setScoreB, setScoreC, setScoreD, resetScores } = useScores();
 
   const [bookTitle, setBookTitle] = useState("");
   const [exam, setExam] = useState(null);
   const [examDirectory, setExamDirectory] = useState("");
-  const [activeBtn, setActiveBtn] = useState(0);
+  const [isLoading, setIsLoading] = useState(true); // 로딩 상태 추가
 
   // 문제별 점수 관리 (0: 틀림, 1: 맞음, null: 미선택)
   const [scores, setScores] = useState(Array(20).fill(null));
@@ -31,34 +34,30 @@ export default function StartExam() {
 
   // 초기화
   useEffect(() => {
-    AOS.init();
+    AOS.init({ once: true }); // once: true로 설정하여 한 번만 실행
   }, []);
 
-  // 최초 진입 / 앞으로 이동 시 알림
+  // 최초 진입 시에만 초기화
   useEffect(() => {
     if (prevExamIdRef.current === null) {
-      // 최초 진입
-      alert("문제를 시작합니다");
+      // 최초 진입 시에만 실행
       setScores(Array(20).fill(null)); // 점수 초기화
-    } else if (examId > prevExamIdRef.current) {
-      // 앞으로 이동
-      alert("다음 문제를 시작합니다");
-    } else if (examId < prevExamIdRef.current) {
-      // 뒤로 이동 시 해당 문제 점수 초기화
-      const newScores = [...scores];
-      newScores[examId] = null;
-      setScores(newScores);
+      resetScores(); // ScoreContext 점수 초기화
     }
     prevExamIdRef.current = examId;
-  }, [examId]);
+  }, [resetScores]); // examId 의존성 제거
 
   // 제목 불러오기
   useEffect(() => {
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
   }, []);
 
-  // exam JSON 로드
+  // exam JSON 로드 (한 번만 로드)
   useEffect(() => {
+    // 이미 exam이 로드되어 있으면 다시 로드하지 않음
+    if (exam) return;
+    
+    setIsLoading(true); // 로딩 시작
     const examPath = localStorage.getItem("examPath");
     if (!examPath) {
       alert("검사 파일 경로가 없습니다. 안내 화면으로 이동합니다.");
@@ -74,65 +73,16 @@ export default function StartExam() {
       .then((json) => {
         setExam(json);
         setExamDirectory(`/autobiography/${json.directory}`);
+        setIsLoading(false); // 로딩 완료
       })
       .catch((e) => {
         console.error(e);
         alert("검사 파일을 불러오지 못했습니다.");
+        setIsLoading(false); // 에러 시에도 로딩 완료
       });
-  }, [navigate]);
+  }, [navigate]); // exam 의존성 제거하여 무한 루프 방지
 
-  // 오디오 체인 재생
-  useEffect(() => {
-    if (!exam) return;
-
-    setActiveBtn(0);
-
-    const a0 = audio0Ref.current;
-    const a1 = audio1Ref.current;
-    const a2 = audio2Ref.current;
-    const a3 = audio3Ref.current;
-    const a4 = audio4Ref.current;
-
-    if (!a0 || !a1 || !a2 || !a3 || !a4) return;
-
-    const onEnd0 = () => { a1.play(); setActiveBtn(1); };
-    const onEnd1 = () => { a2.play(); setActiveBtn(2); };
-    const onEnd2 = () => { a3.play(); setActiveBtn(3); };
-    const onEnd3 = () => { a4.play(); setActiveBtn(4); };
-    const onEnd4 = () => { setActiveBtn(0); };
-
-    a0.addEventListener("ended", onEnd0);
-    a1.addEventListener("ended", onEnd1);
-    a2.addEventListener("ended", onEnd2);
-    a3.addEventListener("ended", onEnd3);
-    a4.addEventListener("ended", onEnd4);
-
-    try {
-      a0.currentTime = 0;
-      a1.currentTime = 0;
-      a2.currentTime = 0;
-      a3.currentTime = 0;
-      a4.currentTime = 0;
-    } catch {}
-
-    a0.load(); a1.load(); a2.load(); a3.load(); a4.load();
-
-    a0.play().catch(() => {
-      console.warn("자동재생이 차단되었습니다. 첫 오디오를 클릭해 주세요.");
-    });
-
-    return () => {
-      a0.removeEventListener("ended", onEnd0);
-      a1.removeEventListener("ended", onEnd1);
-      a2.removeEventListener("ended", onEnd2);
-      a3.removeEventListener("ended", onEnd3);
-      a4.removeEventListener("ended", onEnd4);
-
-      [a0, a1, a2, a3, a4].forEach((a) => {
-        try { a.pause(); } catch {}
-      });
-    };
-  }, [exam, examId]);
+  // 오디오 체인 재생 로직 완전 제거
 
   const handleClickChoice = (choiceIdx) => {
     if (!exam) return;
@@ -144,6 +94,32 @@ export default function StartExam() {
     newScores[examId] = isCorrect ? 1 : 0; // 문제 단위 점수 저장
     setScores(newScores);
 
+    // ScoreContext 업데이트 - 정답인 경우에만 점수 추가
+    if (isCorrect) {
+      const questionNumber = examId + 1; // 1-based 문제 번호
+      const scoreKey = scoreBucketByQuestionNumber(questionNumber);
+      
+      switch(scoreKey) {
+        case 'scoreAD':
+          setScoreAD(prev => prev + 1);
+          break;
+        case 'scoreAI':
+          setScoreAI(prev => prev + 1);
+          break;
+        case 'scoreB':
+          setScoreB(prev => prev + 1);
+          break;
+        case 'scoreC':
+          setScoreC(prev => prev + 1);
+          break;
+        case 'scoreD':
+          setScoreD(prev => prev + 1);
+          break;
+        default:
+          console.warn('Unknown score key:', scoreKey);
+      }
+    }
+
     if (examId + 1 < 20) {
       navigate(`/book/training/course/exam/start?examId=${examId + 1}`);
     } else {
@@ -153,49 +129,66 @@ export default function StartExam() {
     }
   };
 
-  if (!exam) {
+  const current = exam && exam.data && exam.data[examId] ? exam.data[examId] : null;
+
+  // current가 없으면 로딩 화면 표시
+  if (!current) {
     return (
       <div className="content">
+        <Background />
         <div className="wrap">
           <Header title={bookTitle} />
           <div className="inner">
-            <div className="ct_banner">로딩 중...</div>
+            <div className="ct_banner">문제를 준비하고 있습니다...</div>
+            <div className="ct_inner">
+              <div className="ct_question_a" style={{ textAlign: 'center', padding: '40px 0' }}>
+                <p style={{ fontSize: '16px', color: '#666' }}>잠시만 기다려주세요</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  const current = exam.data[examId];
-
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
       <Background />
       <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">
           <div className="ct_banner">{current?.type}</div>
           <div className="ct_inner">
-            <div className="ct_question_a" data-aos="fade-up" data-aos-duration="1000">
-              <p>{current?.title}</p>
+            <div className="ct_question_a" data-aos="fade-up" data-aos-duration="1000" key={examId}>
+              <p style={{ fontSize: '18px', lineHeight: '1.6', marginBottom: '20px', fontWeight: '500' }}>
+                {current?.title}
+              </p>
 
               {/* 문제 오디오 */}
               <audio ref={audio0Ref} className="examAudio0">
                 <source src={`${examDirectory}/${examId + 1}/문제.mp3`} type="audio/mpeg" />
               </audio>
 
+              {/* 오디오 재생 버튼 추가 */}
+              <button 
+                className="question_bt alert alert-info" 
+                style={{ marginBottom: '15px' }}
+                onClick={() => audio0Ref.current?.play()}
+              >
+                🔊 문제 듣기
+              </button>
+
               {/* 보기 4개 */}
               {current?.list?.map((value, idx) => {
                 const n = idx + 1;
-                const isActive = activeBtn === n;
                 return (
                   <div key={idx}>
                     <button
-                      className={`question_bt alert text-center ${isActive ? "alert-danger" : "alert-dark"}`}
+                      className="question_bt alert alert-dark text-center"
                       id={`examBtn${n}`}
                       type="button"
                       onClick={() => handleClickChoice(idx)}
+                      style={{ marginBottom: '10px', fontSize: '16px', padding: '12px' }}
                     >
                       {n}. {value}
                     </button>

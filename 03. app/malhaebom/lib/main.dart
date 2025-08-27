@@ -31,8 +31,8 @@ class MyApp extends StatelessWidget {
       title: 'Malhaebom',
       theme: ThemeData(fontFamily: 'Pretendard'),
       debugShowCheckedModeBanner: false,
-      //home: SplashPage(next: const LoginPage()),
-      home: const HomePage(),
+      home: SplashPage(next: const LoginPage()),
+      //home: const HomePage(),
     );
   }
 }
