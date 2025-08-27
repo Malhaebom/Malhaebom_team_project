@@ -48,7 +48,6 @@ const Login = () => {
     borderRadius: "12px",
     border: "1px solid #ccc",
     boxSizing: "border-box",
-    margin: "0 auto 12px auto",
     display: "block",
   };
 
@@ -62,7 +61,6 @@ const Login = () => {
     border: "none",
     borderRadius: "12px",
     cursor: "pointer",
-    margin: "0 auto 12px auto",
     transition: "all 0.2s",
     textAlign: "center",
     display: "block",
