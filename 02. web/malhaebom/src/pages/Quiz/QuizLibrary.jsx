@@ -5,6 +5,7 @@ import Slider from "react-slick";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
+import Background from "../Background/Background";
 
 export default function QuizLibrary() {
   const navigate = useNavigate();
@@ -92,6 +93,8 @@ export default function QuizLibrary() {
           transform: translate(-50%, -50%);
         }
       `}</style>
+      {/* 공통 배경 추가 */}
+      <Background />
 
       <div className="wrap">
         <header>

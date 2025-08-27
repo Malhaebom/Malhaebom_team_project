@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
+import Background from "../../../Background/Background";
 
 
 export default function PlayStart() {
@@ -164,6 +165,8 @@ export default function PlayStart() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={bookTitle} />
         {/* 원본: 상단에 오디오 태그 */}

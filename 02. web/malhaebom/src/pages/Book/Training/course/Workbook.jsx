@@ -5,6 +5,8 @@ import useQuery from "../../../../hooks/useQuery";
 import Header from "../../../../components/Header";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../../../Background/Background";
+
 
 export default function Workbook() {
   const query = useQuery();
@@ -74,6 +76,8 @@ export default function Workbook() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={title} />
         <div className="inner">

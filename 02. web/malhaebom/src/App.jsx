@@ -5,6 +5,9 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Pages
 import Home from "./pages/Home.jsx";
 
+// Background
+import Background from "./pages/Background/Background.jsx";
+
 // 마이페이지
 import Mypage from "./pages/Mypage/Mypage.jsx"
 import Login from "./pages/Mypage/Login.jsx"
@@ -98,6 +101,7 @@ console.table({
 export default function App() {
   return (
     <ScoreProvider>
+      
       <Routes>
         {/* 홈 */}
         <Route
