@@ -32,6 +32,8 @@ const Login = () => {
     fontWeight: "bold",
     cursor: "pointer",
     width: "100%",
+    maxWidth: "280px",
+    margin: "0 auto",
     transition: "all 0.2s",
     fontSize: "18px",
   });
@@ -40,16 +42,19 @@ const Login = () => {
 
   const inputStyle = {
     width: "100%",
+    maxWidth: "280px",
     padding: "15px",
     fontSize: "18px",
     borderRadius: "12px",
     border: "1px solid #ccc",
     boxSizing: "border-box",
-    marginBottom: "12px",
+    margin: "0 auto 12px auto",
+    display: "block",
   };
 
   const buttonStyle = (bgColor, hoverColor) => ({
     width: "100%",
+    maxWidth: "280px",
     padding: "15px",
     fontSize: "20px",
     backgroundColor: bgColor,
@@ -57,9 +62,10 @@ const Login = () => {
     border: "none",
     borderRadius: "12px",
     cursor: "pointer",
-    marginBottom: "12px",
+    margin: "0 auto 12px auto",
     transition: "all 0.2s",
     textAlign: "center",
+    display: "block",
   });
 
   const handleMouseEnter = (e, hoverColor) =>
@@ -75,150 +81,239 @@ const Login = () => {
       <div
         className="wrap"
         style={{
-          maxWidth: "520px",
+          maxWidth: "100%",
           margin: "0 auto",
-          paddingTop: "80px",
+          padding: "80px 20px",
           fontFamily: "Pretendard-Regular",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          minHeight: "100vh",
         }}
       >
-        {/* 로그인 후 환영 문구 */}
-        {nick && (
+        {/* 좌측 로고 영역 */}
+        <div style={{ flex: "1", textAlign: "center", paddingTop: "50px" }}>
+          <img
+            src="/img/logo.png"
+            alt="말해봄 로고"
+            style={{
+              width: "200px",
+              height: "200px",
+              objectFit: "contain",
+              display: "block",
+              margin: "0 auto 20px auto",
+            }}
+          />
+          <h6
+            style={{
+              fontSize: "30px",
+              color: "#000",
+              textAlign: "center",
+              marginBottom: "10px",
+            }}
+          >
+            말로 피어나는 추억의 꽃
+          </h6>
           <p
             style={{
+              fontSize: "26px",
+              color: "#000",
               textAlign: "center",
-              marginBottom: "30px",
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#344CB7",
             }}
           >
-            {nick}님 환영합니다!
+            말해봄과 함께하세요
           </p>
-        )}
+        </div>
 
-        {/* 로고 */}
-        <img
-          src="/img/logo.png"
-          alt="말해봄 로고"
-          style={{
-            width: "200px",
-            height: "200px",
-            objectFit: "contain",
-            display: "block",
-            margin: "0 auto 20px auto",
-          }}
-        />
+        {/* 중앙우측 구현화면 영역 */}
+        <div style={{ flex: "1", display: "flex", justifyContent: "center", alignItems: "center" }}>
+          <div style={{ width: "100%", maxWidth: "400px" }}>
+            {/* 로그인 후 환영 문구 */}
+            {nick && (
+              <p
+                style={{
+                  textAlign: "center",
+                  marginBottom: "30px",
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  color: "#344CB7",
+                }}
+              >
+                {nick}님 환영합니다!
+              </p>
+            )}
 
-        <h6
-          style={{
-            fontSize: "30px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "10px",
-          }}
-        >
-          나를 지키는 특별한 습관
-        </h6>
-        <p
-          style={{
-            fontSize: "26px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "30px",
-          }}
-        >
-          지금 시작하세요!
-        </p>
-
-        {!nick && (
-          <>
-            {/* 소셜 로그인 */}
-            <div
+            <h6
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginBottom: "20px",
+                fontSize: "30px",
+                color: "#000",
+                textAlign: "center",
+                marginBottom: "10px",
               }}
             >
-              <button style={socialBtnStyle("#F7E600")}>
-                <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
-                카카오로 시작하기
-              </button>
-              <button style={socialBtnStyle("#00C73C", "#fff")}>
-                <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
-                네이버로 시작하기
-              </button>
-              <button style={socialBtnStyle("#000", "#fff")}>
-                <img src="/img/google.png" alt="구글" style={socialIconStyle} />
-                구글로 시작하기
-              </button>
-            </div>
-
-            {/* 입력칸 */}
-            <input
-              type="text"
-              placeholder="전화번호"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-            />
-
-            {/* 로그인 버튼 */}
-            <button
-              style={buttonStyle("#4a85d1", "#5f9cec")}
-              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
-              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
-              onClick={handleLogin}
+              나를 지키는 특별한 습관
+            </h6>
+            <p
+              style={{
+                fontSize: "26px",
+                color: "#000",
+                textAlign: "center",
+                marginBottom: "30px",
+              }}
             >
-              로그인
-            </button>
-          </>
-        )}
+              지금 시작하세요!
+            </p>
 
-        {/* 로그아웃 버튼 */}
-        {nick && (
-          <button
-            style={buttonStyle("#FF4D4D", "#d13c3c")}
-            onMouseEnter={(e) => handleMouseEnter(e, "#d13c3c")}
-            onMouseLeave={(e) => handleMouseLeave(e, "#FF4D4D")}
-            onClick={handleLogout}
-          >
-            로그아웃
-          </button>
-        )}
+            {!nick && (
+              <>
+                {/* 로그인 카드 박스 */}
+                <div
+                  style={{
+                    background: "#fff",
+                    padding: "30px 20px",
+                    borderRadius: "15px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "15px",
+                  }}
+                >
+                  {/* 소셜 로그인 */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "12px",
+                    }}
+                  >
+                    <button style={socialBtnStyle("#F7E600")}>
+                      <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
+                      카카오로 시작하기
+                    </button>
+                    <button style={socialBtnStyle("#00C73C", "#fff")}>
+                      <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
+                      네이버로 시작하기
+                    </button>
+                    <button style={socialBtnStyle("#000", "#fff")}>
+                      <img src="/img/google.png" alt="구글" style={socialIconStyle} />
+                      구글로 시작하기
+                    </button>
+                  </div>
 
-        {/* 회원가입 */}
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: "16px",
-            marginTop: "20px",
-            width: "100%",
-            display: "block",
-          }}
-        >
-          아직 계정이 없으신가요?{" "}
-          <span
-            style={{
-              color: "#4a85d1",
-              cursor: "pointer",
-              fontWeight: "bold",
-              display: "inline-block",
-              marginLeft: "5px",
-            }}
-            onClick={() => navigate("/join")}
-          >
-            회원가입
-          </span>
-        </p>
+                  {/* 입력칸 */}
+                  <input
+                    type="text"
+                    placeholder="전화번호"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    style={inputStyle}
+                  />
+                  <input
+                    type="password"
+                    placeholder="비밀번호"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={inputStyle}
+                  />
+
+                  {/* 로그인 버튼 */}
+                  <button
+                    style={buttonStyle("#4a85d1", "#5f9cec")}
+                    onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+                    onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+                    onClick={handleLogin}
+                  >
+                    로그인
+                  </button>
+                </div>
+
+                {/* 회원가입 */}
+                <p
+                  style={{
+                    textAlign: "center",
+                    fontSize: "16px",
+                    marginTop: "20px",
+                    width: "100%",
+                    display: "block",
+                  }}
+                >
+                  아직 계정이 없으신가요?{" "}
+                  <span
+                    style={{
+                      color: "#4a85d1",
+                      cursor: "pointer",
+                      fontWeight: "bold",
+                      display: "inline-block",
+                      marginLeft: "5px",
+                    }}
+                    onClick={() => navigate("/join")}
+                  >
+                    회원가입
+                  </span>
+                </p>
+              </>
+            )}
+
+            {/* 로그아웃 버튼 */}
+            {nick && (
+              <div
+                style={{
+                  background: "#fff",
+                  padding: "30px 20px",
+                  borderRadius: "15px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "15px",
+                }}
+              >
+                <button
+                  style={buttonStyle("#FF4D4D", "#d13c3c")}
+                  onMouseEnter={(e) => handleMouseEnter(e, "#d13c3c")}
+                  onMouseLeave={(e) => handleMouseLeave(e, "#FF4D4D")}
+                  onClick={handleLogout}
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 우측 캐릭터 영역 */}
+        <div style={{ flex: "1", textAlign: "center", paddingTop: "50px" }}>
+          <div style={{ position: "relative" }}>
+            <div
+              style={{
+                position: "absolute",
+                top: "20px",
+                right: "50px",
+                width: "60px",
+                height: "60px",
+                backgroundColor: "#FFD700",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "24px",
+                color: "#fff",
+              }}
+            >
+              +
+            </div>
+            <div
+              style={{
+                width: "200px",
+                height: "200px",
+                margin: "0 auto",
+                backgroundImage: "url('/img/character.png')",
+                backgroundSize: "contain",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "center",
+              }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );
