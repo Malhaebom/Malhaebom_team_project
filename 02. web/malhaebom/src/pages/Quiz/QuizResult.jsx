@@ -20,6 +20,7 @@ export default function QuizResult() {
       state: {
         ...state,
         retryIndex: idx,
+        isRetryMode: true, // ✅ 다시풀기 모드 추가
         submitDataArr: [...submitDataArr],
         answerDataArr: [...answerDataArr],
       },

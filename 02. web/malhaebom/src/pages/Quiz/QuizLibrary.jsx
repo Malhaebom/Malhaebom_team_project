@@ -8,11 +8,47 @@ import "@fortawesome/fontawesome-free/css/all.min.css";
 
 export default function QuizLibrary() {
   const navigate = useNavigate();
-  useEffect(() => { AOS.init({ once: true }); }, []);
+
+  useEffect(() => {
+    AOS.init({ once: true });
+  }, []);
 
   const goHome = () => (window.location.href = "/");
- const goToQuizPlay = (quizType) => navigate(`/quiz/play?quizType=${quizType}&quizId=0&qid=0`);
-  // 원본과 동일한 슬라이드 옵션(옆 카드 살짝 보이기)
+  const goToQuizPlay = (quizType) => navigate(`/quiz/play?quizType=${quizType}&quizId=0&qid=0`);
+
+  // ✅ BookLibrary와 동일한 커스텀 화살표
+  const NextArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        right: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/next.png" alt="Next" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
+  const PrevArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/prev.png" alt="Prev" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
   const settings = {
     slidesToShow: 1,
     slidesToScroll: 1,
@@ -23,7 +59,9 @@ export default function QuizLibrary() {
     centerPadding: "50px",
     focusOnSelect: true,
     infinite: true,
-    arrows: false,
+    arrows: true,           // Book과 동일하게 화살표 표시
+    nextArrow: <NextArrow />,
+    prevArrow: <PrevArrow />,
     adaptiveHeight: true,
     accessibility: false,
   };
@@ -34,12 +72,11 @@ export default function QuizLibrary() {
     { label: "문제해결능력", icon: "fa-pen-to-square", color: "#dbc900", type: 2 },
     { label: "계산능력", icon: "fa-calculator", color: "#00b837", type: 3 },
     { label: "언어능력", icon: "fa-language", color: "#755000", type: 4 },
-    { label: "음악과 터치", icon: "fa-headset", color: "#bb00ff", type: 5 }
+    { label: "음악과 터치", icon: "fa-headset", color: "#bb00ff", type: 5 },
   ];
 
   return (
     <div className="content">
-      {/* ✅ 최소 보정만 추가 */}
       <style>{`
         /* 1) react-slick 구조에서 카드가 오른쪽으로 치우치는 현상 방지 */
         .ct_slide01 .slick-track { display:flex !important; margin:0 auto !important; }

@@ -16,7 +16,7 @@ export default function BookLibrary() {
 
   const sliderWrapRef = useRef(null);
 
-  // AOS (원본처럼)
+  // AOS
   useEffect(() => {
     AOS.init({ once: true });
   }, []);
@@ -41,16 +41,7 @@ export default function BookLibrary() {
     fetch(`${BASE}autobiography/fairytale.json`)
       .then((r) => r.json())
       .then((json) => {
-        try {
-          console.log("[BookLibrary] keys:", Object.keys(json));
-          console.log(
-            '[BookLibrary] contains "할머니와바나나"?',
-            Object.prototype.hasOwnProperty.call(json, "할머니와바나나")
-          );
-          console.log("[BookLibrary] value[할머니와바나나]:", json["할머니와바나나"]);
-        } catch {}
         setFairytales(json);
-        // 초기 계산 안정화
         setTimeout(() => {
           window.dispatchEvent(new Event("resize"));
           setSliderKey((k) => k + 1);
@@ -71,26 +62,58 @@ export default function BookLibrary() {
     return `${baseClean}/autobiography/${imgPath}`;
   };
 
-  // ✅ 무한 스와이프: 첫 화면에서도 왼쪽으로 이동 가능
+  // ✅ 커스텀 버튼
+  const NextArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        right: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/next.png" alt="Next" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
+  const PrevArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/prev.png" alt="Prev" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
+  // react-slick settings
   const settings = useMemo(
     () => ({
       slidesToShow: 1,
       slidesToScroll: 1,
       autoplay: false,
-      autoplaySpeed: 4000,
       dots: true,
       arrows: true,
+      nextArrow: <NextArrow />,
+      prevArrow: <PrevArrow />,
       centerMode: true,
       centerPadding: "50px",
-      focusOnSelect: true,
-      infinite: true,          // ← 이 값이 핵심!
+      infinite: true,
       adaptiveHeight: true,
       draggable: true,
       swipe: true,
       swipeToSlide: true,
       touchMove: true,
       waitForAnimate: false,
-      // edgeFriction: 0.15,    // 필요하면 좌우 끝 감속감 추가(무한 모드에서도 동작)
     }),
     []
   );
@@ -102,7 +125,6 @@ export default function BookLibrary() {
 
   return (
     <div className="content">
-      {/* 세로로 끌려 내려가는 현상만 막는 최소 보정 */}
       <style>{`
         .ct_slide01 .slick-list { overflow: hidden !important; }
         .ct_slide01 .slick-track { display: flex !important; align-items: stretch; }
@@ -112,7 +134,6 @@ export default function BookLibrary() {
       `}</style>
 
       <div className="wrap">
-        {/* Header: 원본 그대로 */}
         <header>
           <div className="hd_inner">
             <div className="hd_tit">회상동화 활동 &amp; 화행검사</div>
@@ -142,9 +163,8 @@ export default function BookLibrary() {
         </header>
 
         <div id="app">
-          <div className="inner">{/* 배너 영역 */}</div>
+          <div className="inner"></div>
 
-          {/* 원본처럼 컨테이너에 AOS */}
           <div className="ct_slide01 ct_inner" data-aos="fade-up" data-aos-duration="1000">
             {sliderErr && (
               <div style={{ padding: 12, border: "1px solid #f00", marginBottom: 12 }}>
@@ -158,7 +178,7 @@ export default function BookLibrary() {
             {!SliderCmp || !entries.length ? (
               <div style={{ padding: 12 }}>로딩 중...</div>
             ) : (
-              <div ref={sliderWrapRef}>
+              <div ref={sliderWrapRef} style={{ position: "relative" }}>
                 <SliderCmp {...settings} key={sliderKey}>
                   {entries.map(([key, value], i) => {
                     const id = value?.id ?? key;
@@ -176,7 +196,7 @@ export default function BookLibrary() {
                               e.currentTarget.src = `${BASE}drawable/noImage.png`;
                             }}
                             style={{
-                              height: 200,                 // 원본 인라인 스타일 유지
+                              height: 200,
                               display: "inline-block",
                               border: "0.1px #ddd solid",
                             }}

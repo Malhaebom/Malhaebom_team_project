@@ -16,7 +16,7 @@
 }
 
 * {margin:0; padding:0; box-sizing:border-box;}
-body {font-family:'Pretendard-Regular'; font-size:16px; color:#333; background:#f9f9f9;}
+/* body {font-family:'Pretendard-Regular'; font-size:16px; color:#333; background:#f9f9f9;} */
 li {list-style:none;}
 img {vertical-align:middle;}
 a {text-decoration:none; color:#333;}
@@ -36,5 +36,69 @@ header > div {font-size:1.6em;}
 header .hd_left {position:absolute; top:50%; left:0; transform:translateY(-50%);}
 header .hd_right {position:absolute; top:50%; right:0; transform:translateY(-50%);}
 
-.content .wrap {max-width:520px; margin:0 auto;}
+/* .content .wrap {max-width:520px; margin:0 auto;} */
 .content .wrap .inner {position:relative; width:90%; margin:0 auto;} 
+
+body {
+  /* font-family:'Pretendard-Regular'; */
+  font-size:16px;
+  color:#333;
+  background: linear-gradient(to bottom, #d7effc, #ffffff);
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* wrap은 고정 폭 유지, 오른쪽에서 428px 떨어지게 */
+.content .wrap {
+  max-width: 520px;
+  width: 100%;          /* wrap 내부 콘텐츠는 폭 꽉 채우기 */
+  margin-left: auto;
+  float: left;
+  background-color: #fff;
+}
+
+/* 왼쪽 로고 부분 */
+.logo_bg{
+  width: calc(100% - 520px - 428px);
+  height: 100vh;
+  float: left;
+    display: flex;
+  flex-direction: column;
+  justify-content: center; /* 세로 중앙 */
+  align-items: center;     /* 가로 중앙 */
+  text-align: center;
+
+  gap: 20px; /* 이미지와 텍스트 사이 간격 */
+}
+
+.logo_bg img {
+  max-width: 100%;
+  height: auto;
+}
+
+.logo_bg p {
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.logo_bg p strong {
+  font-size: 26px;
+}
+
+
+/* 오른쪽 캐릭터 부분 */
+.character{
+  width: 428px;
+  height: 100vh;
+  float: right;
+    display: flex;
+  justify-content: center;
+  align-items: flex-end; /* 맨 하단 */
+}
+
+.character img {
+  max-width: 100%;
+  height: auto;
+}
+
+
