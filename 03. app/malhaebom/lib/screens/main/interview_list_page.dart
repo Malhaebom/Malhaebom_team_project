@@ -1,6 +1,7 @@
 // lib/screens/main/interview_list_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:malhaebom/theme/colors.dart';
 
 import 'interview_recording_page.dart';
 import '../../data/interview_repo.dart';
@@ -77,31 +78,40 @@ class _InterviewListPageState extends State<InterviewListPage> {
       context,
     ).copyWith(textScaler: const TextScaler.linear(1.0));
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return MediaQuery(
       data: fixedTextScale,
       child: Scaffold(
         backgroundColor: _bg,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.btnColorDark,
           elevation: 0.5,
           centerTitle: true,
-          automaticallyImplyLeading: false,
+          // automaticallyImplyLeading: false,
+          toolbarHeight: _appBarH(context),
           title: Text(
             '인지 검사',
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w500,
-              fontSize: 18.sp,
-              color: Colors.black,
+              fontWeight: FontWeight.w700,
+              fontSize: 20.sp,
+              color: Colors.white,
             ),
           ),
-          actions: [
-            IconButton(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.close),
-              color: Colors.black87,
-            ),
-          ],
+          // actions: [
+          //   IconButton(
+          //     onPressed: () => Navigator.pop(context),
+          //     icon: const Icon(Icons.close),
+          //     color: Colors.black87,
+          //   ),
+          // ],
         ),
         body: Center(
           child: ConstrainedBox(

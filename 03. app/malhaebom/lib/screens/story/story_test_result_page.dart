@@ -73,7 +73,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      debugPrint('[STR] attempt POST status=${res.statusCode} body=${res.body}');
+      debugPrint(
+        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
+      );
     } catch (e) {
       debugPrint('[STR] attempt POST error: $e');
     }
@@ -95,17 +97,27 @@ class _StoryResultPageState extends State<StoryResultPage> {
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.btnColorDark,
         elevation: 0,
         centerTitle: true,
+        toolbarHeight: _appBarH(context),
         title: Text(
           '화행 인지검사',
           style: TextStyle(
+            fontFamily: 'GmarketSans',
             fontWeight: FontWeight.w700,
-            fontSize: 18.sp,
+            fontSize: 20.sp,
             color: AppColors.white,
           ),
         ),
@@ -126,7 +138,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     Text(
                       '인지검사 결과',
                       textScaler: const TextScaler.linear(1.0),
-                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     SizedBox(height: 4.h),
                     Text(
@@ -164,12 +179,16 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     Text(
                       '검사 결과 평가',
                       textScaler: const TextScaler.linear(1.0),
-                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     SizedBox(height: 12.h),
                     if (showWarn) _warnBanner(),
-                    ..._buildEvalItems(widget.byType)
-                        .expand((w) => [w, SizedBox(height: 10.h)]),
+                    ..._buildEvalItems(
+                      widget.byType,
+                    ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
@@ -252,9 +271,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
-    final double d = 140.w;         // 원 지름
-    final double big = d * 0.40;    // 큰 숫자 폰트
-    final double small = d * 0.20;  // /분모 폰트
+    final double d = 140.w; // 원 지름
+    final double big = d * 0.40; // 큰 숫자 폰트
+    final double small = d * 0.20; // /분모 폰트
 
     return SizedBox(
       width: d,
@@ -277,7 +296,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '$score',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: big),
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: big,
+                ),
                 style: TextStyle(
                   fontSize: big,
                   fontWeight: FontWeight.w900,
@@ -288,7 +311,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '/$total',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: small),
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: small,
+                ),
                 style: TextStyle(
                   fontSize: small,
                   fontWeight: FontWeight.w800,
@@ -430,14 +457,36 @@ class _StoryResultPageState extends State<StoryResultPage> {
       }
     }
 
-    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데\n어려움이 보입니다. 대화 응용\n훈련으로 개선할 수 있습니다.');
-    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론\n훈련을 통해 보완이 필요합니다.');
-    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문\n의도 파악이 부족합니다. 정보 파악\n중심의 활동이 필요합니다.');
-    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을\n이해하고 표현 의도를\n읽는 능력이 부족합니다.\n상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도\n이해가 낮습니다. 일상 의례 표현\n중심의 학습을 권장합니다.');
+    addIfLow(
+      '직접화행',
+      '직접화행',
+      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데\n어려움이 보입니다. 대화 응용\n훈련으로 개선할 수 있습니다.',
+    );
+    addIfLow(
+      '간접화행',
+      '간접화행',
+      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론\n훈련을 통해 보완이 필요합니다.',
+    );
+    addIfLow(
+      '질문화행',
+      '질문화행',
+      '대화에서 주고받는 정보 판단과 질문\n의도 파악이 부족합니다. 정보 파악\n중심의 활동이 필요합니다.',
+    );
+    addIfLow(
+      '단언화행',
+      '단언화행',
+      '상황에 맞는 감정/진술을\n이해하고 표현 의도를\n읽는 능력이 부족합니다.\n상황·정서 파악 활동을 권합니다.',
+    );
+    addIfLow(
+      '의례화화행',
+      '의례화화행',
+      '인사·감사 등 예절적 표현의 의도\n이해가 낮습니다. 일상 의례 표현\n중심의 학습을 권장합니다.',
+    );
 
     if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더\n안정적인 이해를 유지해 보세요.'));
+      items.add(
+        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더\n안정적인 이해를 유지해 보세요.'),
+      );
     }
     return items;
   }

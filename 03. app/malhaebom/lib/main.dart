@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(fontFamily: 'Pretendard'),
       debugShowCheckedModeBanner: false,
       //home: SplashPage(next: const LoginPage()),
-      home: const HomePage(),
+      home: SplashPage(next: const HomePage()),
     );
   }
 }

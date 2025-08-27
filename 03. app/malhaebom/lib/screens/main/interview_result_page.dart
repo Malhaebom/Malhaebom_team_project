@@ -9,6 +9,8 @@ import 'interview_session.dart';
 
 const String API_BASE = 'http://10.0.2.2:4000/str';
 
+const TextScaler fixedScale = TextScaler.linear(1.0);
+
 /// 카테고리 집계
 class CategoryStat {
   final int correct;
@@ -23,8 +25,8 @@ class CategoryStat {
 class InterviewResultPage extends StatefulWidget {
   final int score;
   final int total;
-  final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
-  final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화 화행
+  final Map<String, CategoryStat> byCategory;
+  final Map<String, CategoryStat> byType;
   final DateTime testedAt;
   final String? interviewTitle;
 
@@ -112,6 +114,14 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return MediaQuery(
       data: fixedMedia,
       child: Scaffold(
@@ -120,12 +130,13 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
           backgroundColor: AppColors.btnColorDark,
           elevation: 0,
           centerTitle: true,
+          toolbarHeight: _appBarH(context),
           title: Text(
             '화행 인지검사',
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w600,
-              fontSize: 18.sp,
+              fontWeight: FontWeight.w700,
+              fontSize: 20.sp,
               color: Colors.white,
             ),
           ),
@@ -146,7 +157,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                         '인지검사 결과',
                         style: TextStyle(
                           fontFamily: 'GmarketSans',
-                          fontSize: 18.sp,
+                          fontSize: 24.sp,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -155,7 +166,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                         '검사 결과 요약입니다.',
                         style: TextStyle(
                           fontFamily: 'GmarketSans',
-                          fontSize: 13.sp,
+                          fontSize: 18.sp,
                           color: const Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
@@ -164,13 +175,17 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                       _scoreCircle(widget.score, widget.total),
 
                       SizedBox(height: 16.h),
-                      _riskBarRow('요구', widget.byCategory['요구']),
+                      _riskBarRow('반응 시간', widget.byCategory['반응 시간']),
                       SizedBox(height: 12.h),
-                      _riskBarRow('질문', widget.byCategory['질문']),
+                      _riskBarRow('반복어 비율', widget.byCategory['반복어 비율']),
                       SizedBox(height: 12.h),
-                      _riskBarRow('단언', widget.byCategory['단언']),
+                      _riskBarRow('평균 문장 길이', widget.byCategory['평균 문장 길이']),
                       SizedBox(height: 12.h),
-                      _riskBarRow('의례화', widget.byCategory['의례화']),
+                      _riskBarRow('화행 적절성', widget.byCategory['화행 적절성']),
+                      SizedBox(height: 12.h),
+                      _riskBarRow('회상어 점수', widget.byCategory['회상어 점수']),
+                      SizedBox(height: 12.h),
+                      _riskBarRow('문법 완성도', widget.byCategory['문법 완성도']),
                     ],
                   ),
                 ),
@@ -185,7 +200,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                         '검사 결과 평가',
                         style: TextStyle(
                           fontFamily: 'GmarketSans',
-                          fontSize: 18.sp,
+                          fontSize: 24.sp,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -203,7 +218,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                 SizedBox(
                   width: double.infinity,
                   height: 52.h,
-                  child: ElevatedButton(
+                  child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
@@ -212,21 +227,24 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                         (route) => false,
                       );
                     },
+                    icon: Icon(
+                      Icons.videogame_asset_rounded,
+                      size: 22.sp * 1.25,
+                    ), // 아이콘 포함
+                    label: Text(
+                      '두뇌 게임으로 이동',
+                      textScaler: fixedScale, // 시스템 글꼴 배율 무시
+                      style: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        fontWeight: FontWeight.w900, // 두 번째 파일과 동일 굵기
+                        fontSize: 22.sp, // 두 번째 파일과 동일 크기
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFFD43B),
                       foregroundColor: Colors.black,
                       shape: const StadiumBorder(),
                       elevation: 0,
-                    ),
-                    child: Text(
-                      '두뇌 게임으로 이동',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontWeight: FontWeight.w400,
-                        fontSize: 16.sp,
-                        letterSpacing: 0.2,
-                        height: 1.0,
-                      ),
                     ),
                   ),
                 ),
@@ -272,20 +290,26 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
         children: [
           Text(
             '1회차',
+            textScaler: fixedScale,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w600,
-              fontSize: 13.sp,
+              fontWeight: FontWeight.w900,
+              fontSize: 18.sp,
               color: AppColors.btnColorDark,
             ),
           ),
           SizedBox(width: 10.w),
           Text(
             formattedKst,
+            textScaler: fixedScale, // ← 시스템 글씨 키워도 여기선 고정
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w500,
-              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              fontSize: 18.sp,
               color: const Color(0xFF111827),
             ),
           ),
@@ -294,16 +318,21 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     );
   }
 
+  // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
+    final double d = 140.w; // 원 지름
+    final double big = d * 0.40; // 큰 숫자 폰트
+    final double small = d * 0.20; // /분모 폰트
+
     return SizedBox(
-      width: 140.w,
-      height: 140.w,
+      width: d,
+      height: d,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Container(
-            width: 140.w,
-            height: 140.w,
+            width: d,
+            height: d,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: const Color(0xFFEF4444), width: 8),
@@ -315,21 +344,32 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
             children: [
               Text(
                 '$score',
+                textScaler: fixedScale,
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: big,
+                ),
                 style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 46.sp,
-                  fontWeight: FontWeight.w700,
+                  fontSize: big,
+                  fontWeight: FontWeight.w900,
                   color: const Color(0xFFEF4444),
-                  height: 0.9,
+                  height: 1.0,
                 ),
               ),
               Text(
                 '/$total',
+                textScaler: fixedScale,
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: small,
+                ),
                 style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 15.sp,
-                  fontWeight: FontWeight.w600,
+                  fontSize: small,
+                  fontWeight: FontWeight.w800,
                   color: const Color(0xFFEF4444),
+                  height: 1.0,
                 ),
               ),
             ],
@@ -352,8 +392,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
               label,
               style: TextStyle(
                 fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w600,
-                fontSize: 13.sp,
+                fontWeight: FontWeight.w800,
+                fontSize: 18.sp,
                 color: const Color(0xFF4B5563),
               ),
             ),
@@ -369,8 +409,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                 eval.text,
                 style: TextStyle(
                   fontFamily: 'GmarketSans',
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.sp,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17.sp,
                   color: eval.textColor,
                 ),
               ),
@@ -441,11 +481,11 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
           SizedBox(width: 8.w),
           Expanded(
             child: Text(
-              '인지 기능 저하가 의심됩니다. 전문가와 상담을 권장합니다.',
+              '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
               style: TextStyle(
                 fontFamily: 'GmarketSans',
                 fontWeight: FontWeight.w600,
-                fontSize: 13.sp,
+                fontSize: 19.sp,
                 color: const Color(0xFF7F1D1D),
               ),
             ),
@@ -459,8 +499,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     return <Widget>[
       _evalBlock(
         '[반응 시간]',
-        '질문 종료 시점부터 응답 시작까지의 시간을 측정합니다. '
-            '예) 3초 이내: 상점 / 4–6초: 보통 / 7초 이상: 주의.',
+        '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. '
+            '예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.',
       ),
       _evalBlock(
         '[반복어 비율]',
@@ -474,7 +514,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       ),
       _evalBlock(
         '[화행 적절성 점수]',
-        '질문 맥락과 응답 화행의 매칭(적합/비적합)을 판정합니다. '
+        '반복어 비율 맥락과 응답 화행의 매칭(적합/비적합)을 판정합니다. '
             '예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.',
       ),
       _evalBlock(
@@ -505,8 +545,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
             title,
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w700,
-              fontSize: 14.sp,
+              fontWeight: FontWeight.w900,
+              fontSize: 20.sp,
               color: const Color(0xFF111827),
             ),
           ),
@@ -515,8 +555,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
             body,
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w500,
-              fontSize: 13.sp,
+              fontWeight: FontWeight.w700,
+              fontSize: 19.sp,
               color: const Color(0xFF4B5563),
               height: 1.5,
             ),

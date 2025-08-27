@@ -87,7 +87,7 @@ flutter:
   - assets/logo/
   - assets/icons/
   - assets/logo/logo_long.png
-  - assets/terms_and_conditions.json
+  - assets/terms_and_conditions.json  
 
   # 메인 화면 (홈)
   - assets/logo/logo_brainup.png

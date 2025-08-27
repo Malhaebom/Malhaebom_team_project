@@ -127,46 +127,45 @@ class _StoryDetailPageState extends State<StoryDetailPage> {
     final tale = Fairytales[_pageIndex]; // 현재 선택된 동화
     final totalTales = Fairytales.length;
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return Scaffold(
       // ===== 상단 AppBar =====
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: ClipRRect(
-          borderRadius: const BorderRadius.only(
-            bottomLeft: Radius.circular(24),
-            bottomRight: Radius.circular(24),
-          ),
-          child: AppBar(
-            backgroundColor: AppColors.btnColorDark,
-            // automaticallyImplyLeading: false,
-            centerTitle: true,
-            title: Text(
-              tale.title,
-              key: ValueKey('appbar_${tale.title}'),
-              textScaler: const TextScaler.linear(1.0),
-              style: TextStyle(
-                fontFamily: kFont,
-                fontWeight: FontWeight.w500,
-                fontSize: 30.sp,
-                color: AppColors.white,
-              ),
-            ),
-            // actions: [
-            //   // 모드 토글 버튼: 슬라이드 <-> 레거시
-            //   IconButton(
-            //     tooltip: _legacyMode ? '슬라이드 모드로 전환' : '이전 방식(페이지 이동)으로 전환',
-            //     onPressed: _toggleMode,
-            //     icon: Icon(
-            //       _legacyMode ? Icons.swipe : Icons.open_in_new,
-            //       color: Colors.white,
-            //     ),
-            //   ),
-            //   SizedBox(width: 6.w),
-            // ],
+      appBar: AppBar(
+        backgroundColor: AppColors.btnColorDark,
+        // automaticallyImplyLeading: false,
+        centerTitle: true,
+        toolbarHeight: _appBarH(context),
+        title: Text(
+          tale.title,
+          key: ValueKey('appbar_${tale.title}'),
+          textScaler: const TextScaler.linear(1.0),
+          style: TextStyle(
+            fontFamily: kFont,
+            fontWeight: FontWeight.w700,
+            fontSize: 20.sp,
+            color: AppColors.white,
           ),
         ),
+        // actions: [
+        //   // 모드 토글 버튼: 슬라이드 <-> 레거시
+        //   IconButton(
+        //     tooltip: _legacyMode ? '슬라이드 모드로 전환' : '이전 방식(페이지 이동)으로 전환',
+        //     onPressed: _toggleMode,
+        //     icon: Icon(
+        //       _legacyMode ? Icons.swipe : Icons.open_in_new,
+        //       color: Colors.white,
+        //     ),
+        //   ),
+        //   SizedBox(width: 6.w),
+        // ],
       ),
-
       backgroundColor: AppColors.background,
 
       // ===== 본문 =====
