@@ -406,7 +406,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           SizedBox(width: 8.w),
           Expanded(
             child: Text(
-              '인지 기능 저하가 의심됩니다. 전문가와 상담을 권장합니다.',
+              '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
               textScaler: const TextScaler.linear(1.0),
               style: TextStyle(
                 fontWeight: FontWeight.w800,
@@ -425,25 +425,26 @@ class _StoryResultPageState extends State<StoryResultPage> {
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;
-      if (s.correctRatio < 0.5) {
+      if (s.correctRatio < 0.4) {
         items.add(_evalBlock('[$title]이 부족합니다.', body));
       }
     }
 
-    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
-    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
-    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
-    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
+    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데\n어려움이 보입니다. 대화 응용\n훈련으로 개선할 수 있습니다.');
+    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론\n훈련을 통해 보완이 필요합니다.');
+    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문\n의도 파악이 부족합니다. 정보 파악\n중심의 활동이 필요합니다.');
+    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을\n이해하고 표현 의도를\n읽는 능력이 부족합니다.\n상황·정서 파악 활동을 권합니다.');
+    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도\n이해가 낮습니다. 일상 의례 표현\n중심의 학습을 권장합니다.');
 
     if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
+      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더\n안정적인 이해를 유지해 보세요.'));
     }
     return items;
   }
 
   Widget _evalBlock(String title, String body) {
     return Container(
+      width: double.infinity,
       padding: EdgeInsets.all(12.w),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
