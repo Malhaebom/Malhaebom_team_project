@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/screens/main/interview_list_page.dart';
 import 'package:malhaebom/screens/main/my_page.dart';
@@ -6,6 +8,7 @@ import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/home_menu_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -15,7 +18,36 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  String? _nick; // 로그인한 사용자 닉네임
+
   @override
+  void initState() {
+    super.initState();
+    _loadNickFromLocal();
+  }
+
+  /// 로그인 시 저장한 SharedPreferences의 'auth_user'에서 닉네임을 로드
+  Future<void> _loadNickFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('auth_user');
+      if (raw != null && raw.isNotEmpty) {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        final nick = map['nick'] as String?;
+        if (mounted) {
+          setState(
+            () =>
+                _nick =
+                    (nick == null || nick.trim().isEmpty) ? null : nick.trim(),
+          );
+        }
+      }
+    } catch (_) {
+      // 로드 실패 시 닉네임 미표시(기본 문구 사용)
+      if (mounted) setState(() => _nick = null);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -25,6 +57,9 @@ class _HomePageState extends State<HomePage> {
     final double gap = 25.h;
     final double logoSize = screenWidth * 0.35;
     final double headerH = logoSize + gap * 2; // 좌/우 헤더 동일 높이
+
+    // 표시할 닉네임 문구
+    final String nickText = _nick == null ? '' : '$_nick님,';
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -90,7 +125,6 @@ class _HomePageState extends State<HomePage> {
                               ),
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
-                                // crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
@@ -111,14 +145,6 @@ class _HomePageState extends State<HomePage> {
                                       fontSize: 20.sp,
                                     ),
                                   ),
-                                  // Text(
-                                  //   "오늘도 뇌건강\n지키러 가볼까요?",
-                                  //   textScaler: const TextScaler.linear(1.0),
-                                  //   style: TextStyle(
-                                  //     fontWeight: FontWeight.w500,
-                                  //     fontSize: 15.sp,
-                                  //   ),
-                                  // ),
                                 ],
                               ),
                             ),
@@ -149,7 +175,7 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // ✅ 오른쪽 헤더를 "카드 스타일 컨테이너"로 변경
+                        // ✅ 오른쪽 헤더를 "카드 스타일 컨테이너"로 유지
                         Container(
                           width: screenWidth * 0.4,
                           height: headerH,
@@ -173,8 +199,9 @@ class _HomePageState extends State<HomePage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // 닉네임이 있으면 "{닉네임}님," 없으면 기본 문구
                                 Text(
-                                  "레벤님,",
+                                  _nick == null ? "반가워요," : nickText,
                                   textScaler: const TextScaler.linear(1.0),
                                   style: TextStyle(
                                     fontFamily: 'GmarketSans',

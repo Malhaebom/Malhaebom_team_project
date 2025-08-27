@@ -1,7 +1,10 @@
 // lib/user/signup_page.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:http/http.dart' as http;
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -11,6 +14,11 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
+  // ================== 서버 주소 ==================
+  // Android 에뮬레이터 → PC 서버: 10.0.2.2
+  // 서버 포트는 app.js에서 4000이므로 여기도 4000
+  static const String API_BASE = 'http://10.0.2.2:4000';
+
   // Colors (로그인 페이지와 동일 계열)
   static const Color kPrimary = Color(0xFF344CB7);
   static const Color kDivider = Color(0xFFE5E7EB);
@@ -30,6 +38,7 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _pw2Obscure = true;
   DateTime? _birthDate;
   String? _gender; // "남" or "여"
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -71,7 +80,8 @@ class _SignUpPageState extends State<SignUpPage> {
     return '${d.year}-$m-$day';
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_submitting) return;
     if (_formKey.currentState?.validate() != true) return;
     if (_birthDate == null) {
       ScaffoldMessenger.of(
@@ -92,21 +102,76 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
+    // 서버 규격:
+    // - user_id: 전화번호
+    // - pwd
+    // - nick
+    // - birthyear: "1998" 같은 4자리 문자열
+    // - gender: "M"/"F"
     final payload = {
-      'nick': _nickCtrl.text.trim(),
-      'user_id': _phoneCtrl.text.trim(), // 전화번호를 아이디로 사용할 경우
+      'user_id': _phoneCtrl.text.trim(),
       'pwd': _pwCtrl.text,
-      'birth': _formatYMD(_birthDate!),
-      'gender': _gender,
+      'nick': _nickCtrl.text.trim(),
+      'birthyear': _birthDate!.year.toString(),
+      'gender': _gender == '남' ? 'M' : 'F',
     };
 
-    // TODO: 서버 연동 (예: POST /join)
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('회원가입 요청을 보냈습니다.')));
+    setState(() => _submitting = true);
+    try {
+      // ★ 경로 주의: app.js에서 app.use("/userJoin", joinRouter)
+      final uri = Uri.parse('$API_BASE/userJoin/register');
+      // debugPrint('POST ${uri.toString()}  body=$payload');
+
+      final resp = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      if (!mounted) return;
+
+      if (resp.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('회원가입 완료! 로그인 화면으로 이동합니다.')),
+        );
+        Navigator.of(context).pop(); // 로그인 화면으로 복귀
+      } else if (resp.statusCode == 409) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('이미 존재하는 전화번호(user_id)입니다.')),
+        );
+      } else if (resp.statusCode == 400) {
+        final msg = _extractMessage(resp.body) ?? '입력값을 확인해 주세요.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
+      } else {
+        final msg = _extractMessage(resp.body) ?? '서버 오류가 발생했습니다.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('오류(${resp.statusCode}): $msg')));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('네트워크 오류: $e')));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
-  // 입력 박스 공통 데코 (라운드, 옅은 테두리, 플레이스홀더) — 라벨은 상단 Text로 별도 표기
+  String? _extractMessage(String body) {
+    try {
+      final j = jsonDecode(body) as Map<String, dynamic>;
+      final m = j['message'];
+      if (m is String && m.trim().isNotEmpty) return m;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 입력 박스 공통 데코
   InputDecoration _boxDec({required String hint, Widget? suffix}) {
     return InputDecoration(
       hintText: hint,
@@ -131,7 +196,7 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // 상단 라벨 텍스트 (로그인 화면 스타일 맞춤)
+  // 상단 라벨 텍스트
   Widget _fieldLabel(String text) {
     return Text(
       text,
@@ -146,290 +211,311 @@ class _SignUpPageState extends State<SignUpPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0.5,
-        backgroundColor: Colors.white,
-        foregroundColor: kTextDark,
-        centerTitle: true,
-        title: Text(
-          '회원가입',
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            color: kTextDark,
-            fontWeight: FontWeight.w600,
-            fontSize: 16.sp,
+    final fixedMedia = MediaQuery.of(
+      context,
+    ).copyWith(textScaler: const TextScaler.linear(1.0));
+
+    return MediaQuery(
+      data: fixedMedia,
+      child: Scaffold(
+        appBar: AppBar(
+          elevation: 0.5,
+          backgroundColor: Colors.white,
+          foregroundColor: kTextDark,
+          centerTitle: true,
+          title: Text(
+            '회원가입',
+            style: TextStyle(
+              fontFamily: 'GmarketSans',
+              color: kTextDark,
+              fontWeight: FontWeight.w600,
+              fontSize: 16.sp,
+            ),
           ),
         ),
-      ),
-      backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(height: 8.h),
+        backgroundColor: Colors.white,
+        body: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: 20.w, vertical: 16.h),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: 8.h),
 
-              // 닉네임
-              _fieldLabel('닉네임'),
-              SizedBox(height: 8.h),
-              TextFormField(
-                controller: _nickCtrl,
-                textInputAction: TextInputAction.next,
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 14.sp,
-                  color: kTextDark,
+                // 닉네임
+                _fieldLabel('닉네임'),
+                SizedBox(height: 8.h),
+                TextFormField(
+                  controller: _nickCtrl,
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(
+                    fontFamily: 'GmarketSans',
+                    fontSize: 14.sp,
+                    color: kTextDark,
+                  ),
+                  decoration: _boxDec(hint: '닉네임을 입력해 주세요.'),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return '닉네임을 입력해 주세요.';
+                    if (v.trim().length > 20) return '닉네임은 20자 이내로 입력해 주세요.';
+                    return null;
+                  },
                 ),
-                decoration: _boxDec(hint: '닉네임을 입력해 주세요.'),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) return '닉네임을 입력해 주세요.';
-                  if (v.trim().length > 20) return '닉네임은 20자 이내로 입력해 주세요.';
-                  return null;
-                },
-              ),
 
-              SizedBox(height: 12.h),
+                SizedBox(height: 12.h),
 
-              // 휴대전화번호
-              _fieldLabel('휴대전화번호'),
-              SizedBox(height: 8.h),
-              TextFormField(
-                controller: _phoneCtrl,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
-                ],
-                textInputAction: TextInputAction.next,
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 14.sp,
-                  color: kTextDark,
+                // 휴대전화번호
+                _fieldLabel('휴대전화번호'),
+                SizedBox(height: 8.h),
+                TextFormField(
+                  controller: _phoneCtrl,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+                  ],
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(
+                    fontFamily: 'GmarketSans',
+                    fontSize: 14.sp,
+                    color: kTextDark,
+                  ),
+                  decoration: _boxDec(hint: '휴대전화번호를 입력해 주세요.'),
+                  validator: (v) {
+                    final s = (v ?? '').trim();
+                    if (s.isEmpty) return '휴대전화번호를 입력해 주세요.';
+                    if (s.length < 10 || s.length > 11) {
+                      return '휴대전화번호 길이를 확인해 주세요.';
+                    }
+                    return null;
+                  },
                 ),
-                decoration: _boxDec(hint: '휴대전화번호를 입력해 주세요.'),
-                validator: (v) {
-                  final s = (v ?? '').trim();
-                  if (s.isEmpty) return '휴대전화번호를 입력해 주세요.';
-                  if (s.length < 10 || s.length > 11) {
-                    return '휴대전화번호 길이를 확인해 주세요.';
-                  }
-                  return null;
-                },
-              ),
 
-              SizedBox(height: 12.h),
+                SizedBox(height: 12.h),
 
-              // 비밀번호
-              _fieldLabel('비밀번호'),
-              SizedBox(height: 8.h),
-              TextFormField(
-                controller: _pwCtrl,
-                obscureText: _pwObscure,
-                textInputAction: TextInputAction.next,
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 14.sp,
-                  color: kTextDark,
+                // 비밀번호
+                _fieldLabel('비밀번호'),
+                SizedBox(height: 8.h),
+                TextFormField(
+                  controller: _pwCtrl,
+                  obscureText: _pwObscure,
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(
+                    fontFamily: 'GmarketSans',
+                    fontSize: 14.sp,
+                    color: kTextDark,
+                  ),
+                  decoration: _boxDec(
+                    hint: '비밀번호를 입력해 주세요.',
+                    suffix: IconButton(
+                      onPressed: () => setState(() => _pwObscure = !_pwObscure),
+                      icon: Icon(
+                        _pwObscure ? Icons.visibility_off : Icons.visibility,
+                        color: kTextSub,
+                      ),
+                    ),
+                  ),
+                  validator: (v) {
+                    final s = (v ?? '');
+                    if (s.isEmpty) return '비밀번호를 입력해 주세요.';
+                    if (s.length < 6) return '비밀번호는 6자 이상이어야 해요.';
+                    return null;
+                  },
                 ),
-                decoration: _boxDec(
-                  hint: '비밀번호를 입력해 주세요.',
-                  suffix: IconButton(
-                    onPressed: () => setState(() => _pwObscure = !_pwObscure),
-                    icon: Icon(
-                      _pwObscure ? Icons.visibility_off : Icons.visibility,
-                      color: kTextSub,
+
+                SizedBox(height: 12.h),
+
+                // 비밀번호 확인
+                _fieldLabel('비밀번호 확인'),
+                SizedBox(height: 8.h),
+                TextFormField(
+                  controller: _pwConfirmCtrl,
+                  obscureText: _pw2Obscure,
+                  textInputAction: TextInputAction.done,
+                  style: TextStyle(
+                    fontFamily: 'GmarketSans',
+                    fontSize: 14.sp,
+                    color: kTextDark,
+                  ),
+                  decoration: _boxDec(
+                    hint: '비밀번호를 다시 입력해 주세요.',
+                    suffix: IconButton(
+                      onPressed:
+                          () => setState(() => _pw2Obscure = !_pw2Obscure),
+                      icon: Icon(
+                        _pw2Obscure ? Icons.visibility_off : Icons.visibility,
+                        color: kTextSub,
+                      ),
+                    ),
+                  ),
+                  validator: (v) {
+                    final s = (v ?? '');
+                    if (s.isEmpty) return '비밀번호 확인을 입력해 주세요.';
+                    if (s != _pwCtrl.text) return '비밀번호가 일치하지 않습니다.';
+                    return null;
+                  },
+                ),
+
+                SizedBox(height: 12.h),
+
+                // 생년월일
+                _fieldLabel('생년월일'),
+                SizedBox(height: 8.h),
+                InkWell(
+                  onTap: _pickBirthDate,
+                  borderRadius: BorderRadius.circular(12.r),
+                  child: InputDecorator(
+                    decoration: _boxDec(hint: '달력을 열어 생년월일을 선택해 주세요.'),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _birthDate == null
+                                ? '달력을 열어 생년월일을 선택해 주세요.'
+                                : _formatYMD(_birthDate!),
+                            style: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              color: _birthDate == null ? kTextSub : kTextDark,
+                              fontSize: 14.sp,
+                            ),
+                          ),
+                        ),
+                        const Icon(Icons.calendar_today, color: kTextSub),
+                      ],
                     ),
                   ),
                 ),
-                validator: (v) {
-                  final s = (v ?? '');
-                  if (s.isEmpty) return '비밀번호를 입력해 주세요.';
-                  if (s.length < 6) return '비밀번호는 6자 이상이어야 해요.';
-                  return null;
-                },
-              ),
 
-              SizedBox(height: 12.h),
+                SizedBox(height: 12.h),
 
-              // 비밀번호 확인
-              _fieldLabel('비밀번호 확인'),
-              SizedBox(height: 8.h),
-              TextFormField(
-                controller: _pwConfirmCtrl,
-                obscureText: _pw2Obscure,
-                textInputAction: TextInputAction.next,
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontSize: 14.sp,
-                  color: kTextDark,
-                ),
-                decoration: _boxDec(
-                  hint: '비밀번호를 다시 입력해 주세요.',
-                  suffix: IconButton(
-                    onPressed: () => setState(() => _pw2Obscure = !_pw2Obscure),
-                    icon: Icon(
-                      _pw2Obscure ? Icons.visibility_off : Icons.visibility,
-                      color: kTextSub,
-                    ),
+                // 성별
+                _fieldLabel('성별'),
+                SizedBox(height: 8.h),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12.w,
+                    vertical: 6.h,
                   ),
-                ),
-                validator: (v) {
-                  final s = (v ?? '');
-                  if (s.isEmpty) return '비밀번호 확인을 입력해 주세요.';
-                  if (s != _pwCtrl.text) return '비밀번호가 일치하지 않습니다.';
-                  return null;
-                },
-              ),
-
-              SizedBox(height: 12.h),
-
-              // 생년월일 (달력 스타일 입력)
-              _fieldLabel('생년월일'),
-              SizedBox(height: 8.h),
-              InkWell(
-                onTap: _pickBirthDate,
-                borderRadius: BorderRadius.circular(12.r),
-                child: InputDecorator(
-                  decoration: _boxDec(hint: '달력을 열어 생년월일을 선택해 주세요.'),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(color: kDivider),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          _birthDate == null
-                              ? '달력을 열어 생년월일을 선택해 주세요.'
-                              : _formatYMD(_birthDate!),
-                          style: TextStyle(
-                            fontFamily: 'GmarketSans',
-                            color: _birthDate == null ? kTextSub : kTextDark,
-                            fontSize: 14.sp,
+                        child: RadioListTile<String>(
+                          value: '남',
+                          groupValue: _gender,
+                          onChanged: (v) => setState(() => _gender = v),
+                          title: Text(
+                            '남',
+                            style: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              fontSize: 14.sp,
+                              color: kTextDark,
+                            ),
+                          ),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
                           ),
                         ),
                       ),
-                      const Icon(Icons.calendar_today, color: kTextSub),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          value: '여',
+                          groupValue: _gender,
+                          onChanged: (v) => setState(() => _gender = v),
+                          title: Text(
+                            '여',
+                            style: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              fontSize: 14.sp,
+                              color: kTextDark,
+                            ),
+                          ),
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          visualDensity: const VisualDensity(
+                            horizontal: -4,
+                            vertical: -4,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
 
-              SizedBox(height: 12.h),
+                SizedBox(height: 24.h),
 
-              // 성별 (남/여)
-              _fieldLabel('성별'),
-              SizedBox(height: 8.h),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: kDivider),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: RadioListTile<String>(
-                        value: '남',
-                        groupValue: _gender,
-                        onChanged: (v) => setState(() => _gender = v),
-                        title: Text(
-                          '남',
-                          style: TextStyle(
-                            fontFamily: 'GmarketSans',
-                            fontSize: 14.sp,
-                            color: kTextDark,
-                          ),
-                        ),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
-                        ),
+                // 회원가입 버튼
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _submitting ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kPrimary,
+                      foregroundColor: Colors.white,
+                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12.r),
+                      ),
+                      elevation: 0,
+                      textStyle: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    Expanded(
-                      child: RadioListTile<String>(
-                        value: '여',
-                        groupValue: _gender,
-                        onChanged: (v) => setState(() => _gender = v),
-                        title: Text(
-                          '여',
-                          style: TextStyle(
-                            fontFamily: 'GmarketSans',
-                            fontSize: 14.sp,
-                            color: kTextDark,
-                          ),
-                        ),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        visualDensity: const VisualDensity(
-                          horizontal: -4,
-                          vertical: -4,
+                    child:
+                        _submitting
+                            ? SizedBox(
+                              height: 18.w,
+                              width: 18.w,
+                              child: const CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                            : const Text('회원가입'),
+                  ),
+                ),
+
+                SizedBox(height: 16.h),
+
+                // 하단 문구
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '계정을 보유하고 계신가요? ',
+                      style: TextStyle(
+                        fontFamily: 'GmarketSans',
+                        color: kTextSub,
+                        fontSize: 13.sp,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text(
+                        '로그인',
+                        style: TextStyle(
+                          fontFamily: 'GmarketSans',
+                          color: kPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.sp,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-
-              SizedBox(height: 24.h),
-
-              // 회원가입 버튼 (텍스트 흰색)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kPrimary,
-                    foregroundColor: Colors.white, // ✅ 흰색 텍스트
-                    padding: EdgeInsets.symmetric(vertical: 14.h),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12.r),
-                    ),
-                    elevation: 0,
-                    textStyle: TextStyle(
-                      fontFamily: 'GmarketSans',
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  child: const Text('회원가입'),
-                ),
-              ),
-
-              SizedBox(height: 16.h),
-
-              // 하단 문구: "계정을 보유하고 계신가요? 로그인"
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '계정을 보유하고 계신가요? ',
-                    style: TextStyle(
-                      fontFamily: 'GmarketSans',
-                      color: kTextSub,
-                      fontSize: 13.sp,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).pop(); // 로그인으로 돌아가기
-                    },
-                    child: Text(
-                      '로그인',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        color: kPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13.sp,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 8.h),
-            ],
+                SizedBox(height: 8.h),
+              ],
+            ),
           ),
         ),
       ),

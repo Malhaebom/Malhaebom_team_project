@@ -43,3 +43,15 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Kotlin 표준 라이브러리 (버전은 프로젝트 상황에 맞게)
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24")
+
+    // AndroidX 기본
+    implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+
+    // Material Components (Theme.MaterialComponents.* 쓰려면 필수)
+    implementation("com.google.android.material:material:1.12.0")
+}

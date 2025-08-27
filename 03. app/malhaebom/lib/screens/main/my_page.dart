@@ -3,6 +3,8 @@ import 'package:malhaebom/theme/colors.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/widgets/back_to_home.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:malhaebom/screens/users/login_page.dart'; // 경로가 다르면 실제 로그인 페이지 위치로 변경
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -39,6 +41,7 @@ class _MyPageState extends State<MyPage> {
 
           // ✅ AppBar는 일단 숨김
           appBar: null,
+
           // 필요해지면 아래 블록 주석 해제하고 위의 appBar: null을 지우면 됩니다.
           /*
           appBar: AppBar(
@@ -49,7 +52,6 @@ class _MyPageState extends State<MyPage> {
             title: const Text("설정"),
           ),
           */
-
           body: SafeArea(
             child: SingleChildScrollView(
               padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
@@ -81,8 +83,36 @@ class _MyPageState extends State<MyPage> {
                             children: List.generate(title.length, (index) {
                               return InkWell(
                                 borderRadius: BorderRadius.circular(0),
-                                onTap: () {
-                                  // TODO: 각 항목 액션
+                                onTap: () async {
+                                  // === 항목 액션 ===
+                                  if (title[index] == "로그아웃") {
+                                    // ✅ 저장된 로그인 정보 초기화 (SharedPreferences 등)
+                                    final prefs =
+                                        await SharedPreferences.getInstance();
+                                    await prefs.clear();
+
+                                    if (!mounted) return;
+
+                                    // 안내 스낵바
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("로그아웃 되었습니다."),
+                                      ),
+                                    );
+
+                                    // ✅ 로그인 페이지로 이동 (스택 제거)
+                                    Navigator.pushAndRemoveUntil(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const LoginPage(),
+                                      ),
+                                      (route) => false,
+                                    );
+                                  } else if (title[index] == "회원정보 수정하기") {
+                                    // TODO: 회원정보 수정 화면 이동
+                                  } else if (title[index] == "자주 묻는 질문") {
+                                    // TODO: FAQ 화면 이동
+                                  }
                                 },
                                 child: Container(
                                   decoration: BoxDecoration(
@@ -98,7 +128,7 @@ class _MyPageState extends State<MyPage> {
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Expanded( // ← 왼쪽 영역을 가변폭으로
+                                      Expanded(
                                         child: Row(
                                           children: [
                                             SizedBox(width: 10.w),
@@ -180,7 +210,8 @@ class _MyPageState extends State<MyPage> {
                               ),
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   // ← 왼쪽을 Expanded로 감싸 폭 초과 시 텍스트는 말줄임
                                   Expanded(
@@ -253,7 +284,8 @@ class _MyPageState extends State<MyPage> {
                               ),
                               padding: EdgeInsets.symmetric(vertical: 12.h),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
                                     child: Row(
