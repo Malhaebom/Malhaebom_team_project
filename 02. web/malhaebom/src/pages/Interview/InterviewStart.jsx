@@ -3,7 +3,8 @@ import useQuery from "../../hooks/useQuery.js";
 import Header from "../../components/Header.jsx";
 import AOS from "aos";
 import "aos/dist/aos.css";
-import ProgressBar from "./ProgressBar.jsx"; 
+import ProgressBar from "./ProgressBar.jsx";
+import Background from "../Background/Background";
 
 export default function InterviewStart() {
   const query = useQuery();
@@ -127,6 +128,8 @@ export default function InterviewStart() {
 
   return (
     <div className="content">
+            {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">

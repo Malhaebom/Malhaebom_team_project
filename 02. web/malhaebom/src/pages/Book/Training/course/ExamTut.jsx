@@ -6,6 +6,7 @@ import AOS from "aos";
 import Slider from "react-slick";
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
+import Background from "../../../Background/Background";
 
 export default function ExamTut() {
   const query = useQuery();
@@ -94,6 +95,8 @@ export default function ExamTut() {
           border-radius:10px; object-fit:contain; display:block;
         }
       `}</style>
+                  {/* 공통 배경 추가 */}
+      <Background />
 
       <div className="wrap">
         <Header title={title || "동화"} />

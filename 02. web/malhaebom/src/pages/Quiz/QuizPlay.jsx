@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../Background/Background";
 
 export default function QuizPlay() {
   const [searchParams] = useSearchParams();
@@ -167,6 +168,8 @@ export default function QuizPlay() {
 
   return (
     <div className="content">
+            {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <header>
           <div className="hd_inner">

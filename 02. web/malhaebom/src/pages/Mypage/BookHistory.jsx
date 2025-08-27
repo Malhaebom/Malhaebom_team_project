@@ -1,4 +1,6 @@
 import React from "react";
+import Background from "../Background/Background";
+
 
 const BookHistory = () => {
   const bookData = [

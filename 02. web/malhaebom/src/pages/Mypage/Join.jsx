@@ -1,5 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ 추가
+import Background from "../Background/Background";
+
 
 const Signup = () => {
   const [nick, setNick] = useState("");

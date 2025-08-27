@@ -4,6 +4,7 @@ import useQuery from "../../../../hooks/useQuery";
 import Header from "../../../../components/Header";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../../../Background/Background";
 
 export default function WorkbookStart() {
   const query = useQuery();
@@ -96,6 +97,8 @@ export default function WorkbookStart() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         {/* 원본 헤더: 제목 '어머니와 벙어리장갑' 고정이었지만,
             fairytale의 key 타이틀을 사용(목록과 일관성) */}

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
+import Background from "../../../Background/Background";
 
 export default function StartExam() {
   const query = useQuery();
@@ -169,6 +170,8 @@ export default function StartExam() {
 
   return (
     <div className="content">
+                  {/* 공통 배경 추가 */}
+      <Background />
       <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">
