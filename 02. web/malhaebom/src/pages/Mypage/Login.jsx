@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 
-
 const Login = () => {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
@@ -11,6 +10,8 @@ const Login = () => {
 
   const handleLogin = () => {
     console.log("로그인 버튼 클릭", { phone, password });
+    // 로그인 성공 시 닉네임 설정
+    setNick("홍길동");
     navigate("/mypage");
   };
 
@@ -68,6 +69,9 @@ const Login = () => {
 
   return (
     <div className="content">
+      {/* 공통 배경 */}
+      <Background />
+
       <div
         className="wrap"
         style={{
@@ -77,6 +81,7 @@ const Login = () => {
           fontFamily: "Pretendard-Regular",
         }}
       >
+        {/* 로그인 후 환영 문구 */}
         {nick && (
           <p
             style={{
@@ -91,6 +96,7 @@ const Login = () => {
           </p>
         )}
 
+        {/* 로고 */}
         <img
           src="/img/logo.png"
           alt="말해봄 로고"
@@ -166,30 +172,18 @@ const Login = () => {
             />
 
             {/* 로그인 버튼 */}
-       <button
-  style={{
-    width: "100%",
-    padding: "15px",
-    fontSize: "20px",
-    backgroundColor: "#4a85d1",
-    color: "#fff",
-    border: "none",
-    borderRadius: "12px",
-    cursor: "pointer",
-    marginBottom: "20px",
-    transition: "all 0.2s",
-    textAlign: "center",
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#5f9cec"}
-  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4a85d1"}
-  onClick={handleLogin}
->
-  로그인
-</button>
-
+            <button
+              style={buttonStyle("#4a85d1", "#5f9cec")}
+              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+              onClick={handleLogin}
+            >
+              로그인
+            </button>
           </>
         )}
 
+        {/* 로그아웃 버튼 */}
         {nick && (
           <button
             style={buttonStyle("#FF4D4D", "#d13c3c")}
@@ -214,7 +208,7 @@ const Login = () => {
           아직 계정이 없으신가요?{" "}
           <span
             style={{
-              color: "#4a85d1", // 홈 통일 bt_color
+              color: "#4a85d1",
               cursor: "pointer",
               fontWeight: "bold",
               display: "inline-block",
