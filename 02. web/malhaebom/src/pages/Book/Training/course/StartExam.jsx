@@ -82,7 +82,29 @@ export default function StartExam() {
       });
   }, [navigate]); // exam 의존성 제거하여 무한 루프 방지
 
-  // 오디오 체인 재생 로직 완전 제거
+  // examId가 변경될 때마다 해당 문제의 음성을 자동 재생
+  useEffect(() => {
+    if (exam && examDirectory && audio0Ref.current) {
+      // 이전 오디오 정지
+      audio0Ref.current.pause();
+      audio0Ref.current.currentTime = 0;
+      
+      // 새로운 문제 음성 재생
+      const playAudio = async () => {
+        try {
+          await audio0Ref.current.play();
+        } catch (error) {
+          console.error("오디오 재생 실패:", error);
+        }
+      };
+      
+      // 오디오 로드 완료 후 재생
+      audio0Ref.current.addEventListener('loadeddata', playAudio, { once: true });
+      
+      // 오디오 로드 시작
+      audio0Ref.current.load();
+    }
+  }, [examId, exam, examDirectory]);
 
   const handleClickChoice = (choiceIdx) => {
     if (!exam) return;
@@ -168,15 +190,6 @@ export default function StartExam() {
               <audio ref={audio0Ref} className="examAudio0">
                 <source src={`${examDirectory}/${examId + 1}/문제.mp3`} type="audio/mpeg" />
               </audio>
-
-              {/* 오디오 재생 버튼 추가 */}
-              <button 
-                className="question_bt alert alert-info" 
-                style={{ marginBottom: '15px' }}
-                onClick={() => audio0Ref.current?.play()}
-              >
-                🔊 문제 듣기
-              </button>
 
               {/* 보기 4개 */}
               {current?.list?.map((value, idx) => {
