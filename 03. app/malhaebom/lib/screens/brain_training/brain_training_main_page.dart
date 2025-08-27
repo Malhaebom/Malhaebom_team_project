@@ -62,16 +62,25 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
     final int leftCount = (n + 1) ~/ 2; // ceil(n/2)
     final int rightCount = n ~/ 2; // floor(n/2)
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return BackToHome(
       child: Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: true,
+          // automaticallyImplyLeading: true,
           centerTitle: true,
-          backgroundColor: AppColors.background,
+          backgroundColor: AppColors.btnColorDark,
+          toolbarHeight: _appBarH(context),
           title: Text(
             "두뇌 단련",
             textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+            style: TextStyle(fontFamily: 'GmarketSans', fontWeight: FontWeight.w700, fontSize: 20.sp, color: Colors.white,),
           ),
         ),
         backgroundColor: AppColors.background,
@@ -82,7 +91,7 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
               children: [
                 // 상단 여백
                 SizedBox(height: 20.h),
-                
+
                 // 안내 텍스트 - 크기 증가 및 여백 조정
                 Text(
                   "오늘은 어떤 역량을 늘려볼까요?\n원하는 활동을 선택해보세요.",
@@ -126,15 +135,14 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                                           context,
                                           MaterialPageRoute(
                                             builder:
-                                                (context) =>
-                                                    BrainTrainingStartPage(
-                                                      title:
-                                                          btnTextList[index * 2],
-                                                    ),
+                                                (
+                                                  context,
+                                                ) => BrainTrainingStartPage(
+                                                  title: btnTextList[index * 2],
+                                                ),
                                           ),
                                         );
-                                      } else {
-                                      }
+                                      } else {}
                                     },
                                   ),
                                   SizedBox(height: 25.h),
@@ -163,7 +171,8 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                                     btnIcon: btnIconList[index * 2 + 1],
                                     btnText: btnTextList[index * 2 + 1],
                                     onPressed: () {
-                                      if (btnTextList[index * 2 + 1] != "건강정보") {
+                                      if (btnTextList[index * 2 + 1] !=
+                                          "건강정보") {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
@@ -171,13 +180,13 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                                                 (context) =>
                                                     BrainTrainingStartPage(
                                                       title:
-                                                          btnTextList[index * 2 +
+                                                          btnTextList[index *
+                                                                  2 +
                                                               1],
                                                     ),
                                           ),
                                         );
-                                      } else {
-                                      }
+                                      } else {}
                                     },
                                   ),
                                   SizedBox(height: 25.h),
@@ -190,7 +199,7 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                     ],
                   ),
                 ),
-                
+
                 // 하단 여백
                 SizedBox(height: 20.h),
               ],

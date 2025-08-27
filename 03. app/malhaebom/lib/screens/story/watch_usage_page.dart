@@ -73,9 +73,10 @@ class _WatchUsagePageState extends State<WatchUsagePage>
     debugPrint('[WatchUsagePage] incoming title=${widget.title}');
     debugPrint('[WatchUsagePage] incoming videoSource=${widget.videoSource}');
     _isNetwork = widget.videoSource.startsWith('http');
-    _controller = _isNetwork
-        ? VideoPlayerController.networkUrl(Uri.parse(widget.videoSource))
-        : VideoPlayerController.asset(widget.videoSource);
+    _controller =
+        _isNetwork
+            ? VideoPlayerController.networkUrl(Uri.parse(widget.videoSource))
+            : VideoPlayerController.asset(widget.videoSource);
 
     _controller.addListener(() {
       final err = _controller.value.errorDescription;
@@ -85,15 +86,17 @@ class _WatchUsagePageState extends State<WatchUsagePage>
 
     _controller
       ..setLooping(true)
-      ..initialize().then((_) async {
-        if (!mounted) return;
-        _savedVolume = _controller.value.volume;
-        await _controller.setVolume(_savedVolume);
-        setState(() => _initialized = true);
-        _showControls(); // 진입 시 잠깐 노출
-      }).catchError((e, st) {
-        debugPrint('🎯 initialize() failed: $e');
-      });
+      ..initialize()
+          .then((_) async {
+            if (!mounted) return;
+            _savedVolume = _controller.value.volume;
+            await _controller.setVolume(_savedVolume);
+            setState(() => _initialized = true);
+            _showControls(); // 진입 시 잠깐 노출
+          })
+          .catchError((e, st) {
+            debugPrint('🎯 initialize() failed: $e');
+          });
   }
 
   @override
@@ -131,11 +134,12 @@ class _WatchUsagePageState extends State<WatchUsagePage>
 
     final result = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
-        builder: (_) => _FullscreenVideoPage(
-          source: widget.videoSource,
-          isNetwork: _isNetwork,
-          start: posBefore,
-        ),
+        builder:
+            (_) => _FullscreenVideoPage(
+              source: widget.videoSource,
+              isNetwork: _isNetwork,
+              start: posBefore,
+            ),
       ),
     );
 
@@ -172,10 +176,11 @@ class _WatchUsagePageState extends State<WatchUsagePage>
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StoryTestinfoPage(
-          title: widget.title,
-          storyImg: widget.storyImg,
-        ),
+        builder:
+            (_) => StoryTestinfoPage(
+              title: widget.title,
+              storyImg: widget.storyImg,
+            ),
       ),
     );
     if (_initialized) {
@@ -190,25 +195,34 @@ class _WatchUsagePageState extends State<WatchUsagePage>
   Widget build(BuildContext context) {
     final bool isPlaying = _initialized && _controller.value.isPlaying;
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     // ★ 페이지 전체의 텍스트 스케일 고정
     return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: const TextScaler.linear(1.0),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: const TextScaler.linear(1.0)),
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.btnColorDark,
           foregroundColor: Colors.black87,
           centerTitle: true,
           elevation: 0,
+          toolbarHeight: _appBarH(context),
           title: Text(
             widget.title,
             textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontFamily: _kFont,
-              fontWeight: FontWeight.w500,
-              fontSize: 28.sp,
-              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              fontSize: 20.sp,
+              color: Colors.white,
             ),
           ),
         ),
@@ -225,9 +239,10 @@ class _WatchUsagePageState extends State<WatchUsagePage>
                   child: AspectRatio(
                     aspectRatio:
                         _initialized ? _controller.value.aspectRatio : 16 / 9,
-                    child: _initialized
-                        ? VideoPlayer(_controller)
-                        : Container(color: const Color(0xFFE5E7EB)),
+                    child:
+                        _initialized
+                            ? VideoPlayer(_controller)
+                            : Container(color: const Color(0xFFE5E7EB)),
                   ),
                 ),
 
@@ -235,8 +250,11 @@ class _WatchUsagePageState extends State<WatchUsagePage>
                 Positioned.fill(
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
-                    onTap: () =>
-                        _controlsVisible ? _hideControls() : _showControls(),
+                    onTap:
+                        () =>
+                            _controlsVisible
+                                ? _hideControls()
+                                : _showControls(),
                   ),
                 ),
 
@@ -328,8 +346,7 @@ class _WatchUsagePageState extends State<WatchUsagePage>
                 title: 'Q. 동화를 모두 들으셨나요?',
                 centerTitle: true,
                 centerBody: true,
-                subtitle:
-                    '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
+                subtitle: '동화 시청을 완료하신 분만\n화행 인지검사를 할 수 있어요.\n검사를 진행하시겠어요?',
                 actions: [
                   Expanded(
                     child: _ChoiceButton(
@@ -614,9 +631,10 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
       DeviceOrientation.landscapeRight,
     ]);
 
-    _ctrl = widget.isNetwork
-        ? VideoPlayerController.networkUrl(Uri.parse(widget.source))
-        : VideoPlayerController.asset(widget.source);
+    _ctrl =
+        widget.isNetwork
+            ? VideoPlayerController.networkUrl(Uri.parse(widget.source))
+            : VideoPlayerController.asset(widget.source);
 
     _ctrl
       ..setLooping(true)
@@ -661,9 +679,9 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
 
     // ★ 전체화면 페이지도 텍스트 스케일 고정(미래에 텍스트 추가될 경우 대비)
     return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        textScaler: const TextScaler.linear(1.0),
-      ),
+      data: MediaQuery.of(
+        context,
+      ).copyWith(textScaler: const TextScaler.linear(1.0)),
       child: WillPopScope(
         onWillPop: () async {
           await _popWithResult(); // 제스처/백버튼으로 나갈 때도 현재 상태 반환
@@ -684,8 +702,9 @@ class _FullscreenVideoPageState extends State<_FullscreenVideoPage> {
               // 탭으로 컨트롤 표시/숨김
               Positioned.fill(
                 child: GestureDetector(
-                  onTap: () =>
-                      _controlsVisible ? _hideControls() : _showControls(),
+                  onTap:
+                      () =>
+                          _controlsVisible ? _hideControls() : _showControls(),
                   behavior: HitTestBehavior.translucent,
                 ),
               ),
