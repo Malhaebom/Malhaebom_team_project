@@ -93,7 +93,7 @@ export default function Home() {
             </div>
 
             {/* 마이페이지 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="2500" onClick={() => navigate("/Mypage")} style={boxStyle}>
+            <div className="box" data-aos="fade-up" data-aos-duration="2500" style={boxStyle} >
               <div>
                 <h2>마이페이지</h2>
                 <p>누구님 환영합니다.</p>
@@ -103,6 +103,9 @@ export default function Home() {
                   alt="마이페이지"
                 />
               </div>
+              <button type="button" onClick={() => navigate("/Mypage")}>
+                이동하기
+              </button>
             </div>
           </div>
         </div>

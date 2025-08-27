@@ -78,25 +78,25 @@ class ErrorBoundary extends React.Component {
 }
 
 // (임시) import 확인용 — 필요없으면 제거하세요.
-console.table({
-  Home: !!Home,
-  Course: !!Course,
-  ExamTut: !!ExamTut,
-  StartExam: !!StartExam,
-  ResultExam: !!ResultExam,
-  PlayList: !!PlayList,
-  PlayStart: !!PlayStart,
-  Read: !!Read,
-  Workbook: !!Workbook,
-  WorkbookStart: !!WorkbookStart,
-  BookLibrary: !!BookLibrary,
-  ExerciseList: !!ExerciseList,
-  ExerciseDo: !!ExerciseDo,
-  QuizLibrary: !!QuizLibrary,
-  QuizList: !!QuizList,
-  QuizPlay: !!QuizPlay,
-  ScoreProvider: !!ScoreProvider,
-});
+// console.table({
+//   Home: !!Home,
+//   Course: !!Course,
+//   ExamTut: !!ExamTut,
+//   StartExam: !!StartExam,
+//   ResultExam: !!ResultExam,
+//   PlayList: !!PlayList,
+//   PlayStart: !!PlayStart,
+//   Read: !!Read,
+//   Workbook: !!Workbook,
+//   WorkbookStart: !!WorkbookStart,
+//   BookLibrary: !!BookLibrary,
+//   ExerciseList: !!ExerciseList,
+//   ExerciseDo: !!ExerciseDo,
+//   QuizLibrary: !!QuizLibrary,
+//   QuizList: !!QuizList,
+//   QuizPlay: !!QuizPlay,
+//   ScoreProvider: !!ScoreProvider,
+// });
 
 export default function App() {
   return (
