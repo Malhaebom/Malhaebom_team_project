@@ -30,11 +30,42 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
   double totalAnswerCnt = 0;
   double solvAnswerCnt = 0;
   double progress = 0;
+  List<String>? _pendingImagePaths;
 
   @override
   void initState() {
     super.initState();
     loadData(widget.title);
+    _preloadImages();
+  }
+  
+  // 이미지 프리로딩 - UI에 영향을 주지 않도록 간소화
+  void _preloadImages() async {
+    // 현재 카테고리의 모든 이미지 경로 수집
+    List<String> imagePaths = [];
+    
+    switch (widget.title) {
+      case "문제해결능력":
+        imagePaths = BrainTrainingData.solving.values
+            .map((item) => item["image"] as String)
+            .toList();
+        break;
+      case "계산능력":
+        imagePaths = BrainTrainingData.calculation.values
+            .map((item) => item["image"] as String)
+            .toList();
+        break;
+      case "언어능력":
+        imagePaths = BrainTrainingData.language.values
+            .map((item) => item["image"] as String)
+            .toList();
+        break;
+    }
+    
+    // UI 렌더링에 영향을 주지 않도록 지연 처리
+    if (imagePaths.isNotEmpty) {
+      _pendingImagePaths = imagePaths;
+    }
   }
 
   void loadData(String category) {
@@ -108,6 +139,19 @@ class _BrainTrainingTestPageState extends State<BrainTrainingTestPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
+    
+    // 프리로딩이 필요한 이미지가 있으면 처리 (UI에 영향 없이)
+    if (_pendingImagePaths != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          ImagePreloader.preloadImages(_pendingImagePaths!, context);
+        } catch (e) {
+          print('이미지 프리로딩 오류: $e');
+        } finally {
+          _pendingImagePaths = null;
+        }
+      });
+    }
 
     return WillPopScope(
       onWillPop: () async {
@@ -382,14 +426,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                       child: Container(
                         height: widget.screenHeight * 0.2,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          image: DecorationImage(
-                            image: AssetImage(
-                              widget.data[widget.data.keys
-                                  .toList()[index]]["question"][0],
-                            ),
-                            fit: BoxFit.cover,
-                          ),
                           boxShadow:
                               answers[index] == 0
                                   ? [
@@ -400,6 +436,12 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                                     ),
                                   ]
                                   : [],
+                        ),
+                        child: OptimizedImage(
+                          imagePath: widget.data[widget.data.keys
+                              .toList()[index]]["question"][0],
+                          height: widget.screenHeight * 0.2,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -418,14 +460,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                       child: Container(
                         height: widget.screenHeight * 0.2,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          image: DecorationImage(
-                            image: AssetImage(
-                              widget.data[widget.data.keys
-                                  .toList()[index]]["question"][1],
-                            ),
-                            fit: BoxFit.cover,
-                          ),
                           boxShadow:
                               answers[index] == 1
                                   ? [
@@ -436,6 +470,12 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                                     ),
                                   ]
                                   : [],
+                        ),
+                        child: OptimizedImage(
+                          imagePath: widget.data[widget.data.keys
+                              .toList()[index]]["question"][1],
+                          height: widget.screenHeight * 0.2,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -458,14 +498,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                       child: Container(
                         height: widget.screenHeight * 0.2,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          image: DecorationImage(
-                            image: AssetImage(
-                              widget.data[widget.data.keys
-                                  .toList()[index]]["question"][2],
-                            ),
-                            fit: BoxFit.cover,
-                          ),
                           boxShadow:
                               answers[index] == 2
                                   ? [
@@ -476,6 +508,12 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                                     ),
                                   ]
                                   : [],
+                        ),
+                        child: OptimizedImage(
+                          imagePath: widget.data[widget.data.keys
+                              .toList()[index]]["question"][2],
+                          height: widget.screenHeight * 0.2,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -494,14 +532,6 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                       child: Container(
                         height: widget.screenHeight * 0.2,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          image: DecorationImage(
-                            image: AssetImage(
-                              widget.data[widget.data.keys
-                                  .toList()[index]]["question"][3],
-                            ),
-                            fit: BoxFit.cover,
-                          ),
                           boxShadow:
                               answers[index] == 3
                                   ? [
@@ -512,6 +542,12 @@ class _SpaceTimeTestState extends State<SpaceTimeTest> {
                                     ),
                                   ]
                                   : [],
+                        ),
+                        child: OptimizedImage(
+                          imagePath: widget.data[widget.data.keys
+                              .toList()[index]]["question"][3],
+                          height: widget.screenHeight * 0.2,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
@@ -699,18 +735,16 @@ class _ConcentrationTestState extends State<ConcentrationTest> {
               ),
 
               SizedBox(height: 10.h),
-              Container(
-                width: double.infinity,
-                height: widget.screenHeight * 0.35,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(
-                      widget.data[widget.data.keys.toList()[index]]["question"],
-                    ),
-                    fit: BoxFit.fill,
-                  ),
-                ),
-              ),
+                             Container(
+                 width: double.infinity,
+                 height: widget.screenHeight * 0.35,
+                 child: OptimizedImage(
+                   imagePath: widget.data[widget.data.keys.toList()[index]]["question"],
+                   width: double.infinity,
+                   height: widget.screenHeight * 0.35,
+                   fit: BoxFit.fill,
+                 ),
+               ),
 
               SizedBox(height: 10.h),
 
@@ -934,7 +968,7 @@ class _SolvingTestState extends State<SolvingTest> {
            return Column(
              children: [
                _buildAnswerOption(idx),
-               SizedBox(height: 6.h), // 8.h에서 6.h로 줄임
+               SizedBox(height: 4.h), // 6.h에서 4.h로 더 줄임
              ],
            );
         },
@@ -985,9 +1019,9 @@ class _SolvingTestState extends State<SolvingTest> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: isProblemSolving01or02 ? double.infinity : null, // 문제01, 02는 전체 너비 사용
-        height: 48, // 고정 높이 설정으로 세로길이 제어 (50에서 48로 조정)
+        height: 44, // 48에서 44로 더 줄여서 공간 확보
         padding: EdgeInsets.symmetric(
-          vertical: 10.h, // 16.h에서 10.h로 줄임
+          vertical: 8.h, // 10.h에서 8.h로 더 줄임
           horizontal: isProblemSolving01or02 ? 20.w : 12.w, // 문제01, 02는 더 넓은 패딩
         ),
         decoration: BoxDecoration(
@@ -1072,18 +1106,18 @@ class _SolvingTestState extends State<SolvingTest> {
                 ),
               ),
               SizedBox(height: 10.h),
+              // 이미지 표시 - 반응형 높이 설정으로 선택지 공간 확보
               Container(
                 width: double.infinity,
                 constraints: BoxConstraints(
                   maxHeight: currentKey == "문제03" 
-                    ? widget.screenHeight * 0.35  // 문제03은 높이 증가
-                    : widget.screenHeight * 0.28,
+                    ? widget.screenHeight * 0.35  // 문제03은 높이 감소
+                    : widget.screenHeight * 0.30, // 일반 문제도 높이 감소
                 ),
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(currentData["image"]),
-                    fit: BoxFit.contain,
-                  ),
+                child: OptimizedImage(
+                  imagePath: currentData["image"],
+                  width: double.infinity,
+                  fit: BoxFit.contain,
                 ),
               ),
               SizedBox(height: 10.h),
@@ -1310,13 +1344,11 @@ class _ColorTestState extends State<ColorTest> {
               Container(
                 width: double.infinity,
                 height: widget.screenHeight * 0.35,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(
-                      widget.data[widget.data.keys.toList()[index]]["image"],
-                    ),
-                    fit: BoxFit.fill,
-                  ),
+                child: OptimizedImage(
+                  imagePath: widget.data[widget.data.keys.toList()[index]]["image"],
+                  width: double.infinity,
+                  height: widget.screenHeight * 0.35,
+                  fit: BoxFit.fill,
                 ),
               ),
 
@@ -1772,13 +1804,11 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
               Container(
                 width: double.infinity,
                 height: widget.screenHeight * 0.35,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage(
-                      widget.data[widget.data.keys.toList()[index]]["image"],
-                    ),
-                    fit: BoxFit.fill,
-                  ),
+                child: OptimizedImage(
+                  imagePath: widget.data[widget.data.keys.toList()[index]]["image"],
+                  width: double.infinity,
+                  height: widget.screenHeight * 0.35,
+                  fit: BoxFit.fill,
                 ),
               ),
 
@@ -1917,5 +1947,113 @@ class _MusicTestState extends State<MusicTest> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+}
+
+// 이미지 프리로딩 및 캐싱 최적화
+class ImagePreloader {
+  static final Map<String, bool> _preloadedImages = {};
+  
+  // 이미지 프리로딩 (BuildContext 필요)
+  static Future<void> preloadImage(String imagePath, BuildContext context) async {
+    if (_preloadedImages.containsKey(imagePath)) return;
+    
+    try {
+      await precacheImage(AssetImage(imagePath), context);
+      _preloadedImages[imagePath] = true;
+    } catch (e) {
+      print('이미지 프리로딩 실패: $imagePath - $e');
+    }
+  }
+  
+  // 여러 이미지 일괄 프리로딩 (BuildContext 필요)
+  static Future<void> preloadImages(List<String> imagePaths, BuildContext context) async {
+    await Future.wait(
+      imagePaths.map((path) => preloadImage(path, context)),
+    );
+  }
+  
+  // 이미지가 프리로드되었는지 확인
+  static bool isPreloaded(String imagePath) {
+    return _preloadedImages.containsKey(imagePath);
+  }
+}
+
+// 고성능 이미지 위젯 - 렌더링 최적화
+class OptimizedImage extends StatelessWidget {
+  final String imagePath;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final BorderRadius? borderRadius;
+  
+  const OptimizedImage({
+    required this.imagePath,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius ?? BorderRadius.circular(10),
+      child: Image.asset(
+        imagePath,
+        width: width,
+        height: height,
+        fit: fit,
+        // 렌더링 최적화를 위한 캐시 크기 설정
+        cacheWidth: _calculateCacheWidth(),
+        cacheHeight: _calculateCacheHeight(),
+        // 빠른 로딩을 위한 최적화
+        gaplessPlayback: true, // 이미지 전환 시 깜빡임 방지
+        // 간소화된 로딩 상태 처리
+        frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+          if (wasSynchronouslyLoaded) return child;
+          return AnimatedOpacity(
+            opacity: frame == null ? 0 : 1,
+            duration: const Duration(milliseconds: 150), // 더 빠른 페이드인
+            curve: Curves.easeOut,
+            child: child,
+          );
+        },
+        // 에러 처리
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: width,
+            height: height,
+            color: Colors.grey[300],
+            child: Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                color: Colors.grey[600],
+                size: 30.sp,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+  
+  // 최적화된 캐시 크기 계산
+  int? _calculateCacheWidth() {
+    // BoxFit.contain인 경우 비율 유지를 위해 캐시 크기 제한 해제
+    if (fit == BoxFit.contain) {
+      return null; // 비율 유지를 위해 캐시 크기 제한 해제
+    }
+    // 기타 경우에는 적절한 크기로 제한
+    return 800; // 일관된 크기로 메모리 효율성 향상
+  }
+  
+  int? _calculateCacheHeight() {
+    // BoxFit.contain인 경우 비율 유지를 위해 캐시 크기 제한 해제
+    if (fit == BoxFit.contain) {
+      return null; // 비율 유지를 위해 캐시 크기 제한 해제
+    }
+    // 기타 경우에는 적절한 크기로 제한
+    return 600; // 일관된 크기로 메모리 효율성 향상
   }
 }
