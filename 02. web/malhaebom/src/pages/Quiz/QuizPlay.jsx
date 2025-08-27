@@ -11,6 +11,7 @@ export default function QuizPlay() {
 
   const state = location.state ?? {};
   const retryIndex = state.retryIndex ?? 0;
+  const isRetryMode = state.isRetryMode ?? false; // ✅ 다시풀기 모드
   const initialSubmitArr = state.submitDataArr ?? [];
   const initialAnswerArr = state.answerDataArr ?? [];
 
@@ -39,6 +40,7 @@ export default function QuizPlay() {
   const [submitDataArr, setSubmitDataArr] = useState([...initialSubmitArr]);
   const [answerDataArr, setAnswerDataArr] = useState([...initialAnswerArr]);
   const [cnt, setCnt] = useState(0);
+  const [showResultBtn, setShowResultBtn] = useState(false); // ✅ 결과보기 버튼 표시 여부
 
   useEffect(() => { AOS.init(); }, []);
 
@@ -80,64 +82,73 @@ export default function QuizPlay() {
     });
   };
 
-  // Type 0 제출
-  const SubmitType0 = (submitData) => {
+  /** ========================
+   * 공통 제출 로직
+   ======================== */
+  const handleSubmit = (submitValue) => {
     if (!current) return;
-    const answerData = Number(current?.question?.[0]?.answer ?? -1);
+
+    const answer = Number(current?.question?.[0]?.answer ?? -1);
     const newSubmitArr = [...submitDataArr];
     const newAnswerArr = [...answerDataArr];
-    newSubmitArr[currentIndex] = submitData;
-    newAnswerArr[currentIndex] = answerData;
+
+    newSubmitArr[currentIndex] = submitValue;
+    newAnswerArr[currentIndex] = answer;
+
     setSubmitDataArr(newSubmitArr);
     setAnswerDataArr(newAnswerArr);
 
-    if (currentIndex + 1 < currentTopicArr.length) setCurrentIndex(currentIndex + 1);
-    else goResult(newSubmitArr, newAnswerArr);
+    if (isRetryMode) {
+      // ✅ 다시풀기 모드 → 결과보기 버튼 노출
+      setShowResultBtn(true);
+    } else {
+      // ✅ 기본 모드 → 다음 문제로 진행
+      if (currentIndex + 1 < currentTopicArr.length) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        goResult(newSubmitArr, newAnswerArr);
+      }
+    }
   };
 
-  // Type 2 제출
+  /** ========================
+   * Type 별 핸들러
+   ======================== */
+  const SubmitType0 = (submitData) => handleSubmit(submitData);
+  const SubmitType1 = (submitData) => handleSubmit(submitData);
+
   const SubmitType2 = (submitData) => {
     if (!current) return;
     const maxIndex = current.question.length;
+
     const newSubmitArr = [...submitDataArr];
     const newAnswerArr = [...answerDataArr];
+
     newSubmitArr[currentIndex] = submitData;
-    newAnswerArr[currentIndex] = current.question[submitDataArr.length].answer;
+    newAnswerArr[currentIndex] = current.question[submitDataArr.length]?.answer ?? -1;
+
     setSubmitDataArr(newSubmitArr);
     setAnswerDataArr(newAnswerArr);
     setProgress(((currentIndex + 1) / maxIndex) * 100);
 
-    if (currentIndex + 1 < currentTopicArr.length) {
-      setCurrentIndex(currentIndex + 1);
+    if (isRetryMode) {
+      setShowResultBtn(true);
     } else {
-      goResult(newSubmitArr, newAnswerArr);
+      if (currentIndex + 1 < currentTopicArr.length) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        goResult(newSubmitArr, newAnswerArr);
+      }
     }
   };
 
-  // Type 3 카운트
   const CountUpType3 = () => setCnt(c => c + 1);
   const PlaySoundType3 = () => {
     const audio = document.querySelector(".soundType3");
     if (audio) { audio.load(); audio.play(); }
   };
 
-  const SubmitType3 = () => {
-    if (!current) return;
-    const answer = Number(current?.question?.[0]?.answer ?? -1);
-    const newSubmitArr = [...submitDataArr];
-    const newAnswerArr = [...answerDataArr];
-    newSubmitArr[currentIndex] = cnt;
-    newAnswerArr[currentIndex] = answer;
-    setSubmitDataArr(newSubmitArr);
-    setAnswerDataArr(newAnswerArr);
-
-    if (currentIndex + 1 < currentTopicArr.length) {
-      setCurrentIndex(currentIndex + 1);
-      setCnt(0);
-    } else {
-      goResult(newSubmitArr, newAnswerArr);
-    }
-  };
+  const SubmitType3 = () => handleSubmit(cnt);
 
   if (!current) return (
     <div className="content">
@@ -193,8 +204,8 @@ export default function QuizPlay() {
                     <img src={`${BASE}autobiography/brainTraining/${current.question[0].image}`} style={{ width: "100%", borderRadius: 10 }} />
                   </div>
                   <div className="bt_flex bt_flex_2">
-                    <button className="question_bt" type="button" onClick={() => SubmitType0(0)}>O</button>
-                    <button className="question_bt" type="button" onClick={() => SubmitType0(1)}>X</button>
+                    <button className="question_bt" type="button" onClick={() => SubmitType1(0)}>O</button>
+                    <button className="question_bt" type="button" onClick={() => SubmitType1(1)}>X</button>
                   </div>
                 </>
               )}
@@ -231,6 +242,26 @@ export default function QuizPlay() {
                     </div>
                   </div>
                 </>
+              )}
+
+              {/* ✅ 결과보기 버튼 (다시풀기 모드에서만) */}
+              {showResultBtn && (
+                <div style={{ marginTop: "20px", textAlign: "center" }}>
+                  <button
+                    style={{
+                      padding: "12px 24px",
+                      backgroundColor: "#488eca",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "8px",
+                      fontWeight: "bold",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => goResult(submitDataArr, answerDataArr)}
+                  >
+                    결과보기
+                  </button>
+                </div>
               )}
 
             </div>
