@@ -9,9 +9,11 @@ export default function QuizPlay() {
   const location = useLocation();
   const BASE = import.meta.env.BASE_URL || "/";
 
-  const quizType = Number(searchParams.get("quizType") ?? 0);
+  const state = location.state ?? {};
+  const retryIndex = state.retryIndex ?? 0;
+  const initialSubmitArr = state.submitDataArr ?? [];
+  const initialAnswerArr = state.answerDataArr ?? [];
 
-  // 퀴즈 파일 리스트
   const files = [
     "시공간파악.json",
     "기억집중.json",
@@ -21,21 +23,25 @@ export default function QuizPlay() {
     "음악과터치.json"
   ];
 
-  // 선택한 퀴즈 파일에서 확장자 제거해서 제목으로 사용
+  const quizType = (() => {
+    const q = searchParams.get("quizType");
+    const n = Number(q);
+    return !isNaN(n) && n >= 0 && n < files.length ? n : 0;
+  })();
+
   const quizFileName = files[quizType] ?? "퀴즈.json";
   const passedQuizTitle = quizFileName.replace(".json", "");
 
   const [brainTrainingArr, setBrainTrainingArr] = useState(null);
   const [currentTopicArr, setCurrentTopicArr] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(retryIndex);
   const [progress, setProgress] = useState(0);
-  const [submitDataArr, setSubmitDataArr] = useState([]);
-  const [answerDataArr, setAnswerDataArr] = useState([]);
+  const [submitDataArr, setSubmitDataArr] = useState([...initialSubmitArr]);
+  const [answerDataArr, setAnswerDataArr] = useState([...initialAnswerArr]);
   const [cnt, setCnt] = useState(0);
 
   useEffect(() => { AOS.init(); }, []);
 
-  // 문제 데이터 로드
   useEffect(() => {
     (async () => {
       try {
@@ -47,17 +53,15 @@ export default function QuizPlay() {
     })();
   }, [BASE]);
 
-  // 현재 주제별 배열 세팅
   useEffect(() => {
     if (!brainTrainingArr) return;
     const topicArr = brainTrainingArr[quizType] ?? [];
     setCurrentTopicArr(topicArr);
-    setCurrentIndex(0);
-    setSubmitDataArr([]);
-    setAnswerDataArr([]);
+
+    setCurrentIndex(retryIndex);
     setProgress(0);
     setCnt(0);
-  }, [brainTrainingArr, quizType]);
+  }, [brainTrainingArr, quizType, retryIndex]);
 
   const current = useMemo(() => currentTopicArr[currentIndex] ?? null, [currentTopicArr, currentIndex]);
 
@@ -65,26 +69,25 @@ export default function QuizPlay() {
   const goBack = () => window.history.back();
 
   const goResult = (submitArr, answerArr) => {
-    // Quiz 결과 페이지로 이동
     navigate("/quiz/result", {
       state: {
         submitDataArr: submitArr,
         answerDataArr: answerArr,
-        currentTopicArr,
         quizType,
-        quizTitle: passedQuizTitle, // 실제 선택한 퀴즈 제목 전달
+        quizTitle: passedQuizTitle,
+        questionArr: currentTopicArr,
       },
     });
   };
 
-  // Type 0,1 제출
+  // Type 0 제출
   const SubmitType0 = (submitData) => {
     if (!current) return;
-
     const answerData = Number(current?.question?.[0]?.answer ?? -1);
-    const newSubmitArr = [...submitDataArr, submitData];
-    const newAnswerArr = [...answerDataArr, answerData];
-
+    const newSubmitArr = [...submitDataArr];
+    const newAnswerArr = [...answerDataArr];
+    newSubmitArr[currentIndex] = submitData;
+    newAnswerArr[currentIndex] = answerData;
     setSubmitDataArr(newSubmitArr);
     setAnswerDataArr(newAnswerArr);
 
@@ -96,23 +99,18 @@ export default function QuizPlay() {
   const SubmitType2 = (submitData) => {
     if (!current) return;
     const maxIndex = current.question.length;
-
-    const newSubmitArr = [...submitDataArr, submitData];
-    const newAnswerArr = [...answerDataArr, current.question[submitDataArr.length].answer];
-
+    const newSubmitArr = [...submitDataArr];
+    const newAnswerArr = [...answerDataArr];
+    newSubmitArr[currentIndex] = submitData;
+    newAnswerArr[currentIndex] = current.question[submitDataArr.length].answer;
     setSubmitDataArr(newSubmitArr);
     setAnswerDataArr(newAnswerArr);
-    setProgress((newSubmitArr.length / maxIndex) * 100);
+    setProgress(((currentIndex + 1) / maxIndex) * 100);
 
-    if (newSubmitArr.length === maxIndex) {
-      if (currentIndex + 1 < currentTopicArr.length) {
-        setCurrentIndex(currentIndex + 1);
-        setProgress(0);
-        setSubmitDataArr([]);
-        setAnswerDataArr([]);
-      } else {
-        goResult(newSubmitArr, newAnswerArr);
-      }
+    if (currentIndex + 1 < currentTopicArr.length) {
+      setCurrentIndex(currentIndex + 1);
+    } else {
+      goResult(newSubmitArr, newAnswerArr);
     }
   };
 
@@ -126,8 +124,10 @@ export default function QuizPlay() {
   const SubmitType3 = () => {
     if (!current) return;
     const answer = Number(current?.question?.[0]?.answer ?? -1);
-    const newSubmitArr = [...submitDataArr, cnt];
-    const newAnswerArr = [...answerDataArr, answer];
+    const newSubmitArr = [...submitDataArr];
+    const newAnswerArr = [...answerDataArr];
+    newSubmitArr[currentIndex] = cnt;
+    newAnswerArr[currentIndex] = answer;
     setSubmitDataArr(newSubmitArr);
     setAnswerDataArr(newAnswerArr);
 
