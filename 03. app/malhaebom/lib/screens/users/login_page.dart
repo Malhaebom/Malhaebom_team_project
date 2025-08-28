@@ -1,9 +1,11 @@
 // lib/screens/users/login_page.dart
 import 'dart:convert';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -21,16 +23,22 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   // ================== 서버 주소 ==================
-  // 에뮬레이터에서 PC의 localhost로 접속: http://10.0.2.2:4000
-  // 실제 기기 USB 연결은: adb reverse tcp:4000 tcp:4000 한 뒤 http://localhost:4000 가능
-  static const String API_BASE = 'http://10.0.2.2:4000'; // ★ 에뮬레이터용
+  static final String API_BASE =
+      (() {
+        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+        if (defined.isNotEmpty) return defined;
+
+        if (kIsWeb) return 'http://localhost:4000';
+        if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // 에뮬레이터 기본
+        return 'http://localhost:4000'; // iOS 시뮬레이터/기타
+      })();
 
   // SNS 콜백 스킴/호스트/경로 (Manifest의 data와 동일해야 함)
   static const String CALLBACK_SCHEME = 'myapp';
   static const String CALLBACK_HOST = 'auth';
   static const String CALLBACK_PATH = '/callback';
   static const String CALLBACK_URI =
-      '$CALLBACK_SCHEME://$CALLBACK_HOST$CALLBACK_PATH'; // ★ 명시적 redirect_uri
+      '$CALLBACK_SCHEME://$CALLBACK_HOST$CALLBACK_PATH';
 
   // Colors
   static const Color kPrimary = Color(0xFF344CB7);
@@ -45,14 +53,62 @@ class _LoginPageState extends State<LoginPage> {
 
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
-  bool _autoLogin = true;
+
+  // 🔻 기본 해제
+  bool _autoLogin = false;
   bool _loggingIn = false;
+  bool _bootChecked = false; // 앱 시작 시 자동로그인 검사 완료 여부
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefsAndMaybeAutoLogin();
+  }
 
   @override
   void dispose() {
     _phoneCtrl.dispose();
     _pwCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadPrefsAndMaybeAutoLogin() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedAuto = prefs.getBool('auto_login') ?? false;
+    final token = prefs.getString('auth_token');
+
+    // ✅ UI에 저장된 값 즉시 반영
+    if (mounted) {
+      setState(() {
+        _autoLogin = savedAuto;
+      });
+    }
+
+    // 앱 부팅 시 자동로그인 플로우: 저장된 토큰이 있고 auto_login=true 이면 검증
+    if (savedAuto && token != null && token.isNotEmpty) {
+      try {
+        final me = await http.get(
+          Uri.parse('$API_BASE/userLogin/me'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+        if (me.statusCode == 200 && mounted) {
+          // 유효 → 곧바로 홈
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomePage()),
+            (route) => false,
+          );
+          return;
+        }
+      } catch (_) {
+        // 네트워크 실패 시 그냥 로그인 화면 유지
+      }
+    }
+    if (mounted) setState(() => _bootChecked = true);
+  }
+
+  Future<void> _saveAutoLogin(bool v) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_login', v);
   }
 
   Future<void> _login() async {
@@ -87,15 +143,21 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
+        final prefs = await SharedPreferences.getInstance();
+        // ✅ 현재 체크박스(_autoLogin) 기준으로 저장/삭제
         if (_autoLogin) {
-          final prefs = await SharedPreferences.getInstance();
           await prefs.setString('auth_token', token);
-          if (user != null) {
-            await prefs.setString('auth_user', jsonEncode(user));
-          }
+          await _saveAutoLogin(true);
+          await prefs.setBool('auto_login_last', true);
+        } else {
+          await prefs.remove('auth_token');
+          await _saveAutoLogin(false);
+          await prefs.setBool('auto_login_last', false);
+        }
+        if (user != null) {
+          await prefs.setString('auth_user', jsonEncode(user));
         }
 
-        // ★ 스택 정리 후 홈으로 즉시 전환
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomePage()),
           (route) => false,
@@ -113,22 +175,59 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ================== SNS 로그인 공통 함수 ==================
+  /// ============== 핵심: SNS 로그인 시 '현재 체크박스 상태' 기준으로 처리 ==============
+  /// - 토큰 저장/삭제도 _autoLogin(사용자 UI 선택)에 맞춤
+  /// - reauth 트리거도 _autoLogin 및 lastAutoUsed/hasToken 조합으로 결정
   Future<void> _startSnsLogin(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // ✅ 지금 화면의 체크박스 상태를 '원하는 설정'으로 확정하고 곧바로 저장(레이스 방지)
+    final bool wantAuto = _autoLogin;
+    await _saveAutoLogin(wantAuto);
+
+    final bool hasToken = (prefs.getString('auth_token') ?? '').isNotEmpty;
+    final bool? lastAutoUsed = prefs.getBool('auto_login_last');
+
+    // 자동로그인 OFF면 혼선 방지를 위해 남아있을 수 있는 토큰 제거
+    if (!wantAuto) {
+      await prefs.remove('auth_token');
+    }
+
+    // 재인증 필요 판단
+    bool needReauth = false;
+    if (!wantAuto) {
+      needReauth = true; // OFF면 항상 계정선택/재동의
+    } else {
+      if (!hasToken) needReauth = true; // 최초 바인딩
+      if (lastAutoUsed != null && lastAutoUsed != wantAuto) {
+        needReauth = true; // 이전 로그인 시 설정과 상이
+      }
+    }
+
+    // 얇은 로딩 오버레이
+    if (mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     try {
-      // ★ 서버에게 redirect_uri를 명시 전달 (무한 로딩/재시도 루프 방지에 중요)
       final authUrl =
-          '$API_BASE/auth/$provider?redirect_uri=${Uri.encodeComponent(CALLBACK_URI)}';
+          Uri.parse('$API_BASE/auth/$provider')
+              .replace(queryParameters: {if (needReauth) 'reauth': '1'})
+              .toString();
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
-        // preferEphemeral: true, // ← 4.1.0에는 이 인자가 없음
+        callbackUrlScheme: CALLBACK_SCHEME,
       );
 
-      final uri = Uri.parse(result);
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
-      if (uri.host != CALLBACK_HOST || uri.path != CALLBACK_PATH) {
+      final uri = Uri.parse(result);
+      if (uri.host != CALLBACK_HOST || !uri.path.startsWith(CALLBACK_PATH)) {
         _snack('잘못된 콜백 URL입니다.');
         return;
       }
@@ -149,29 +248,51 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
 
-      if (_autoLogin) {
-        final prefs = await SharedPreferences.getInstance();
+      // ✅ 최종 저장도 wantAuto(현재 체크박스) 기준으로 일관 처리
+      if (wantAuto) {
         await prefs.setString('auth_token', token);
-        await prefs.setString(
-          'auth_user',
-          jsonEncode({
-            'user_id': snsUserId,
-            'nick': snsNick ?? '',
-            'sns_login_type': snsLoginType,
-          }),
-        );
+        await _saveAutoLogin(true);
+        await prefs.setBool('auto_login_last', true);
+      } else {
+        await prefs.remove('auth_token');
+        await _saveAutoLogin(false);
+        await prefs.setBool('auto_login_last', false);
       }
 
-      if (!mounted) return;
+      await prefs.setString(
+        'auth_user',
+        jsonEncode({
+          'user_id': snsUserId,
+          'nick': snsNick ?? '',
+          'sns_login_type': snsLoginType,
+        }),
+      );
 
-      // ★ 스택 완전 초기화 후 홈으로
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const HomePage()),
         (route) => false,
       );
+    } on PlatformException catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (e.code == 'canceled' || e.code == 'cancelled') {
+        _snack('로그인이 취소되었습니다.');
+        return;
+      }
+      _snack('SNS 로그인 오류: ${e.message ?? e.code}');
     } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _snack('SNS 로그인 중 오류: $e');
     }
+  }
+
+  // (참고) 이 페이지에서 직접 로그아웃 쓸 일은 거의 없음. HomePage에서 pushAndRemoveUntil로 처리 권장.
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token'); // 자동로그인 토큰만 제거
+    await prefs.remove('auth_user'); // 사용자 정보 제거
+    // ⚠️ auto_login 값은 절대 건드리지 않음
+    _snack('로그아웃되었습니다.');
   }
 
   String? _extractMessage(String body) {
@@ -198,6 +319,11 @@ class _LoginPageState extends State<LoginPage> {
     final fixedMedia = MediaQuery.of(
       context,
     ).copyWith(textScaler: const TextScaler.linear(1.0));
+
+    // 부팅 자동검사 중엔 로딩만 간단히
+    if (!_bootChecked) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return MediaQuery(
       data: fixedMedia,
@@ -402,8 +528,11 @@ class _LoginPageState extends State<LoginPage> {
                       children: [
                         Checkbox(
                           value: _autoLogin,
-                          onChanged:
-                              (v) => setState(() => _autoLogin = v ?? false),
+                          onChanged: (v) async {
+                            final nv = v ?? false;
+                            setState(() => _autoLogin = nv);
+                            await _saveAutoLogin(nv); // ✅ 즉시 저장
+                          },
                           activeColor: kPrimary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(4),

@@ -1,12 +1,25 @@
 import 'dart:convert';
+import 'dart:io' show Platform; // ★ 추가
+import 'package:flutter/foundation.dart' show kIsWeb; // ★ 추가
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
-// ★ 서버 베이스 URL (에뮬레이터 사용 시)
-const String API_BASE = 'http://10.0.2.2:4000/str';
+// ★ 서버 베이스 URL (dart-define > 자동감지)
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
+
+      if (kIsWeb) return 'http://localhost:4000'; // Flutter Web 디버그
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // Android 에뮬레이터
+      if (Platform.isIOS) return 'http://localhost:4000'; // iOS 시뮬레이터
+
+      // 실기기 기본값: 같은 Wi-Fi의 PC IP로 바꿔 두세요.
+      return 'http://192.168.0.23:4000';
+    })();
 
 // ✅ 버튼/칩/원 내부처럼 “넘치면 안 되는 컨테이너”에서 쓸 고정 스케일러
 const TextScaler fixedScale = TextScaler.linear(1.0);
@@ -73,7 +86,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
         headers: {'Content-Type': 'application/json'},
         body: body,
       );
-      debugPrint('[STR] attempt POST status=${res.statusCode} body=${res.body}');
+      debugPrint(
+        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
+      );
     } catch (e) {
       debugPrint('[STR] attempt POST error: $e');
     }
@@ -126,7 +141,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     Text(
                       '인지검사 결과',
                       textScaler: const TextScaler.linear(1.0),
-                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     SizedBox(height: 4.h),
                     Text(
@@ -164,12 +182,16 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     Text(
                       '검사 결과 평가',
                       textScaler: const TextScaler.linear(1.0),
-                      style: TextStyle(fontSize: 24.sp, fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        fontSize: 24.sp,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     SizedBox(height: 12.h),
                     if (showWarn) _warnBanner(),
-                    ..._buildEvalItems(widget.byType)
-                        .expand((w) => [w, SizedBox(height: 10.h)]),
+                    ..._buildEvalItems(
+                      widget.byType,
+                    ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
               ),
@@ -252,9 +274,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
-    final double d = 140.w;         // 원 지름
-    final double big = d * 0.40;    // 큰 숫자 폰트
-    final double small = d * 0.20;  // /분모 폰트
+    final double d = 140.w; // 원 지름
+    final double big = d * 0.40; // 큰 숫자 폰트
+    final double small = d * 0.20; // /분모 폰트
 
     return SizedBox(
       width: d,
@@ -277,7 +299,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '$score',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: big),
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: big,
+                ),
                 style: TextStyle(
                   fontSize: big,
                   fontWeight: FontWeight.w900,
@@ -288,7 +314,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '/$total',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(forceStrutHeight: true, height: 1, fontSize: small),
+                strutStyle: StrutStyle(
+                  forceStrutHeight: true,
+                  height: 1,
+                  fontSize: small,
+                ),
                 style: TextStyle(
                   fontSize: small,
                   fontWeight: FontWeight.w800,
@@ -430,14 +460,36 @@ class _StoryResultPageState extends State<StoryResultPage> {
       }
     }
 
-    addIfLow('직접화행', '직접화행', '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.');
-    addIfLow('간접화행', '간접화행', '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.');
-    addIfLow('질문화행', '질문화행', '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.');
-    addIfLow('단언화행', '단언화행', '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행', '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.');
+    addIfLow(
+      '직접화행',
+      '직접화행',
+      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데 어려움이 보입니다. 대화 응용 훈련으로 개선할 수 있습니다.',
+    );
+    addIfLow(
+      '간접화행',
+      '간접화행',
+      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론 훈련을 통해 보완이 필요합니다.',
+    );
+    addIfLow(
+      '질문화행',
+      '질문화행',
+      '대화에서 주고받는 정보 판단과 질문 의도 파악이 부족합니다. 정보 파악 중심의 활동이 필요합니다.',
+    );
+    addIfLow(
+      '단언화행',
+      '단언화행',
+      '상황에 맞는 감정/진술을 이해하고 표현 의도를 읽는 능력이 부족합니다. 상황·정서 파악 활동을 권합니다.',
+    );
+    addIfLow(
+      '의례화화행',
+      '의례화화행',
+      '인사·감사 등 예절적 표현의 의도 이해가 낮습니다. 일상 의례 표현 중심의 학습을 권장합니다.',
+    );
 
     if (items.isEmpty) {
-      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'));
+      items.add(
+        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더 안정적인 이해를 유지해 보세요.'),
+      );
     }
     return items;
   }
@@ -532,7 +584,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     return ElevatedButton.icon(
       onPressed: () {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
+          MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
           (route) => false,
         );
       },
