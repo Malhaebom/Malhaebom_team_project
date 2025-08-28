@@ -185,7 +185,6 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
 
   @override
   Widget build(BuildContext context) {
-
     // 기종에 맞는 상단바 크기 설정
     double _appBarH(BuildContext context) {
       final shortest = MediaQuery.sizeOf(context).shortestSide;
@@ -200,6 +199,8 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
         // automaticallyImplyLeading: false,
         scrolledUnderElevation: 0,
         toolbarHeight: _appBarH(context),
+        centerTitle: true,
+        leadingWidth: _appBarH(context), // leading 영역 폭을 툴바 높이와 동일하게
         leading: IconButton(
           icon: Icon(Icons.arrow_back, color: AppColors.text),
           onPressed: () {
@@ -210,14 +211,20 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
             );
           },
         ),
-        title: Center(
-          child: Text(
-            "테스트 결과",
-            textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
-            style: TextStyle(fontFamily: 'GmarketSans', fontWeight: FontWeight.w700, fontSize: 20.sp, color: Colors.white),
+        title: Text(
+          "테스트 결과",
+          textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w700,
+            fontSize: 20.sp,
+            color: Colors.white,
           ),
         ),
+        // 오른쪽에 왼쪽과 같은 폭의 더미 공간을 넣어 균형 맞추기
+        actions: [SizedBox(width: _appBarH(context))],
       ),
+      
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Padding(
