@@ -1,4 +1,3 @@
-// src/pages/Book/Library.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
@@ -13,24 +12,22 @@ export default function BookLibrary() {
   const [SliderCmp, setSliderCmp] = useState(null);
   const [sliderErr, setSliderErr] = useState(null);
   const [sliderKey, setSliderKey] = useState(0);
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100); // ✅ 배경 조건
 
   const sliderWrapRef = useRef(null);
 
-  // 화면 크기 상태
-  const [isWide, setIsWide] = useState(window.innerWidth > 1100);
+  // AOS
+  useEffect(() => {
+    AOS.init({ once: true });
+  }, []);
 
-  // 브라우저 크기 변경 감지
+  // ✅ 창 크기 감지
   useEffect(() => {
     const handleResize = () => {
       setIsWide(window.innerWidth > 1100);
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  // AOS 초기화
-  useEffect(() => {
-    AOS.init({ once: true });
   }, []);
 
   // react-slick 동적 import
@@ -45,7 +42,9 @@ export default function BookLibrary() {
         console.error("[BookLibrary] failed to load react-slick:", e);
         setSliderErr(e);
       });
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // 데이터 로드
@@ -74,7 +73,7 @@ export default function BookLibrary() {
     return `${baseClean}/autobiography/${imgPath}`;
   };
 
-  // 커스텀 버튼
+  // ✅ 커스텀 버튼
   const NextArrow = ({ onClick }) => (
     <div
       style={{
@@ -145,7 +144,7 @@ export default function BookLibrary() {
         .ct_slide01 .slider_img { text-align: center; }
       `}</style>
 
-      {/* 브라우저 가로 크기 1100 이상일 때만 Background 렌더링 */}
+      {/* ✅ 1100px 초과일 때만 배경 표시 */}
       {isWide && <Background />}
 
       <div className="wrap">

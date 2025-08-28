@@ -28,8 +28,16 @@ export default function InterviewStart() {
   const soundClipsRef = useRef(null);
   const chunksRef = useRef([]);
 
+  // 브라우저 크기 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
   useEffect(() => {
     AOS.init();
+
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // 인터뷰 질문 JSON 로드
@@ -39,9 +47,7 @@ export default function InterviewStart() {
         if (!r.ok) throw new Error("인터뷰 JSON 로드 실패");
         return r.json();
       })
-      .then((json) => {
-        setQuestions(json);
-      })
+      .then((json) => setQuestions(json))
       .catch((e) => {
         console.error(e);
         alert("인터뷰 질문을 불러오지 못했습니다.");
@@ -51,26 +57,19 @@ export default function InterviewStart() {
   // 뒤로가기 및 페이지 이탈 처리
   useEffect(() => {
     const handleBeforeUnload = (e) => {
-      // 사용자에게 경고 메시지 표시
       e.preventDefault();
       e.returnValue = "녹음 중인 경우 데이터가 손실될 수 있습니다. 정말 나가시겠습니까?";
       return e.returnValue;
     };
-
     const handlePopState = (e) => {
-      // 뒤로가기 시 새로고침 처리
       e.preventDefault();
-      
-      // 새로고침 후 뒤로가기
       window.location.reload();
       window.history.back();
     };
 
-    // 이벤트 리스너 등록
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
 
-    // Cleanup
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
@@ -84,14 +83,11 @@ export default function InterviewStart() {
     const soundClips = soundClipsRef.current;
 
     if (!recordBtn || !stopBtn || !soundClips) return;
-    
-    // 전역 마이크가 활성화되지 않았다면 대기
     if (!isMicrophoneActive || !hasPermission) {
       console.log("마이크 권한 대기 중...");
       return;
     }
 
-    // 전역 스트림을 사용하여 MediaRecorder 생성
     if (globalStreamRef.current) {
       const mediaRecorder = new MediaRecorder(globalStreamRef.current);
       globalMediaRecorderRef.current = mediaRecorder;
@@ -99,7 +95,7 @@ export default function InterviewStart() {
       recordBtn.onclick = () => {
         mediaRecorder.start();
         recordBtn.style.background = "red";
-        recordBtn.style.color = "black";
+        recordBtn.style.color = "white";
       };
 
       stopBtn.onclick = () => {
@@ -108,9 +104,7 @@ export default function InterviewStart() {
         recordBtn.style.color = "";
       };
 
-      mediaRecorder.ondataavailable = (e) => {
-        chunksRef.current.push(e.data);
-      };
+      mediaRecorder.ondataavailable = (e) => chunksRef.current.push(e.data);
 
       mediaRecorder.onstop = () => {
         while (soundClips.firstChild) soundClips.removeChild(soundClips.firstChild);
@@ -123,8 +117,7 @@ export default function InterviewStart() {
         const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
         chunksRef.current = [];
 
-        const audioURL = URL.createObjectURL(blob);
-        audio.src = audioURL;
+        audio.src = URL.createObjectURL(blob);
 
         const a = document.createElement("a");
         a.href = audio.src;
@@ -134,22 +127,14 @@ export default function InterviewStart() {
         soundClips.appendChild(clipContainer);
         a.click();
 
-        // 🔹 녹음 후 다음 질문으로 이동
         if (questionId + 1 < questions.length) {
           setQuestionId((prev) => prev + 1);
         } else {
-          // 마지막 질문 완료 시 InterviewHistory 페이지로 이동
           alert("모든 인터뷰가 완료되었습니다!");
-          
-          // 녹음 버튼 상태 초기화
           if (recordBtnRef.current) {
             recordBtnRef.current.style.background = "";
             recordBtnRef.current.style.color = "";
           }
-          
-          console.log("인터뷰 완료 - 결과 페이지로 이동");
-          
-          // 즉시 페이지 이동
           navigate("/InterviewHistory");
         }
       };
@@ -160,9 +145,21 @@ export default function InterviewStart() {
 
   return (
     <div className="content">
-            {/* 공통 배경 추가 */}
-      <Background />
-      <div className="wrap">
+      {/* 가로 1100 이상일 때만 배경 렌더링 */}
+      {windowWidth > 1100 && <Background />}
+      
+      <div
+        className="wrap"
+        style={{
+          maxWidth: "520px",
+          margin: "0 auto",
+          padding: "80px 20px",
+          fontFamily: "Pretendard-Regular",
+          display: "block",
+          alignItems: "unset",
+          justifyContent: "unset",
+        }}
+      >
         <Header title={bookTitle} />
         <div className="inner">
           <div className="ct_inner">
@@ -187,7 +184,6 @@ export default function InterviewStart() {
         </div>
         <ProgressBar current={questionId + 1} total={questions.length} />
       </div>
-      
     </div>
   );
 }

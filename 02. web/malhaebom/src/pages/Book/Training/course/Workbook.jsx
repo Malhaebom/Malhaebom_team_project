@@ -7,7 +7,6 @@ import AOS from "aos";
 import "aos/dist/aos.css";
 import Background from "../../../Background/Background";
 
-
 export default function Workbook() {
   const query = useQuery();
   const navigate = useNavigate();
@@ -15,14 +14,22 @@ export default function Workbook() {
 
   const [title, setTitle] = useState("동화");
   const [work, setWork] = useState(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 감지
 
   const BASE = import.meta.env.BASE_URL || "/";
+
+  // 브라우저 너비 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     AOS.init();
   }, []);
 
-  // fairytale.json → 해당 bookId 탐색 → workbookPath 로드 → workbook JSON fetch
+  // fairytale.json → bookId 탐색 → workbook JSON fetch
   useEffect(() => {
     fetch(`${BASE}autobiography/fairytale.json`)
       .then((r) => {
@@ -44,7 +51,7 @@ export default function Workbook() {
           return;
         }
 
-        // 다음 화면에서 쓰므로 저장
+        // 다음 화면에서 사용
         localStorage.setItem("bookId", String(bookId));
         localStorage.setItem("bookTitle", bookTitle);
         if (v?.workbookImgPath) {
@@ -76,10 +83,20 @@ export default function Workbook() {
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
-      <Background />
-      <div className="wrap">
+      {/* 일정 너비 이상일 때만 배경 표시 */}
+      {windowWidth > 1100 && <Background />}
+
+      <div
+        className="wrap"
+        style={{
+          maxWidth: "520px",
+          margin: "0 auto",
+          padding: "0px 20px",
+          fontFamily: "Pretendard-Regular",
+        }}
+      >
         <Header title={title} />
+
         <div className="inner">
           <div
             className="ct_theater ct_inner"
@@ -113,9 +130,7 @@ export default function Workbook() {
                       alignItems: "center",
                     }}
                   >
-                    <p style={{ fontWeight: "bold", margin: 0 }}>
-                      문항 {idx + 1}
-                    </p>
+                    <p style={{ fontWeight: "bold", margin: 0 }}>문항 {idx + 1}</p>
                   </div>
                   <p style={{ marginTop: "8px" }}>{v?.title}</p>
                 </div>
