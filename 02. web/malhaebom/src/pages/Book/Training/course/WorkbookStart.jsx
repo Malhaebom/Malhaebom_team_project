@@ -17,6 +17,14 @@ export default function WorkbookStart() {
   const [work, setWork] = useState(null);
   const [imgBase, setImgBase] = useState(""); // /autobiography/<workbookImgPath>
   const [selectedIdx, setSelectedIdx] = useState(-1); // submitData 대체
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+
+  // 브라우저창 너비 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     AOS.init();
@@ -59,9 +67,7 @@ export default function WorkbookStart() {
   const imgStyle = (idx) => ({
     borderRadius: "10px",
     width: "100%",
-    ...(selectedIdx === idx
-      ? { border: "inset 2px", borderColor: "purple" }
-      : {}),
+    ...(selectedIdx === idx ? { border: "inset 2px", borderColor: "purple" } : {}),
   });
 
   const selected = (idx) => {
@@ -80,14 +86,12 @@ export default function WorkbookStart() {
 
     if (answer === submitData) {
       if (confirm("정답입니다! 다른문제도 도전해볼까요?")) {
-        // 목록으로
         window.history.back();
       } else {
         window.location.href = `/book/training?bookId=${bookId}`;
       }
     } else {
       if (confirm("오답입니다! 한번 더 생각해볼까요?")) {
-        // 선택 초기화
         setSelectedIdx(-1);
       } else {
         window.history.back();
@@ -97,26 +101,28 @@ export default function WorkbookStart() {
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
-      <Background />
-      <div className="wrap">
-        {/* 원본 헤더: 제목 '어머니와 벙어리장갑' 고정이었지만,
-            fairytale의 key 타이틀을 사용(목록과 일관성) */}
+      {/* 일정 너비 이상일 때만 배경 표시 */}
+      {windowWidth > 1100 && <Background />}
+
+      <div
+        className="wrap"
+        style={{
+          maxWidth: "520px",
+          margin: "0 auto",
+          padding: "0px 20px",
+          fontFamily: "Pretendard-Regular",
+        }}
+      >
         <Header title={bookTitle} />
 
         <div className="inner">
           <div className="ct_banner">{current?.title ?? "로딩 중..."}</div>
           <div className="ct_inner">
             <div className="ct_imgflex" data-aos="fade-up" data-aos-duration="1000">
-              {/* 보기 4개 */}
               {[0, 1, 2, 3].map((i) => (
                 <div className="ct_img" key={i} onClick={() => selected(i)}>
                   {current?.list?.[i] ? (
-                    <img
-                      id={`img${i}`}
-                      src={`${imgBase}${current.list[i]}`}
-                      style={imgStyle(i)}
-                    />
+                    <img id={`img${i}`} src={`${imgBase}${current.list[i]}`} style={imgStyle(i)} />
                   ) : (
                     <div style={{ padding: 12 }}>이미지 없음</div>
                   )}
@@ -130,8 +136,6 @@ export default function WorkbookStart() {
           </div>
         </div>
       </div>
-
-      {/* 원본의 hidden inputs(answerData/submitData)은 상태(selectedIdx)로 대체 */}
     </div>
   );
 }

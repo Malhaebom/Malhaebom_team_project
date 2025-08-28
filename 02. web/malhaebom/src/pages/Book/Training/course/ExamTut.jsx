@@ -15,6 +15,7 @@ export default function ExamTut() {
 
   const [fairytales, setFairytales] = useState(null);
   const [title, setTitle] = useState("");
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
 
   useEffect(() => {
     AOS.init({ once: true });
@@ -31,6 +32,13 @@ export default function ExamTut() {
         console.error(e);
         setFairytales({});
       });
+  }, []);
+
+  // 브라우저 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const targetFairytale = useMemo(() => {
@@ -52,7 +60,7 @@ export default function ExamTut() {
     centerMode: true,
     centerPadding: "50px",
     focusOnSelect: true,
-    infinite: true,         // ← 양방향
+    infinite: true,
     adaptiveHeight: true,
     accessibility: false,
   };
@@ -73,19 +81,13 @@ export default function ExamTut() {
 
   return (
     <div className="content">
-      {/* ✅ 최소 보정만: 정렬/간격 */}
       <style>{`
-        /* 오른쪽 치우침 방지 + 가운데 정렬 */
         .ct_slide01 .slick-track { display:flex !important; margin:0 auto !important; }
         .ct_slide01 .slick-slide > div { display:flex; justify-content:center; box-sizing:border-box; }
-        /* centerMode 좌우 미리보기 패딩 보장 */
         .ct_slide01 .slick-list { padding: 0 50px !important; }
-        /* dots가 아래 설명과 너무 떨어지지 않게 */
         .ct_slide01 .slick-dots { bottom: -6px; }
-        /* 슬라이드와 설명 사이 간격 축소 */
         .ct_slide01 { margin-bottom: 8px; }
         .ct_slide01 + .num_tit { margin-top: 8px; }
-        /* 이미지 컨테이너(프로젝트 관례: .slider_img는 div 컨테이너) */
         .slider_img { position:relative; height:200px; }
         .slider_img img {
           position:absolute; top:50%; left:50%;
@@ -95,8 +97,9 @@ export default function ExamTut() {
           border-radius:10px; object-fit:contain; display:block;
         }
       `}</style>
-                  {/* 공통 배경 추가 */}
-      <Background />
+
+      {/* 브라우저 너비 1100 이상일 때만 Background 렌더링 */}
+      {windowWidth > 1100 && <Background />}
 
       <div className="wrap">
         <Header title={title || "동화"} />
@@ -118,7 +121,6 @@ export default function ExamTut() {
                   <p>Q</p>검사진행 방법
                 </div>
                 <div className="sub_tit">
-                  {/* ▼ 슬라이더 */}
                   <div className="ct_slide01 ct_inner" data-aos="fade-up" data-aos-duration="1000">
                     <Slider {...sliderSettings}>
                       <div>
@@ -142,7 +144,6 @@ export default function ExamTut() {
                     </Slider>
                   </div>
 
-                  {/* ▼ 설명(간격 줄임) */}
                   <div className="num_tit">
                     <p className="num">1. 문제 제시</p>
                     <p>동화의 내용에 기반한 문제 상황을 제시하는 음성이 출력됩니다.</p>

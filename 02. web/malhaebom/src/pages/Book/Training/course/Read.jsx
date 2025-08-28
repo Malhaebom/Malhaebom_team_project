@@ -1,8 +1,7 @@
-// src/pages/book/training/course/Read.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import useQuery from "../../../../hooks/useQuery"; // 경로: src/hooks/useQuery.js
-import Header from "../../../../components/Header"; // 경로: src/components/Header.jsx
+import useQuery from "../../../../hooks/useQuery";
+import Header from "../../../../components/Header";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import Background from "../../../Background/Background";
@@ -12,7 +11,6 @@ export default function Read() {
   const navigate = useNavigate();
   const bookId = Number(query.get("bookId") ?? "0");
 
-  // 텍스트 (원문 유지)
   const q_how_to_use = "어떻게 사용하나요?";
   const how_to_use_1 = "동영상을 전체 화면으로 보여줍니다.";
   const how_to_use_2 = "동영상을 재생합니다.";
@@ -28,13 +26,21 @@ export default function Read() {
   const [title, setTitle] = useState("동화");
   const [videoSource, setVideoSource] = useState("");
 
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+
   const BASE = import.meta.env.BASE_URL || "/";
 
   useEffect(() => {
     AOS.init();
   }, []);
 
-  // fairytale.json 로드 → bookId로 대상 찾고 video 경로 설정
+  // 브라우저 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   useEffect(() => {
     fetch(`${BASE}autobiography/fairytale.json`)
       .then((r) => {
@@ -42,7 +48,7 @@ export default function Read() {
         return r.json();
       })
       .then((json) => {
-        const entries = Object.entries(json); // [ [key, value], ... ]
+        const entries = Object.entries(json);
         const found = entries.find(([, v]) => Number(v?.id) === bookId);
         if (!found) {
           alert("해당 동화를 찾을 수 없습니다.");
@@ -67,14 +73,14 @@ export default function Read() {
   };
 
   const noExam = () => {
-    // 기존 동작 유지
     window.location.href = `/book/training?bookId=${bookId}`;
   };
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
-      <Background />
+      {/* 브라우저 너비 1100 이상일 때만 Background 렌더링 */}
+      {windowWidth > 1100 && <Background />}
+
       <div id="app" className="wrap">
         <Header title={title} />
         <div className="inner">

@@ -2,22 +2,26 @@ import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import { useNavigate } from "react-router-dom";
-import { useScores } from "../../../../ScoreContext.jsx"; // ScoreContext가 src 바로 아래라면 이렇게
+import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
-
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
 
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+
   useEffect(() => {
     AOS.init();
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
+
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const { total, isPassed, lowIndex } = useMemo(() => {
-    // Vue: 각 영역 *2
     const sAD = Number(scoreAD) * 2;
     const sAI = Number(scoreAI) * 2;
     const sB = Number(scoreB) * 2;
@@ -53,24 +57,19 @@ export default function ResultExam() {
   ];
 
   const goHome = () => {
-    // 메인 페이지로 이동
     location.href = "/";
   };
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
-      <Background />
+      {/* 브라우저 1100px 이상일 때만 Background 렌더링 */}
+      {windowWidth > 1100 && <Background />}
       <div className="wrap">
         <Header title={bookTitle} showBack={false} />
         <div className="inner">
           <div className="ct_banner">화행검사 결과화면</div>
           <div className="ct_inner">
-            <div
-              className="ct_question"
-              data-aos="fade-up"
-              data-aos-duration="1000"
-            >
+            <div className="ct_question" data-aos="fade-up" data-aos-duration="1000">
               <div>
                 <div className="tit">총점</div>
                 <div
@@ -84,9 +83,7 @@ export default function ResultExam() {
                     padding: "20px 0",
                   }}
                 >
-                  <p>
-                    {total} / 40
-                  </p>
+                  <p>{total} / 40</p>
                 </div>
               </div>
 
@@ -103,11 +100,7 @@ export default function ResultExam() {
                 >
                   <img
                     id="isPassed"
-                    src={
-                      isPassed
-                        ? "/drawable/speech_clear.png"
-                        : "/drawable/speech_fail.png"
-                    }
+                    src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
                     className="container"
                     style={{ width: "15%" }}
                   />

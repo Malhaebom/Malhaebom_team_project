@@ -13,10 +13,14 @@ export default function PlayList() {
   const [fairytales, setFairytales] = useState(null);
   const [title, setTitle] = useState("");
   const [speech, setSpeech] = useState(null);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
 
   // AOS
   useEffect(() => {
     AOS.init();
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // 1) fairytale.json 로드
@@ -36,7 +40,7 @@ export default function PlayList() {
   // 2) bookId로 대상 동화/제목 찾기 + speech JSON 경로 로드
   useEffect(() => {
     if (!fairytales) return;
-    const entries = Object.entries(fairytales); // [ [key, value], ... ]
+    const entries = Object.entries(fairytales);
     const found = entries.find(([, v]) => Number(v?.id) === bookId);
     if (!found) {
       setTitle("동화");
@@ -44,11 +48,11 @@ export default function PlayList() {
     }
     const [bookTitle, value] = found;
     setTitle(bookTitle);
-    // speech 경로 저장
+
     if (value?.speech) {
       localStorage.setItem("speechPath", value.speech);
       localStorage.setItem("bookTitle", bookTitle);
-      // speech JSON 로드
+
       fetch(`/autobiography/${value.speech}`)
         .then((r) => {
           if (!r.ok) throw new Error("speech JSON 로드 실패");
@@ -72,8 +76,8 @@ export default function PlayList() {
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
-      <Background />
+      {/* 브라우저 1100px 이상일 때만 Background 렌더링 */}
+      {windowWidth > 1100 && <Background />}
       <div className="wrap">
         <Header title={title} />
         <div className="inner">
@@ -109,9 +113,7 @@ export default function PlayList() {
                       alignItems: "center",
                     }}
                   >
-                    <p style={{ fontWeight: "bold", margin: 0 }}>
-                      {item?.title}
-                    </p>
+                    <p style={{ fontWeight: "bold", margin: 0 }}>{item?.title}</p>
                   </div>
                   <p style={{ marginTop: "8px" }}>{item?.speechText}</p>
                 </div>

@@ -122,10 +122,11 @@ body {
     width: 100% !important;
     margin: 0 auto !important;
   }
-  .ct_slide01 .slick-slide > div {
+  .slick-slide > div {
     justify-content: center !important;
   }
   .ct_slide01 .slick-list {
     padding: 0 10px !important;
   }
 }
+

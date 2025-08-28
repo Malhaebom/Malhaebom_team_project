@@ -1,7 +1,16 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Background from "../Background/Background";
 
 const BookHistory = () => {
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+
+  // 브라우저창 너비 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const bookData = [
     { id: 1, date: "2025-08-01", storyName: "할머니와 바나나", score: 85 },
     { id: 2, date: "2025-08-12", storyName: "어머니의 벙어리 장갑", score: 92 },
@@ -15,8 +24,8 @@ const BookHistory = () => {
 
   return (
     <div className="content">
-      {/* 공통 배경 */}
-      <Background />
+      {/* 일정 너비 이상일 때만 배경 표시 */}
+      {windowWidth > 1100 && <Background />}
 
       <div
         className="wrap"
