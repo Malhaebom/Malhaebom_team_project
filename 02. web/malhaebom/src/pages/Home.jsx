@@ -3,42 +3,58 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
-import Background from "./Background/Background";
+import axios from "axios";
+import Background from "./Background/Background"; // ✅ 원래 경로 유지
+
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 export default function Home() {
   const navigate = useNavigate();
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [nick, setNick] = useState("");
 
   useEffect(() => {
     AOS.init();
-
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-
+    const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const boxStyle = {
-    borderRadius: "20px",
-    overflow: "hidden",
-  };
+  // ✅ 세션 유지: 진입 시 로그인 상태 복구
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await API.get("/userLogin/me");
+        if (data?.ok && data.isAuthed) setNick(data.nick || "");
+        else setNick("");
+      } catch {
+        setNick("");
+      }
+    })();
+  }, []);
+
+  const boxStyle = { borderRadius: "20px", overflow: "hidden" };
 
   const wrapStyle = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     flexDirection: "column",
-    minHeight: "100vh",
+  };
+
+  // ✅ 라벨은 그대로 “이동하기”, 동작만 조건 분기
+  const goMyOrLogin = () => {
+    if (nick) navigate("/Mypage");
+    else navigate("/login");
   };
 
   return (
     <div className="content">
-      {/* 화면 가로 1000 이상일 때만 배경 */}
+      {/* 화면 가로 1100 이상일 때만 배경 */}
       {windowWidth > 1100 && <Background />}
 
       <div className="wrap" style={windowWidth <= 1000 ? wrapStyle : {}}>
@@ -114,14 +130,16 @@ export default function Home() {
             <div className="box" data-aos="fade-up" data-aos-duration="2500" style={boxStyle}>
               <div>
                 <h2>마이페이지</h2>
-                <p>누구님 환영합니다.</p>
+                {/* ✅ 닉네임 반영 (디자인/타이포 그대로) */}
+                <p>{nick ? `${nick}님 환영합니다.` : "로그인 후 이용해 주세요."}</p>
                 <img
                   src="/img/home_icon03.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
                   alt="마이페이지"
                 />
               </div>
-              <button type="button" onClick={() => navigate("/Mypage")}>
+              {/* ✅ 라벨 유지, 동작만 조건 분기 */}
+              <button type="button" onClick={goMyOrLogin}>
                 이동하기
               </button>
             </div>

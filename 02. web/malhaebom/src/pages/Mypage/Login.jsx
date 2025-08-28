@@ -1,6 +1,13 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
+import axios from "axios";
+
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,16 +15,64 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [nick, setNick] = useState(""); // 로그인 후 닉네임
 
-  const handleLogin = () => {
-    console.log("로그인 버튼 클릭", { phone, password });
-    // 로그인 성공 시 닉네임 설정
-    setNick("홍길동");
-    navigate("/mypage");
+  // 로그인 상태 복구: 이미 로그인되어 /login에 오면 홈으로 보냄
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await API.get("/userLogin/me");
+        if (data?.ok && data.isAuthed) {
+          setNick(data.nick || "");
+          navigate("/"); // ✅ 이미 로그인 상태면 홈으로
+        } else {
+          setNick("");
+        }
+      } catch {
+        setNick("");
+      }
+    })();
+  }, [navigate]);
+
+  const handleLogin = async () => {
+    try {
+      const user_id = (phone || "").trim();
+      const pwd = (password || "").trim();
+
+      if (!user_id || !pwd) {
+        alert("전화번호와 비밀번호를 모두 입력하세요.");
+        return;
+      }
+
+      const { data } = await API.post("/userLogin/login", {
+        user_id, // 서버에서 받는 키로 고정
+        pwd,
+      });
+
+      if (data?.ok) {
+        setNick(data.nick || "");
+        navigate("/"); // ✅ 로그인 성공 후 홈으로 이동
+      } else {
+        alert(data?.msg || "로그인 실패");
+      }
+    } catch (err) {
+      const msg =
+        err?.response?.data?.msg ||
+        (err?.response?.status === 400
+          ? "요청 형식이 올바르지 않습니다."
+          : "로그인 중 오류가 발생했습니다.");
+      console.error("로그인 오류:", err);
+      alert(msg);
+    }
   };
 
-  const handleLogout = () => {
-    console.log("로그아웃 클릭");
-    setNick("");
+  const handleLogout = async () => {
+    try {
+      await API.post("/userLogin/logout");
+      setNick("");
+      setPhone("");
+      setPassword("");
+    } catch (err) {
+      console.error("로그아웃 오류:", err);
+    }
   };
 
   const socialBtnStyle = (bgColor, color = "#000") => ({
@@ -66,6 +121,11 @@ const Login = () => {
     (e.currentTarget.style.backgroundColor = hoverColor);
   const handleMouseLeave = (e, bgColor) =>
     (e.currentTarget.style.backgroundColor = bgColor);
+
+  // SNS 시작 (백엔드 OAuth 시작 URL로 이동)
+  const startKakao = () => (window.location.href = "http://localhost:3001/auth/kakao");
+  const startNaver = () => (window.location.href = "http://localhost:3001/auth/naver");
+  const startGoogle = () => (window.location.href = "http://localhost:3001/auth/google");
 
   return (
     <div className="content">
@@ -119,45 +179,45 @@ const Login = () => {
         >
           나를 지키는 특별한 습관
         </h6>
-                 <p
-           style={{
-             fontSize: "26px",
-             color: "#000",
-             textAlign: "center",
-             marginBottom: "30px",
-           }}
-         >
-           지금 시작하세요!
-         </p>
+        <p
+          style={{
+            fontSize: "26px",
+            color: "#000",
+            textAlign: "center",
+            marginBottom: "30px",
+          }}
+        >
+          지금 시작하세요!
+        </p>
 
-         {!nick && (
-           <>
-                           {/* 흰색 카드 컨테이너 - 마이페이지와 동일한 구조 */}
-              <div
-                style={{
-                  background: "#fff",
-                  padding: "15px 10px",
-                  borderRadius: "15px",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "15px",
-                  maxWidth: "400px",
-                  margin: "0 auto",
-                }}
-              >
-                             <button style={socialBtnStyle("#F7E600")}>
-                 <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
-                 카카오로 시작하기
-               </button>
-               <button style={socialBtnStyle("#00C73C", "#fff")}>
-                 <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
-                 네이버로 시작하기
-               </button>
-               <button style={socialBtnStyle("#000", "#fff")}>
-                 <img src="/img/google.png" alt="구글" style={socialIconStyle} />
-                 구글로 시작하기
-               </button>
+        {!nick && (
+          <>
+            {/* 흰색 카드 컨테이너 - 디자인 유지 */}
+            <div
+              style={{
+                background: "#fff",
+                padding: "15px 10px",
+                borderRadius: "15px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "15px",
+                maxWidth: "400px",
+                margin: "0 auto",
+              }}
+            >
+              <button style={socialBtnStyle("#F7E600")} onClick={startKakao}>
+                <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
+                카카오로 시작하기
+              </button>
+              <button style={socialBtnStyle("#00C73C", "#fff")} onClick={startNaver}>
+                <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
+                네이버로 시작하기
+              </button>
+              <button style={socialBtnStyle("#000", "#fff")} onClick={startGoogle}>
+                <img src="/img/google.png" alt="구글" style={socialIconStyle} />
+                구글로 시작하기
+              </button>
 
               {/* 입력칸 */}
               <input
@@ -188,7 +248,7 @@ const Login = () => {
           </>
         )}
 
-        {/* 로그아웃 버튼 */}
+        {/* 로그아웃 버튼 (로그인 시에만 표시) */}
         {nick && (
           <button
             style={buttonStyle("#FF4D4D", "#d13c3c")}
