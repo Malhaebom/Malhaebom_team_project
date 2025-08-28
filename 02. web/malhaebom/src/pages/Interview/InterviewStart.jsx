@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import useQuery from "../../hooks/useQuery.js"; 
 import Header from "../../components/Header.jsx";
 import AOS from "aos";
@@ -8,6 +9,7 @@ import Background from "../Background/Background";
 
 export default function InterviewStart() {
   const query = useQuery();
+  const navigate = useNavigate();
   const initialQuestionId = Number(query.get("questionId") ?? "0");
 
   const [bookTitle] = useState("회상훈련");
@@ -104,7 +106,25 @@ export default function InterviewStart() {
           if (questionId + 1 < questions.length) {
             setQuestionId((prev) => prev + 1);
           } else {
-            alert("마지막 질문입니다!");
+            // 마지막 질문 완료 시 마이크 OFF 후 InterviewHistory 페이지로 이동
+            alert("모든 인터뷰가 완료되었습니다!");
+            
+            // 마이크 명시적 OFF
+            try {
+              if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+                mediaRecorderRef.current.stop();
+              }
+              if (streamCleanup) {
+                streamCleanup();
+              }
+            } catch (error) {
+              console.log("마이크 정리 중 오류:", error);
+            }
+            
+            // 약간의 지연 후 페이지 이동
+            setTimeout(() => {
+              navigate("/InterviewHistory");
+            }, 100);
           }
         };
       })
@@ -122,7 +142,7 @@ export default function InterviewStart() {
       } catch {}
       if (streamCleanup) streamCleanup();
     };
-  }, [questionId, questions.length]);
+  }, [questionId, questions.length, navigate]);
 
   const currentQuestion = Array.isArray(questions) ? questions[questionId] : null;
 
