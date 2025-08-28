@@ -9,7 +9,7 @@ import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
 // --- 서버 전송 스위치 & 베이스 URL(옵션) ---
-const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: false);
+const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
@@ -82,10 +82,25 @@ class _StoryResultPageState extends State<StoryResultPage> {
     });
   }
 
+  Map<String, double> _riskMapFrom(Map<String, CategoryStat> m) {
+    return m.map(
+      (k, v) => MapEntry(
+        k,
+        v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0),
+      ),
+    );
+  }
+
   // ---- 저장 페이로드 생성 ----
-  Map<String, dynamic> _buildPayload(String title) {
+  Map<String, dynamic> _buildPayload({
+    required String titleOriginal,
+    required String titleKey,
+    required int attemptOrder, // 동화별 클라 회차
+  }) {
     return {
-      'storyTitle': title,
+      'storyTitle': titleOriginal,
+      'storyKey': titleKey, // ← 책 구분용
+      'attemptOrder': attemptOrder, // ← 동화별 회차(클라)
       'attemptTime': widget.testedAt.toUtc().toIso8601String(),
       'clientKst': _formatKst(widget.testedAt),
       'score': widget.score,
@@ -93,10 +108,13 @@ class _StoryResultPageState extends State<StoryResultPage> {
       'byCategory': widget.byCategory.map(
         (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
       ),
-      // 필요시 'byType'도 저장 가능
-      'byType': widget.byType.map((k,v)=> MapEntry(k, {'correct': v.correct, 'total': v.total})),
+      'byType': widget.byType.map(
+        (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
+      ),
+      // riskBar 수치 동봉
+      'riskBars': _riskMapFrom(widget.byCategory),
+      'riskBarsByType': _riskMapFrom(widget.byType),
     };
-    // 서버 스키마가 단순하면 위처럼 최소만 보냄
   }
 
   // ---- 로컬 최신 저장 ----
@@ -121,44 +139,49 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   // ---- 현재 회차 로드(동화별) ----
   Future<void> _loadCountOnly() async {
-    // final title = widget.storyTitle ?? '동화';
-    final title = normalizeTitle(widget.storyTitle ?? '동화'); // ★ 정규화해서 읽기
+    final title = normalizeTitle(widget.storyTitle ?? '동화');
     final prefs = await SharedPreferences.getInstance();
     final cnt = prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ?? 1;
     if (mounted) setState(() => _attemptOrder = cnt);
   }
 
-  // ---- 최초 1회 저장 루틴 ----
-  Future<void> _persistOnce() async {
-    if (_synced) return;
-    _synced = true;
+  // ---- 저장 루틴 ----
+Future<void> _persistOnce() async {
+  if (_synced) return;
+  _synced = true;
 
-    final rawTitle = widget.storyTitle ?? '동화';
-    final title = normalizeTitle(rawTitle); // ★ 정규화된 제목으로 "키" 사용
-    final payload = _buildPayload(rawTitle); // 화면표시는 원본 유지
+  final originalTitle = widget.storyTitle ?? '동화';
+  final keyTitle = normalizeTitle(originalTitle);
 
-    // 1) 로컬 저장 (키는 정규화 제목)
-    await _cacheLatestLocally(title, payload);
+  // 1) 동화별 회차 증가
+  final next = await _bumpCount(keyTitle);
+  if (mounted) setState(() => _attemptOrder = next);
 
-    // 2) 회차 증가
-    final next = await _bumpCount(title);
-    if (mounted) setState(() => _attemptOrder = next);
+  // 2) payload 생성(회차/키 포함)
+  final payload = _buildPayload(
+    titleOriginal: originalTitle,
+    titleKey: keyTitle,
+    attemptOrder: next,
+  );
 
-    // 3) 옵션: 서버 전송
-    if (kUseServer) {
-      try {
-        final uri = Uri.parse('$API_BASE/attempt');
-        final res = await http.post(
-          uri,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(payload),
-        );
-        debugPrint('[STR] POST /attempt -> ${res.statusCode} ${res.body}');
-      } catch (e) {
-        debugPrint('[STR] POST error: $e');
-      }
+  // 3) 로컬 최신 캐시 (키는 정규화 제목 사용)
+  await _cacheLatestLocally(keyTitle, payload);
+
+  // 4) 옵션: 서버 전송
+  if (kUseServer) {
+    try {
+      final uri = Uri.parse('$API_BASE/str/attempt'); // ← 여기!
+      final res = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+      debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
+    } catch (e) {
+      debugPrint('[STR] POST error: $e');
     }
   }
+}
 
   // ---- KST 포맷 ----
   String _formatKst(DateTime dt) {
@@ -387,44 +410,32 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // ✅ 변경: 윗줄에 (좌)라벨 (우)상태칩, 아래에 riskBar 배치
   Widget _riskBarRow(String label, CategoryStat? stat) {
     final eval = _evalFromStat(stat);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(child: _riskBar(eval.position)),
-            SizedBox(width: 10.w),
-            Text(
-              label,
-              textScaler: const TextScaler.linear(1.0),
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 18.sp,
-                color: const Color(0xFF4B5563),
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: eval.badgeBg,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: eval.badgeBorder),
-              ),
-              child: Text(
-                eval.text,
-                textScaler: fixedScale,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17.sp,
-                  color: eval.textColor,
+        Padding(
+          padding: EdgeInsets.only(bottom: 6.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  textScaler: const TextScaler.linear(1.0),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18.sp,
+                    color: const Color(0xFF4B5563),
+                  ),
                 ),
               ),
-            ),
-          ],
+              _statusChip(eval),
+            ],
+          ),
         ),
+        _riskBar(eval.position),
       ],
     );
   }
@@ -466,6 +477,25 @@ class _StoryResultPageState extends State<StoryResultPage> {
           ],
         );
       },
+    ),
+  );
+
+  // 상태칩 공용 위젯
+  Widget _statusChip(_EvalView eval) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: eval.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: eval.badgeBorder),
+    ),
+    child: Text(
+      eval.text,
+      textScaler: fixedScale,
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 17.sp,
+        color: eval.textColor,
+      ),
     ),
   );
 
@@ -590,7 +620,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       );
     }
     final risk = s.riskRatio;
-    if (risk >= 0.75) {
+    if (risk > 0.75) {
       return _EvalView(
         text: '매우 주의',
         textColor: const Color(0xFFB91C1C),
@@ -598,7 +628,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         badgeBorder: const Color(0xFFFCA5A5),
         position: risk,
       );
-    } else if (risk >= 0.5) {
+    } else if (risk > 0.5) {
       return _EvalView(
         text: '주의',
         textColor: const Color(0xFFDC2626),
@@ -606,7 +636,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         badgeBorder: const Color(0xFFFECACA),
         position: risk,
       );
-    } else if (risk >= 0.25) {
+    } else if (risk > 0.25) {
       return _EvalView(
         text: '보통',
         textColor: const Color(0xFF92400E),

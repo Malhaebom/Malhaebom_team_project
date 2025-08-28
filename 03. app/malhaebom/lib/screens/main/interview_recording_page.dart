@@ -682,7 +682,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
               byCategory: dummyCat,
               byType: dummyType,
               testedAt: now,
-              interviewTitle: '회상 훈련',
+              interviewTitle: '인지 능력 검사',
             ),
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,

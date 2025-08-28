@@ -892,40 +892,33 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   );
 
   // ====== 공용 UI 유틸 ======
+
+  // ✅ 변경: 라벨(좌) + 상태칩(우)을 윗줄에, 아래에 riskBar 배치
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
     final ev = _evalFromStat(stat);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: _riskBar(ev.position)),
-        SizedBox(width: 10.w),
-        Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 16.sp,
-            color: const Color(0xFF4B5563),
-            fontFamily: 'GmarketSans',
+        Padding(
+          padding: EdgeInsets.only(bottom: 6.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16.sp,
+                    color: const Color(0xFF4B5563),
+                    fontFamily: 'GmarketSans',
+                  ),
+                ),
+              ),
+              _statusChip(ev),
+            ],
           ),
         ),
-        SizedBox(width: 6.w),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-          decoration: BoxDecoration(
-            color: ev.badgeBg,
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: ev.badgeBorder),
-          ),
-          child: Text(
-            ev.text,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 14.sp,
-              color: ev.textColor,
-              fontFamily: 'GmarketSans',
-            ),
-          ),
-        ),
+        _riskBar(ev.position),
       ],
     );
   }
@@ -969,6 +962,25 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       },
     ),
   );
+
+  // 상태칩(“데이터 없음/양호/주의…”) 공용 위젯
+  Widget _statusChip(_EvalView ev) => Container(
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: ev.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: ev.badgeBorder),
+        ),
+        child: Text(
+          ev.text,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14.sp,
+            color: ev.textColor,
+            fontFamily: 'GmarketSans',
+          ),
+        ),
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -1032,7 +1044,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       );
     }
     final risk = s.riskRatio;
-    if (risk >= 0.75) {
+    if (risk > 0.75) {
       return _EvalView(
         text: '매우 주의',
         textColor: const Color(0xFFB91C1C),
@@ -1040,7 +1052,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         badgeBorder: const Color(0xFFFCA5A5),
         position: risk,
       );
-    } else if (risk >= 0.5) {
+    } else if (risk > 0.5) {
       return _EvalView(
         text: '주의',
         textColor: const Color(0xFFDC2626),
@@ -1048,7 +1060,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         badgeBorder: const Color(0xFFFECACA),
         position: risk,
       );
-    } else if (risk >= 0.25) {
+    } else if (risk > 0.25) {
       return _EvalView(
         text: '보통',
         textColor: const Color(0xFF92400E),

@@ -13,18 +13,19 @@ import 'interview_session.dart';
 
 // --- 서버 전송 스위치 & 베이스 URL ---
 // USE_SERVER=true 로 빌드하면 서버 전송 활성화됩니다.
-const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: false);
+const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 
 // dart-define의 API_BASE가 우선, 없으면 환경에 따라 기본값 선택
-final String API_BASE = (() {
-  const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-  if (defined.isNotEmpty) return defined;
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
 
-  if (kIsWeb) return 'http://localhost:4000';
-  if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-  if (Platform.isIOS) return 'http://localhost:4000';
-  return 'http://192.168.0.23:4000'; // 동네망 기본값
-})();
+      if (kIsWeb) return 'http://localhost:4000';
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
+      if (Platform.isIOS) return 'http://localhost:4000';
+      return 'http://192.168.0.23:4000'; // 동네망 기본값
+    })();
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
@@ -41,9 +42,9 @@ class CategoryStat {
   double get riskRatio => 1 - correctRatio;
 
   factory CategoryStat.fromJson(Map<String, dynamic> j) => CategoryStat(
-        correct: (j['correct'] ?? 0) as int,
-        total: (j['total'] ?? 0) as int,
-      );
+    correct: (j['correct'] ?? 0) as int,
+    total: (j['total'] ?? 0) as int,
+  );
 }
 
 class InterviewResultPage extends StatefulWidget {
@@ -53,6 +54,7 @@ class InterviewResultPage extends StatefulWidget {
   final Map<String, CategoryStat> byType;
   final DateTime testedAt;
   final String? interviewTitle;
+
   /// true: 실제 검사 종료 직후 (로컬 저장 + 회차 증가 + 옵션 서버전송)
   /// false: 마이페이지 '자세히 보기' 등 조회용 (증가/저장은 안 함)
   final bool persist;
@@ -95,10 +97,11 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     if (mounted) setState(() => _attemptOrder = cnt);
   }
 
-  Map<String, dynamic> _buildAttemptPayload() {
+  Map<String, dynamic> _buildAttemptPayload({required int attemptOrder}) {
     final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
     final clientKst = _formatKst(widget.testedAt);
     return {
+      'attemptOrder': attemptOrder, // ← 클라 기준 회차
       'attemptTime': measuredAtIso,
       'clientKst': clientKst,
       'interviewTitle': widget.interviewTitle,
@@ -110,7 +113,19 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       'byType': widget.byType.map(
         (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
       ),
+      // ← riskBar 수치(0~1) 함께 전달
+      'riskBars': _riskMapFrom(widget.byCategory),
+      'riskBarsByType': _riskMapFrom(widget.byType),
     };
+  }
+
+  Map<String, double> _riskMapFrom(Map<String, CategoryStat> m) {
+    return m.map(
+      (k, v) => MapEntry(
+        k,
+        v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0),
+      ),
+    );
   }
 
   Future<void> _cacheLatestLocally(Map<String, dynamic> payload) async {
@@ -128,33 +143,35 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   Future<void> _postToServer(Map<String, dynamic> payload) async {
     try {
-      final uri = Uri.parse('$API_BASE/attempt');
+      final uri = Uri.parse('$API_BASE/ir/attempt'); // ← 변경!
       final res = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       );
       // ignore: avoid_print
-      print('[INTV] POST /attempt -> ${res.statusCode} ${res.body}');
+      print('[INTV] POST /ir/attempt -> ${res.statusCode} ${res.body}');
     } catch (e) {
       // ignore: avoid_print
-      print('[INTV] POST /attempt error: $e');
+      print('[INTV] POST /ir/attempt error: $e');
     }
   }
 
   Future<void> _sendOnce() async {
     if (_posted) return;
     _posted = true;
-    final payload = _buildAttemptPayload();
 
-    // 1) 로컬 즉시 저장 (마이페이지가 바로 읽을 수 있게)
-    await _cacheLatestLocally(payload);
-
-    // 2) 회차 증가 후 칩 반영
+    // 1) 회차 증가 → UI 반영
     final next = await _bumpAttemptCount();
     if (mounted) setState(() => _attemptOrder = next);
 
-    // 3) 옵션: 서버 전송
+    // 2) payload 생성(회차 포함)
+    final payload = _buildAttemptPayload(attemptOrder: next);
+
+    // 3) 로컬 즉시 저장(마이페이지가 바로 읽도록)
+    await _cacheLatestLocally(payload);
+
+    // 4) 옵션: 서버 전송
     if (kUseServer) {
       await _postToServer(payload);
     }
@@ -172,8 +189,9 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fixedMedia =
-        MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0));
+    final fixedMedia = MediaQuery.of(
+      context,
+    ).copyWith(textScaler: const TextScaler.linear(1.0));
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
@@ -194,7 +212,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
           centerTitle: true,
           toolbarHeight: _appBarH(context),
           title: Text(
-            '화행 인지검사',
+            '인지 검사',
             style: TextStyle(
               fontFamily: 'GmarketSans',
               fontWeight: FontWeight.w700,
@@ -267,8 +285,9 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                       ),
                       SizedBox(height: 12.h),
                       if (showWarn) _warnBanner(),
-                      ..._buildEvalItems(widget.byType)
-                          .expand((w) => [w, SizedBox(height: 10.h)]),
+                      ..._buildEvalItems(
+                        widget.byType,
+                      ).expand((w) => [w, SizedBox(height: 10.h)]),
                     ],
                   ),
                 ),
@@ -287,7 +306,10 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                         (route) => false,
                       );
                     },
-                    icon: Icon(Icons.videogame_asset_rounded, size: 22.sp * 1.25),
+                    icon: Icon(
+                      Icons.videogame_asset_rounded,
+                      size: 22.sp * 1.25,
+                    ),
                     label: Text(
                       '두뇌 게임으로 이동',
                       textScaler: fixedScale,
@@ -315,57 +337,57 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   // ----- UI 유틸 -----
   Widget _card({required Widget child}) => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
-        child: child,
-      );
+      ],
+    ),
+    child: child,
+  );
 
   // 칩: 회차 + 시간
   Widget _attemptChip(int order, String formattedKst) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${order}회차',
+          textScaler: fixedScale,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w900,
+            fontSize: 18.sp,
+            color: AppColors.btnColorDark,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${order}회차',
-              textScaler: fixedScale,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w900,
-                fontSize: 18.sp,
-                color: AppColors.btnColorDark,
-              ),
-            ),
-            SizedBox(width: 10.w),
-            Text(
-              formattedKst,
-              textScaler: fixedScale,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w700,
-                fontSize: 18.sp,
-                color: const Color(0xFF111827),
-              ),
-            ),
-          ],
+        SizedBox(width: 10.w),
+        Text(
+          formattedKst,
+          textScaler: fixedScale,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w700,
+            fontSize: 18.sp,
+            color: const Color(0xFF111827),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 140.w;
@@ -416,163 +438,186 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     );
   }
 
+  // ==== 여기부터 변경된 부분 ====
   Widget _riskBarRow(String label, CategoryStat? stat) {
     final eval = _evalFromStat(stat);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(child: _riskBar(eval.position)),
-            SizedBox(width: 10.w),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w800,
-                fontSize: 18.sp,
-                color: const Color(0xFF4B5563),
-              ),
-            ),
-            SizedBox(width: 8.w),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-              decoration: BoxDecoration(
-                color: eval.badgeBg,
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: eval.badgeBorder),
-              ),
-              child: Text(
-                eval.text,
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontWeight: FontWeight.w900,
-                  fontSize: 17.sp,
-                  color: eval.textColor,
+        // 위: 좌측 라벨 / 우측 상태칩
+        Padding(
+          padding: EdgeInsets.only(bottom: 6.h),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontFamily: 'GmarketSans',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18.sp,
+                    color: const Color(0xFF4B5563),
+                  ),
                 ),
               ),
-            ),
-          ],
+              _statusChip(eval),
+            ],
+          ),
         ),
+        // 아래: riskBar
+        _riskBar(eval.position),
       ],
     );
   }
+  // ==== 변경 끝 ====
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF10B981),
-                        Color(0xFFF59E0B),
-                        Color(0xFFEF4444),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+  // 상태칩 공용 위젯
+  Widget _statusChip(_EvalView eval) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: eval.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: eval.badgeBorder),
+    ),
+    child: Text(
+      eval.text,
+      style: TextStyle(
+        fontFamily: 'GmarketSans',
+        fontWeight: FontWeight.w900,
+        fontSize: 17.sp,
+        color: eval.textColor,
+      ),
+    ),
+  );
 
   Widget _warnBanner() => Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-        margin: EdgeInsets.only(bottom: 12.h),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          border: Border.all(color: const Color(0xFFFCA5A5)),
-          borderRadius: BorderRadius.circular(14.r),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
-            SizedBox(width: 8.w),
-            Expanded(
-              child: Text(
-                '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 19.sp,
-                  color: const Color(0xFF7F1D1D),
-                ),
-              ),
+    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+    margin: EdgeInsets.only(bottom: 12.h),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF1F2),
+      border: Border.all(color: const Color(0xFFFCA5A5)),
+      borderRadius: BorderRadius.circular(14.r),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
+            style: TextStyle(
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w600,
+              fontSize: 19.sp,
+              color: const Color(0xFF7F1D1D),
             ),
-          ],
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   List<Widget> _buildEvalItems(Map<String, CategoryStat> _) => <Widget>[
-        _evalBlock('[반응 시간]',
-            '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.'),
-        _evalBlock('[반복어 비율]',
-            '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.'),
-        _evalBlock('[평균 문장 길이]',
-            '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.'),
-        _evalBlock('[화행 적절성 점수]',
-            '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.'),
-        _evalBlock('[회상어 점수]',
-            '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.'),
-        _evalBlock('[문법 완성도]',
-            '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.'),
-      ];
+    _evalBlock(
+      '[반응 시간]',
+      '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.',
+    ),
+    _evalBlock(
+      '[반복어 비율]',
+      '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.',
+    ),
+    _evalBlock(
+      '[평균 문장 길이]',
+      '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.',
+    ),
+    _evalBlock(
+      '[화행 적절성 점수]',
+      '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.',
+    ),
+    _evalBlock(
+      '[회상어 점수]',
+      '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.',
+    ),
+    _evalBlock(
+      '[문법 완성도]',
+      '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.',
+    ),
+  ];
 
   Widget _evalBlock(String title, String body) => Container(
-        padding: EdgeInsets.all(12.w),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+    padding: EdgeInsets.all(12.w),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF9FAFB),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w900,
+            fontSize: 20.sp,
+            color: const Color(0xFF111827),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w900,
-                fontSize: 20.sp,
-                color: const Color(0xFF111827),
-              ),
-            ),
-            SizedBox(height: 6.h),
-            Text(
-              body,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w700,
-                fontSize: 19.sp,
-                color: const Color(0xFF4B5563),
-                height: 1.5,
-              ),
-            ),
-          ],
+        SizedBox(height: 6.h),
+        Text(
+          body,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w700,
+            fontSize: 19.sp,
+            color: const Color(0xFF4B5563),
+            height: 1.5,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   _EvalView _evalFromStat(CategoryStat? s) {
     if (s == null || s.total == 0) {
@@ -585,7 +630,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       );
     }
     final risk = s.riskRatio;
-    if (risk >= 0.75) {
+    if (risk > 0.75) {
       return _EvalView(
         text: '매우 주의',
         textColor: const Color(0xFFB91C1C),
@@ -593,7 +638,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
         badgeBorder: const Color(0xFFFCA5A5),
         position: risk,
       );
-    } else if (risk >= 0.5) {
+    } else if (risk > 0.5) {
       return _EvalView(
         text: '주의',
         textColor: const Color(0xFFDC2626),
@@ -601,7 +646,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
         badgeBorder: const Color(0xFFFECACA),
         position: risk,
       );
-    } else if (risk >= 0.25) {
+    } else if (risk > 0.25) {
       return _EvalView(
         text: '보통',
         textColor: const Color(0xFF92400E),
