@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:malhaebom/screens/users/login_page.dart'; // ✅ 로그인 페이지 임포트
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -43,9 +45,23 @@ class _HomePageState extends State<HomePage> {
         }
       }
     } catch (_) {
-      // 로드 실패 시 닉네임 미표시(기본 문구 사용)
       if (mounted) setState(() => _nick = null);
     }
+  }
+
+  /// ✅ 로그아웃: 토큰/유저만 삭제, auto_login은 유지
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('auth_token'); // 자동로그인 토큰만 제거
+    await prefs.remove('auth_user'); // 표시용 유저 정보 제거
+    // ⚠️ prefs.remove('auto_login'); 절대 금지
+
+    if (!mounted) return;
+    // 로그인 페이지를 새로 생성해서 pushAndRemoveUntil → 체크박스가 저장값(auto_login)대로 보임
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => false,
+    );
   }
 
   @override
@@ -63,6 +79,18 @@ class _HomePageState extends State<HomePage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+
+      // ✅ 상단에 간단한 로그아웃 버튼 추가
+      appBar: AppBar(
+        title: const Text('홈'),
+        actions: [
+          IconButton(
+            tooltip: '로그아웃',
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
+          ),
+        ],
+      ),
 
       // ✅ 시스템 상단/하단 영역 피해서 배치
       body: SafeArea(
@@ -175,7 +203,7 @@ class _HomePageState extends State<HomePage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // ✅ 오른쪽 헤더를 "카드 스타일 컨테이너"로 유지
+                        // ✅ 오른쪽 헤더 "카드 스타일"
                         Container(
                           width: screenWidth * 0.4,
                           height: headerH,
@@ -184,7 +212,7 @@ class _HomePageState extends State<HomePage> {
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: const [
                               BoxShadow(
-                                color: Color(0x14000000), // = 8% 검정
+                                color: Color(0x14000000),
                                 blurRadius: 12,
                                 offset: Offset(0, 4),
                               ),
@@ -199,7 +227,6 @@ class _HomePageState extends State<HomePage> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                // 닉네임이 있으면 "{닉네임}님," 없으면 기본 문구
                                 Text(
                                   _nick == null ? "반가워요," : nickText,
                                   textScaler: const TextScaler.linear(1.0),

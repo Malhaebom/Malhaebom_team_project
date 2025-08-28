@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io' show Platform; // ★ 추가
+import 'package:flutter/foundation.dart' show kIsWeb; // ★ 추가
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
@@ -7,7 +9,20 @@ import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'interview_session.dart';
 
-const String API_BASE = 'http://10.0.2.2:4000/str';
+// ★ 변경: dart-define 값이 있으면 그걸 우선 사용,
+// 없으면 환경에 따라 자동으로 기본값 선택
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
+
+      if (kIsWeb) return 'http://localhost:4000'; // Flutter Web 디버그용
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // Android 에뮬레이터
+      if (Platform.isIOS) return 'http://localhost:4000'; // iOS 시뮬레이터
+
+      // 실기기 기본값(같은 Wi-Fi에서 PC IP로 맞춰주세요)
+      return 'http://192.168.0.23:4000';
+    })();
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
