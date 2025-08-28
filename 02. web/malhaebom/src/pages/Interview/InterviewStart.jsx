@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import useQuery from "../../hooks/useQuery.js"; 
 import Header from "../../components/Header.jsx";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import ProgressBar from "./ProgressBar.jsx";
 import Background from "../Background/Background";
+import { useNavigate } from "react-router-dom";
 
 export default function InterviewStart() {
   const query = useQuery();
@@ -21,6 +21,7 @@ export default function InterviewStart() {
   const soundClipsRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
+  const streamCleanupRef = useRef(null);
 
   useEffect(() => {
     AOS.init();
@@ -42,6 +43,51 @@ export default function InterviewStart() {
       });
   }, []);
 
+  // 뒤로가기 및 페이지 이탈 처리
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      // 마이크 정리
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current();
+      }
+      
+      // 사용자에게 경고 메시지 표시
+      e.preventDefault();
+      e.returnValue = "녹음 중인 경우 데이터가 손실될 수 있습니다. 정말 나가시겠습니까?";
+      return e.returnValue;
+    };
+
+    const handlePopState = (e) => {
+      // 뒤로가기 시 새로고침 처리
+      e.preventDefault();
+      
+      // 마이크 정리
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (streamCleanupRef.current) {
+        streamCleanupRef.current();
+      }
+      
+      // 새로고침 후 뒤로가기
+      window.location.reload();
+      window.history.back();
+    };
+
+    // 이벤트 리스너 등록
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   // 녹음 기능 설정
   useEffect(() => {
     const recordBtn = recordBtnRef.current;
@@ -55,14 +101,12 @@ export default function InterviewStart() {
       return;
     }
 
-    let streamCleanup = null;
-
     navigator.mediaDevices
       .getUserMedia({ audio: true })
       .then((stream) => {
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorderRef.current = mediaRecorder;
-        streamCleanup = () => stream.getTracks().forEach((t) => t.stop());
+        streamCleanupRef.current = () => stream.getTracks().forEach((t) => t.stop());
 
         recordBtn.onclick = () => {
           mediaRecorder.start();
@@ -114,8 +158,8 @@ export default function InterviewStart() {
               if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
                 mediaRecorderRef.current.stop();
               }
-              if (streamCleanup) {
-                streamCleanup();
+              if (streamCleanupRef.current) {
+                streamCleanupRef.current();
               }
             } catch (error) {
               console.log("마이크 정리 중 오류:", error);
@@ -140,7 +184,7 @@ export default function InterviewStart() {
           mediaRecorderRef.current.stop();
         }
       } catch {}
-      if (streamCleanup) streamCleanup();
+      if (streamCleanupRef.current) streamCleanupRef.current();
     };
   }, [questionId, questions.length, navigate]);
 
