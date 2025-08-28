@@ -13,13 +13,31 @@ import 'package:malhaebom/screens/users/login_page.dart';
 // 결과 상세 페이지의 CategoryStat 타입을 그대로 사용
 import 'package:malhaebom/screens/main/interview_result_page.dart' as ir;
 
+// ⬇️ 동화 결과 상세 페이지(보기 전용으로 push할 때 씀)
+// 실제 파일 경로에 맞게 import 경로를 조정하세요.
+import 'package:malhaebom/screens/story/story_test_result_page.dart' as sr;
+
 import 'result_history_page.dart';
 
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
-// 로컬 저장 키
+// ===== 로컬 저장 키 (인지검사 공통) =====
 const String PREF_LATEST_ATTEMPT = 'latest_attempt_v1';
 const String PREF_ATTEMPT_COUNT = 'attempt_count_v1';
+
+// ===== 동화 결과 로컬 저장 키(prefix) =====
+const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
+const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
+
+String _norm(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+// 동화책 제목 목록(탭 라벨로 사용) — 프로젝트의 자원 파일에 맞게 수정 가능
+const List<String> kStoryTitles = <String>[
+  '어머니의 벙어리 장갑',
+  '아버지와 결혼식',
+  '아들의 호빵',
+  '할머니와 바나나',
+];
 
 class MyPage extends StatefulWidget {
   const MyPage({super.key});
@@ -35,20 +53,41 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     Icon(Icons.question_answer, color: AppColors.text, size: 26),
   ];
 
-  // 로컬 캐시만 사용 (빠르게 바로 그림)
+  // ===== 인지검사(기존) =====
   AttemptSummary? _latest;
   int _attemptCount = 0;
   bool _loading = true;
-
-  // 접힘/펼침 상태
   bool _isReportExpanded = false;
+
+  // ===== 내 동화 기록(신규) =====
+  bool _isStoryExpanded = false;
+  late TabController _storyTabController;
+  bool _storyLoading = true;
+  final Map<String, StorySummary?> _storyLatest = {}; // storyTitle -> latest
+  final Map<String, int> _storyAttemptCounts = {}; // storyTitle -> count
 
   @override
   void initState() {
     super.initState();
-    _loadLatest(); // 로컬에서 바로 읽음
+    _storyTabController = TabController(
+      length: kStoryTitles.length,
+      vsync: this,
+    );
+    // 최초 로드
+    _loadAll();
   }
 
+  @override
+  void dispose() {
+    _storyTabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadAll() async {
+    await Future.wait([_loadLatest(), _loadStoryLatest()]);
+  }
+
+  // ===== 인지검사 로드 =====
   Future<void> _loadLatest() async {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
@@ -72,6 +111,44 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     });
   }
 
+  // ===== 동화별 최신 결과 로드 =====
+  Future<void> _loadStoryLatest() async {
+    setState(() => _storyLoading = true);
+    final prefs = await SharedPreferences.getInstance();
+
+    // ✅ 예전 공용 카운트 키는 더 이상 쓰지 않으니 제거(1회성 정리)
+    await prefs.remove('$PREF_STORY_COUNT_PREFIX동화');
+
+    for (final title in kStoryTitles) {
+      final keyTitle = _norm(title);
+
+      // 최신 결과(JSON) — 필요하면 이전 키만 폴백(공용 '동화'는 사용 안 함)
+      String? js =
+          prefs.getString('$PREF_STORY_LATEST_PREFIX$keyTitle') ??
+          prefs.getString('$PREF_STORY_LATEST_PREFIX$title');
+
+      StorySummary? latest;
+      if (js != null && js.isNotEmpty) {
+        try {
+          latest = StorySummary.fromJson(
+            jsonDecode(js) as Map<String, dynamic>,
+          );
+        } catch (_) {}
+      }
+      _storyLatest[title] = latest;
+
+      // ✅ 회차 — 해당 제목 키만 사용(공용 '동화' 폴백 제거)
+      int? cnt =
+          prefs.getInt('$PREF_STORY_COUNT_PREFIX$keyTitle') ??
+          prefs.getInt('$PREF_STORY_COUNT_PREFIX$title');
+
+      // 회차 키가 없는데 최신이 있으면 최소 1회차로 보이도록
+      _storyAttemptCounts[title] = cnt ?? (latest == null ? 0 : 1);
+    }
+
+    setState(() => _storyLoading = false);
+  }
+
   void copyText(String text) {
     Clipboard.setData(ClipboardData(text: text));
   }
@@ -88,216 +165,24 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           appBar: null,
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: _loadLatest,
+              onRefresh: _loadAll,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
                 child: Column(
                   children: [
                     // ===== 설정 섹션 =====
-                    Material(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          children: [
-                            SizedBox(height: 5.h),
-                            Row(
-                              children: [
-                                SizedBox(width: 10.w),
-                                Text(
-                                  "설정",
-                                  style: TextStyle(
-                                    color: AppColors.accent,
-                                    fontSize: 26.sp,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Column(
-                              children: List.generate(title.length, (index) {
-                                return InkWell(
-                                  onTap: () async {
-                                    if (title[index] == "로그아웃") {
-                                      final prefs =
-                                          await SharedPreferences.getInstance();
-                                      await prefs.clear();
-                                      if (!mounted) return;
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text("로그아웃 되었습니다."),
-                                        ),
-                                      );
-                                      Navigator.pushAndRemoveUntil(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const LoginPage(),
-                                        ),
-                                        (route) => false,
-                                      );
-                                    } else if (title[index] == "회원정보 수정하기") {
-                                      // TODO
-                                    } else if (title[index] == "자주 묻는 질문") {
-                                      // TODO
-                                    }
-                                  },
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        bottom: BorderSide(
-                                          color: Colors.grey,
-                                          width: 1.w,
-                                        ),
-                                      ),
-                                    ),
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: 12.h,
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              SizedBox(width: 10.w),
-                                              icon[index],
-                                              SizedBox(width: 5.w),
-                                              Flexible(
-                                                child: Text(
-                                                  title[index],
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  maxLines: 1,
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 22.sp,
-                                                    color: AppColors.text,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.navigate_next,
-                                          size: 40.h,
-                                          color: AppColors.text,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                            ),
-                            SizedBox(height: 15.h),
-                          ],
-                        ),
-                      ),
-                    ),
+                    _settingsCard(context),
 
                     SizedBox(height: 20.h),
 
                     // ===== 나의 인지 리포트 (접힘/펼침) =====
-                    Material(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(10),
-                      child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          children: [
-                            SizedBox(height: 5.h),
+                    _myCognitionReportCard(context),
 
-                            // --- 헤더 (탭으로 펼치기) ---
-                            // 기존 Row 하나짜리 헤더 → 2줄(Column)로 변경
-                            InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () => setState(
-                                () => _isReportExpanded = !_isReportExpanded,
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 8.h),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // 1줄: 타이틀 (좌측 정렬)
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 10.w,
-                                      ),
-                                      child: Text(
-                                        "나의 인지 리포트",
-                                        style: TextStyle(
-                                          color: AppColors.accent,
-                                          fontSize: 26.sp,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(height: 6.h),
+                    SizedBox(height: 20.h),
 
-                                    // 2줄: 우측 정렬(이전 기록 보기 + 화살표)
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        TextButton.icon(
-                                          onPressed: () async {
-                                            await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) =>
-                                                    const ResultHistoryPage(),
-                                              ),
-                                            );
-                                            if (!mounted) return;
-                                            _loadLatest();
-                                          },
-                                          icon: const Icon(Icons.history),
-                                          label: const Text("이전 기록 보기"),
-                                        ),
-                                        SizedBox(width: 4.w),
-                                        AnimatedRotation(
-                                          duration:
-                                              const Duration(milliseconds: 200),
-                                        turns: _isReportExpanded ? 0.5 : 0.0,
-                                          child: const Icon(Icons.expand_more),
-                                        ),
-                                        SizedBox(width: 6.w),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                            // --- 펼쳐지는 내용 ---
-                            AnimatedCrossFade(
-                              duration: const Duration(milliseconds: 220),
-                              firstChild: const SizedBox.shrink(),
-                              secondChild: Padding(
-                                padding: EdgeInsets.only(top: 8.h),
-                                child: _loading
-                                    ? _skeleton()
-                                    : (_latest == null
-                                        ? _emptyLatest(context)
-                                        : _latestCard(
-                                            context,
-                                            _latest!,
-                                            _attemptCount,
-                                          )),
-                              ),
-                              crossFadeState: _isReportExpanded
-                                  ? CrossFadeState.showSecond
-                                  : CrossFadeState.showFirst,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    // ===== 내 동화 기록 (접힘/펼침 + Tab) =====
+                    _myStoryHistoryCard(context),
                   ],
                 ),
               ),
@@ -308,7 +193,291 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 비어있을 때 (멘트 개선) ======
+  // == 설정 카드 ==
+  Widget _settingsCard(BuildContext context) {
+    return Material(
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            SizedBox(height: 5.h),
+            Row(
+              children: [
+                SizedBox(width: 10.w),
+                Text(
+                  "설정",
+                  style: TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 26.sp,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            Column(
+              children: List.generate(title.length, (index) {
+                return InkWell(
+                  onTap: () async {
+                    if (title[index] == "로그아웃") {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.clear();
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("로그아웃 되었습니다.")),
+                      );
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        (route) => false,
+                      );
+                    } else if (title[index] == "회원정보 수정하기") {
+                      // TODO
+                    } else if (title[index] == "자주 묻는 질문") {
+                      // TODO
+                    }
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey, width: 1.w),
+                      ),
+                    ),
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              SizedBox(width: 10.w),
+                              icon[index],
+                              SizedBox(width: 5.w),
+                              Flexible(
+                                child: Text(
+                                  title[index],
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 22.sp,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.navigate_next,
+                          size: 40.h,
+                          color: AppColors.text,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+            SizedBox(height: 15.h),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // == 나의 인지 리포트 ==
+  Widget _myCognitionReportCard(BuildContext context) {
+    return Material(
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            SizedBox(height: 5.h),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap:
+                  () => setState(() => _isReportExpanded = !_isReportExpanded),
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 타이틀
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10.w),
+                      child: Text(
+                        "나의 인지 리포트",
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontSize: 26.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 6.h),
+                    // 우측: 이전 기록 보기
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ResultHistoryPage(),
+                              ),
+                            );
+                            if (!mounted) return;
+                            _loadLatest();
+                          },
+                          icon: const Icon(Icons.history),
+                          label: const Text("이전 기록 보기"),
+                        ),
+                        SizedBox(width: 4.w),
+                        AnimatedRotation(
+                          duration: const Duration(milliseconds: 200),
+                          turns: _isReportExpanded ? 0.5 : 0.0,
+                          child: const Icon(Icons.expand_more),
+                        ),
+                        SizedBox(width: 6.w),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 220),
+              firstChild: const SizedBox.shrink(),
+              secondChild: Padding(
+                padding: EdgeInsets.only(top: 8.h),
+                child:
+                    _loading
+                        ? _skeleton()
+                        : (_latest == null
+                            ? _emptyLatest(context)
+                            : _latestCard(context, _latest!, _attemptCount)),
+              ),
+              crossFadeState:
+                  _isReportExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // == 내 동화 기록(탭) ==
+  Widget _myStoryHistoryCard(BuildContext context) {
+    return Material(
+      color: AppColors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          children: [
+            SizedBox(height: 5.h),
+            InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => setState(() => _isStoryExpanded = !_isStoryExpanded),
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.h),
+                child: Row(
+                  children: [
+                    SizedBox(width: 10.w),
+                    Expanded(
+                      child: Text(
+                        "내 동화 기록",
+                        style: TextStyle(
+                          color: AppColors.accent,
+                          fontSize: 26.sp,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    AnimatedRotation(
+                      duration: const Duration(milliseconds: 200),
+                      turns: _isStoryExpanded ? 0.5 : 0.0,
+                      child: const Icon(Icons.expand_more),
+                    ),
+                    SizedBox(width: 6.w),
+                  ],
+                ),
+              ),
+            ),
+
+            // 펼쳐지는 영역: TabBar + TabBarView
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 220),
+              firstChild: const SizedBox.shrink(),
+              secondChild:
+                  _storyLoading
+                      ? Padding(
+                        padding: EdgeInsets.only(top: 8.h),
+                        child: _skeleton(),
+                      )
+                      : Padding(
+                        padding: EdgeInsets.only(top: 8.h),
+                        child: Column(
+                          children: [
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: TabBar(
+                                controller: _storyTabController,
+                                isScrollable: true,
+                                tabAlignment: TabAlignment.start,
+                                labelColor: AppColors.btnColorDark,
+                                unselectedLabelColor: const Color(0xFF6B7280),
+                                indicatorColor: AppColors.btnColorDark,
+                                tabs: [
+                                  for (final t in kStoryTitles) Tab(text: t),
+                                ],
+                              ),
+                            ),
+                            SizedBox(height: 12.h),
+                            // TabBarView는 높이 제약 필요
+                            SizedBox(
+                              height: 520.h, // 카드 내용 높이에 맞게 조정
+                              child: TabBarView(
+                                controller: _storyTabController,
+                                children: [
+                                  for (final t in kStoryTitles)
+                                    SingleChildScrollView(
+                                      child:
+                                          (_storyLatest[t] == null)
+                                              ? _emptyStory(t)
+                                              : _storyCard(
+                                                context,
+                                                t,
+                                                _storyLatest[t]!,
+                                                _storyAttemptCounts[t] ?? 0,
+                                              ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+              crossFadeState:
+                  _isStoryExpanded
+                      ? CrossFadeState.showSecond
+                      : CrossFadeState.showFirst,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ====== 비어있을 때 (인지검사) ======
   Widget _emptyLatest(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -344,7 +513,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           ),
           SizedBox(height: 6.h),
           Text(
-            '3분이면 끝나요 🙂 지금 검사하러 가볼까요?',
+            '3분이면 끝나요 🙂\n지금 검사하러 가볼까요?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.w600,
@@ -378,34 +547,53 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 스켈레톤 ======
-  Widget _skeleton() => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(6, (i) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.h),
-              child: Container(
-                height: 18.h,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            );
-          }),
-        ),
-      );
+  // ====== 비어있을 때 (동화) ======
+  Widget _emptyStory(String storyTitle) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.menu_book_outlined, size: 40.sp, color: AppColors.text),
+          SizedBox(height: 10.h),
+          Text(
+            '아직 "$storyTitle" \n결과가 없어요',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 18.sp,
+              color: const Color(0xFF111827),
+            ),
+          ),
+          SizedBox(height: 6.h),
+          Text(
+            '동화를 감상하고 테스트를 완료하면\n여기에 결과가 표시됩니다.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 16.sp,
+              color: const Color(0xFF6B7280),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  // ====== 최신 결과 카드 ======
-  Widget _latestCard(
-      BuildContext context, AttemptSummary a, int attemptCount) {
+  // ====== 최신 결과 카드(인지검사) ======
+  Widget _latestCard(BuildContext context, AttemptSummary a, int attemptCount) {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(16.w),
@@ -427,8 +615,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           Center(
             child: Row(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (attemptCount > 0)
                   Container(
@@ -465,8 +651,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           ),
 
           SizedBox(height: 4.h),
-
-          // 날짜/라벨도 가운데 정렬
           Text(
             a.kstLabel ?? '최근 검사 요약입니다.',
             textAlign: TextAlign.center,
@@ -477,7 +661,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               fontFamily: 'GmarketSans',
             ),
           ),
-
           SizedBox(height: 12.h),
           _scoreCircle(a.score, a.total),
           SizedBox(height: 12.h),
@@ -501,15 +684,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ir.InterviewResultPage(
-                      score: a.score,
-                      total: a.total,
-                      byCategory: a.byCategory,
-                      byType: a.byType ?? <String, ir.CategoryStat>{},
-                      testedAt: a.testedAt ?? DateTime.now(),
-                      interviewTitle: a.interviewTitle,
-                      persist: false, // 상세 보기 진입 시 회차 증가 방지
-                    ),
+                    builder:
+                        (_) => ir.InterviewResultPage(
+                          score: a.score,
+                          total: a.total,
+                          byCategory: a.byCategory,
+                          byType: a.byType ?? <String, ir.CategoryStat>{},
+                          testedAt: a.testedAt ?? DateTime.now(),
+                          interviewTitle: a.interviewTitle,
+                          persist: false, // 상세 보기 진입 시 회차 증가 방지
+                        ),
                   ),
                 );
               },
@@ -528,7 +712,186 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 요약 카드에 필요한 유틸 ======
+  // ====== 동화 결과 카드 ======
+  Widget _storyCard(
+    BuildContext context,
+    String storyTitle,
+    StorySummary s,
+    int attemptCount,
+  ) {
+    // 동화 카테고리(표시 순서)
+    const order = ['요구', '질문', '단언', '의례화'];
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(16.w),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 가운데 정렬 헤더
+          SizedBox(
+            width: double.infinity,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (attemptCount > 0)
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 10.w,
+                      vertical: 6.h,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Text(
+                      '${attemptCount}회차',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.sp,
+                        color: const Color(0xFF374151),
+                        fontFamily: 'GmarketSans',
+                      ),
+                    ),
+                  ),
+                if (attemptCount > 0) SizedBox(width: 8.w),
+
+                // ★★ 제목: 가변폭 + 자동 축소
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown, // 남는 공간에 맞춰 자동 축소
+                    child: Text(
+                      storyTitle,
+                      maxLines: 1,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 22.sp, // 기본값에서 필요시 자동 축소
+                        fontFamily: 'GmarketSans',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 4.h),
+          Text(
+            s.kstLabel ?? '',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 16.sp,
+              color: const Color(0xFF6B7280),
+              fontWeight: FontWeight.w500,
+              fontFamily: 'GmarketSans',
+            ),
+          ),
+
+          SizedBox(height: 12.h),
+          _scoreCircle(s.score, s.total),
+          SizedBox(height: 12.h),
+
+          // 카테고리 바 (존재하는 항목만)
+          ...order
+              .where((k) => s.byCategory.containsKey(k))
+              .map(
+                (k) => Padding(
+                  padding: EdgeInsets.only(bottom: 10.h),
+                  child: _riskBarRow(k, s.byCategory[k]),
+                ),
+              ),
+
+          SizedBox(height: 6.h),
+          SizedBox(
+            width: double.infinity,
+            height: 48.h,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final byCat = s.byCategory.map(
+                  (k, v) => MapEntry(
+                    k,
+                    sr.CategoryStat(correct: v.correct, total: v.total),
+                  ),
+                );
+                // ★★ 추가: byType도 같이 전달 → 평가가 원본과 동일하게 나옴
+                final byType = s.byType.map(
+                  (k, v) => MapEntry(
+                    k,
+                    sr.CategoryStat(correct: v.correct, total: v.total),
+                  ),
+                );
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => sr.StoryResultPage(
+                          score: s.score,
+                          total: s.total,
+                          byCategory: byCat,
+                          byType: byType,
+                          testedAt: s.testedAt ?? DateTime.now(),
+                          storyTitle: storyTitle,
+                          persist: false, // ★ 조회만: 회차 증가/저장 안 함
+                        ),
+                  ),
+                );
+                if (!mounted) return;
+                _loadStoryLatest(); // ★ 돌아오면 최신 로컬값 다시 읽기
+              },
+              icon: const Icon(Icons.open_in_new),
+              label: const Text('자세히 보기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD43B),
+                foregroundColor: Colors.black,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ====== 공통 스켈레톤 ======
+  Widget _skeleton() => Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(6, (i) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Container(
+            height: 18.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
+
+  // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
     final ev = _evalFromStat(stat);
     return Row(
@@ -568,16 +931,24 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(builder: (context, c) {
-          final w = c.maxWidth;
-          return Stack(alignment: Alignment.centerLeft, children: [
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
             Container(
               width: w,
               height: 6.h,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                    colors: [Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444)]),
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
+                ),
                 borderRadius: BorderRadius.circular(999),
               ),
             ),
@@ -587,14 +958,17 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 width: 18.w,
                 height: 18.w,
                 decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: const Color(0xFF9CA3AF), width: 2)),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                ),
               ),
             ),
-          ]);
-        }),
-      );
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -603,33 +977,47 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     return SizedBox(
       width: d,
       height: d,
-      child: Stack(alignment: Alignment.center, children: [
-        Container(
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
             width: d,
             height: d,
             decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFEF4444), width: 8),
-                color: Colors.white)),
-        Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text('$score',
-              textScaler: _fixedScale,
-              style: TextStyle(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFEF4444), width: 8),
+              color: Colors.white,
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '$score',
+                textScaler: _fixedScale,
+                style: TextStyle(
                   fontSize: big,
                   fontWeight: FontWeight.w900,
                   color: const Color(0xFFEF4444),
                   height: 1.0,
-                  fontFamily: 'GmarketSans')),
-          Text('/$total',
-              textScaler: _fixedScale,
-              style: TextStyle(
+                  fontFamily: 'GmarketSans',
+                ),
+              ),
+              Text(
+                '/$total',
+                textScaler: _fixedScale,
+                style: TextStyle(
                   fontSize: small,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFFEF4444),
                   height: 1.0,
-                  fontFamily: 'GmarketSans')),
-        ]),
-      ]),
+                  fontFamily: 'GmarketSans',
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -680,7 +1068,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 }
 
-// ===== 모델 =====
+// ===== 모델 (인지검사) =====
 class AttemptSummary {
   final int score;
   final int total;
@@ -731,6 +1119,61 @@ class AttemptSummary {
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
       interviewTitle: j['interviewTitle'] as String?,
+    );
+  }
+}
+
+// ===== 모델 (동화 결과) =====
+class StorySummary {
+  final String? storyTitle;
+  final int score;
+  final int total;
+  final Map<String, ir.CategoryStat> byCategory;
+  final Map<String, ir.CategoryStat> byType;
+  final DateTime? testedAt;
+  final String? kstLabel;
+
+  StorySummary({
+    required this.storyTitle,
+    required this.score,
+    required this.total,
+    required this.byCategory,
+    required this.byType,
+    this.testedAt,
+    this.kstLabel,
+  });
+
+  factory StorySummary.fromJson(Map<String, dynamic> j) {
+    Map<String, ir.CategoryStat> _mapStats(dynamic x) {
+      if (x is Map) {
+        final out = <String, ir.CategoryStat>{};
+        x.forEach((key, val) {
+          if (val is Map) {
+            final correct = (val['correct'] as num?)?.toInt() ?? 0;
+            final total = (val['total'] as num?)?.toInt() ?? 0;
+            out[key.toString()] = ir.CategoryStat(
+              correct: correct,
+              total: total,
+            );
+          }
+        });
+        return out;
+      }
+      return <String, ir.CategoryStat>{};
+    }
+
+    DateTime? ts;
+    final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
+    if (rawTs is String) ts = DateTime.tryParse(rawTs);
+
+    return StorySummary(
+      storyTitle: j['storyTitle'] as String?,
+      score: (j['score'] as num?)?.toInt() ?? 0,
+      total: (j['total'] as num?)?.toInt() ?? 0,
+      byCategory: _mapStats(j['byCategory']),
+      byType: _mapStats(j['byType']),
+      testedAt: ts,
+      kstLabel: j['clientKst'] as String?,
     );
   }
 }
