@@ -1,5 +1,5 @@
 // src/pages/QuizLibrary.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Slider from "react-slick";
 import AOS from "aos";
@@ -9,15 +9,24 @@ import Background from "../Background/Background";
 
 export default function QuizLibrary() {
   const navigate = useNavigate();
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100);
+
+  // 브라우저 창 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setIsWide(window.innerWidth > 1100);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     AOS.init({ once: true });
   }, []);
 
   const goHome = () => (window.location.href = "/");
-  const goToQuizPlay = (quizType) => navigate(`/quiz/play?quizType=${quizType}&quizId=0&qid=0`);
+  const goToQuizPlay = (quizType) =>
+    navigate(`/quiz/play?quizType=${quizType}&quizId=0&qid=0`);
 
-  // ✅ BookLibrary와 동일한 커스텀 화살표
+  // 슬라이더 화살표
   const NextArrow = ({ onClick }) => (
     <div
       style={{
@@ -60,7 +69,7 @@ export default function QuizLibrary() {
     centerPadding: "50px",
     focusOnSelect: true,
     infinite: true,
-    arrows: true,           // Book과 동일하게 화살표 표시
+    arrows: true,
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
     adaptiveHeight: true,
@@ -79,23 +88,17 @@ export default function QuizLibrary() {
   return (
     <div className="content">
       <style>{`
-        /* 1) react-slick 구조에서 카드가 오른쪽으로 치우치는 현상 방지 */
         .ct_slide01 .slick-track { display:flex !important; margin:0 auto !important; }
         .ct_slide01 .slick-slide > div { display:flex; justify-content:center; box-sizing:border-box; }
-
-        /* 2) centerMode의 좌우 패딩이 테마 CSS에 덮이는 경우 대비(대칭 보장) */
         .ct_slide01 .slick-list { padding: 0 50px !important; }
-
-        /* 3) 아이콘 정확히 중앙 배치 (위로 쏠림 보정) */
         .slider_img { position:relative; height:200px; }
-        .slider_img i {
-          position:absolute; top:45%; left:50%;
-          transform: translate(-50%, -50%);
-        }
+        .slider_img i { position:absolute; top:45%; left:50%; transform: translate(-50%, -50%); }
       `}</style>
-      {/* 공통 배경 추가 */}
-      <Background />
 
+      {/* ✅ 1100px 이상일 때만 Background 렌더링 */}
+      {isWide && <Background />}
+
+      {/* ✅ 콘텐츠는 항상 렌더링 */}
       <div className="wrap">
         <header>
           <div className="hd_inner">
@@ -114,18 +117,28 @@ export default function QuizLibrary() {
         </header>
 
         <div className="inner">
-          <div className="ct_banner">원하는 훈련을 선택해 두뇌를 단련해요!</div>
+          <div className="ct_banner">
+            원하는 훈련을 선택해 두뇌를 단련해요!
+          </div>
         </div>
 
-        <div className="ct_slide01 ct_inner" data-aos="fade-up" data-aos-duration="1000">
+        <div
+          className="ct_slide01 ct_inner"
+          data-aos="fade-up"
+          data-aos-duration="1000"
+        >
           <Slider {...settings}>
             {items.map(({ label, icon, color, type }) => (
               <div key={type}>
                 <div className="slider_img">
                   <i className={`fa-solid ${icon} fa-4x`} style={{ color }} />
                 </div>
-                <div className="slider_tit"><h2>{label}</h2></div>
-                <button type="button" onClick={() => goToQuizPlay(type)}>시작하기</button>
+                <div className="slider_tit">
+                  <h2>{label}</h2>
+                </div>
+                <button type="button" onClick={() => goToQuizPlay(type)}>
+                  시작하기
+                </button>
               </div>
             ))}
           </Slider>

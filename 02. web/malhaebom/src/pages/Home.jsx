@@ -32,13 +32,12 @@ export default function Home() {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "column",
-    minHeight: "100vh",
+    flexDirection: "column"
   };
 
   return (
     <div className="content">
-      {/* 화면 가로 1000 이상일 때만 배경 */}
+      {/* 화면 가로 1100 이상일 때만 배경 */}
       {windowWidth > 1100 && <Background />}
 
       <div className="wrap" style={windowWidth <= 1000 ? wrapStyle : {}}>
