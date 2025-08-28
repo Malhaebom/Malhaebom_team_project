@@ -1,28 +1,32 @@
 import 'dart:convert';
-import 'dart:io' show Platform; // ★ 추가
-import 'package:flutter/foundation.dart' show kIsWeb; // ★ 추가
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
-// ★ 서버 베이스 URL (dart-define > 자동감지)
+// --- 서버 전송 스위치 & 베이스 URL(옵션) ---
+const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: false);
 final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
-
-      if (kIsWeb) return 'http://localhost:4000'; // Flutter Web 디버그
-      if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // Android 에뮬레이터
-      if (Platform.isIOS) return 'http://localhost:4000'; // iOS 시뮬레이터
-
-      // 실기기 기본값: 같은 Wi-Fi의 PC IP로 바꿔 두세요.
+      if (kIsWeb) return 'http://localhost:4000';
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
+      if (Platform.isIOS) return 'http://localhost:4000';
       return 'http://192.168.0.23:4000';
     })();
 
-// ✅ 버튼/칩/원 내부처럼 “넘치면 안 되는 컨테이너”에서 쓸 고정 스케일러
+// --- 로컬 저장 키(동화별) ---
+const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
+const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
+
 const TextScaler fixedScale = TextScaler.linear(1.0);
+
+String normalizeTitle(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 /// 카테고리 집계용
 class CategoryStat {
@@ -39,9 +43,13 @@ class StoryResultPage extends StatefulWidget {
   final int score;
   final int total;
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
-  final Map<String, CategoryStat> byType; // 직접화행/간접화행/질문화행/단언화행/의례화화행
+  final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화 ...
   final DateTime testedAt;
   final String? storyTitle;
+
+  /// true: 실제 테스트 직후(저장+회차증가+옵션 서버전송)
+  /// false: 조회용(증가/저장 안 함)
+  final bool persist;
 
   const StoryResultPage({
     super.key,
@@ -51,6 +59,7 @@ class StoryResultPage extends StatefulWidget {
     required this.byType,
     required this.testedAt,
     this.storyTitle,
+    this.persist = true,
   });
 
   @override
@@ -58,43 +67,100 @@ class StoryResultPage extends StatefulWidget {
 }
 
 class _StoryResultPageState extends State<StoryResultPage> {
-  bool _posted = false;
+  bool _synced = false;
+  int _attemptOrder = 1; // 칩에 표기할 회차
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _postAttemptTimeOnce());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (widget.persist) {
+        await _persistOnce(); // 저장 + 회차증가 (+옵션 서버)
+      } else {
+        await _loadCountOnly(); // 조회용: 현재 회차만 로드
+      }
+    });
   }
 
-  Future<void> _postAttemptTimeOnce() async {
-    if (_posted) return;
-    _posted = true;
+  // ---- 저장 페이로드 생성 ----
+  Map<String, dynamic> _buildPayload(String title) {
+    return {
+      'storyTitle': title,
+      'attemptTime': widget.testedAt.toUtc().toIso8601String(),
+      'clientKst': _formatKst(widget.testedAt),
+      'score': widget.score,
+      'total': widget.total,
+      'byCategory': widget.byCategory.map(
+        (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
+      ),
+      // 필요시 'byType'도 저장 가능
+      'byType': widget.byType.map((k,v)=> MapEntry(k, {'correct': v.correct, 'total': v.total})),
+    };
+    // 서버 스키마가 단순하면 위처럼 최소만 보냄
+  }
 
-    try {
-      final uri = Uri.parse('$API_BASE/attempt');
-      final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
-      final clientKst = _formatKst(widget.testedAt);
+  // ---- 로컬 최신 저장 ----
+  Future<void> _cacheLatestLocally(
+    String title,
+    Map<String, dynamic> payload,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      '$PREF_STORY_LATEST_PREFIX$title',
+      jsonEncode(payload),
+    );
+  }
 
-      final body = jsonEncode({
-        'attemptTime': measuredAtIso,
-        'clientKst': clientKst,
-        'storyTitle': widget.storyTitle,
-      });
+  // ---- 회차 증가(동화별) ----
+  Future<int> _bumpCount(String title) async {
+    final prefs = await SharedPreferences.getInstance();
+    final next = (prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ?? 0) + 1;
+    await prefs.setInt('$PREF_STORY_COUNT_PREFIX$title', next);
+    return next;
+  }
 
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-      debugPrint(
-        '[STR] attempt POST status=${res.statusCode} body=${res.body}',
-      );
-    } catch (e) {
-      debugPrint('[STR] attempt POST error: $e');
+  // ---- 현재 회차 로드(동화별) ----
+  Future<void> _loadCountOnly() async {
+    // final title = widget.storyTitle ?? '동화';
+    final title = normalizeTitle(widget.storyTitle ?? '동화'); // ★ 정규화해서 읽기
+    final prefs = await SharedPreferences.getInstance();
+    final cnt = prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ?? 1;
+    if (mounted) setState(() => _attemptOrder = cnt);
+  }
+
+  // ---- 최초 1회 저장 루틴 ----
+  Future<void> _persistOnce() async {
+    if (_synced) return;
+    _synced = true;
+
+    final rawTitle = widget.storyTitle ?? '동화';
+    final title = normalizeTitle(rawTitle); // ★ 정규화된 제목으로 "키" 사용
+    final payload = _buildPayload(rawTitle); // 화면표시는 원본 유지
+
+    // 1) 로컬 저장 (키는 정규화 제목)
+    await _cacheLatestLocally(title, payload);
+
+    // 2) 회차 증가
+    final next = await _bumpCount(title);
+    if (mounted) setState(() => _attemptOrder = next);
+
+    // 3) 옵션: 서버 전송
+    if (kUseServer) {
+      try {
+        final uri = Uri.parse('$API_BASE/attempt');
+        final res = await http.post(
+          uri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(payload),
+        );
+        debugPrint('[STR] POST /attempt -> ${res.statusCode} ${res.body}');
+      } catch (e) {
+        debugPrint('[STR] POST error: $e');
+      }
     }
   }
 
-  // ---- KST(Asia/Seoul) 변환 & 포맷 ----
+  // ---- KST 포맷 ----
   String _formatKst(DateTime dt) {
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
@@ -110,12 +176,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
 
-    // 기종에 맞는 상단바 크기 설정
     double _appBarH(BuildContext context) {
       final shortest = MediaQuery.sizeOf(context).shortestSide;
-      if (shortest >= 840) return 88; // 큰 태블릿
-      if (shortest >= 600) return 72; // 일반 태블릿
-      return kToolbarHeight; // 폰(기본 56)
+      if (shortest >= 840) return 88;
+      if (shortest >= 600) return 72;
+      return kToolbarHeight;
     }
 
     return Scaffold(
@@ -140,10 +205,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(_formatKst(widget.testedAt)), // ✅ 시간 텍스트 스케일 고정
+              _attemptChip(_attemptOrder, _formatKst(widget.testedAt)),
               SizedBox(height: 12.h),
 
-              // 카드: 점수 요약 + 카테고리 바 4개
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -168,7 +232,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     ),
                     SizedBox(height: 14.h),
 
-                    _scoreCircle(widget.score, widget.total), // ✅ 원 내부 텍스트 고정
+                    _scoreCircle(widget.score, widget.total),
 
                     SizedBox(height: 16.h),
                     _riskBarRow('요구', widget.byCategory['요구']),
@@ -184,7 +248,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
               SizedBox(height: 14.h),
 
-              // 카드: 검사 결과 평가
               _card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,11 +271,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
               SizedBox(height: 20.h),
 
-              // 맨 아래: 두뇌 게임으로 이동
               SizedBox(
                 width: double.infinity,
                 height: 52.h,
-                child: _brainCta(), // ✅ 아이콘/텍스트 함께 스케일 or 함께 고정
+                child: _brainCta(),
               ),
             ],
           ),
@@ -222,72 +284,64 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   // --- 위젯 유틸 ---
+  Widget _card({required Widget child}) => Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: child,
+  );
 
-  Widget _card({required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+  Widget _attemptChip(int order, String formattedKst) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${order}회차',
+          textScaler: fixedScale,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18.sp,
+            color: AppColors.btnColorDark,
           ),
-        ],
-      ),
-      child: child,
-    );
-  }
+        ),
+        SizedBox(width: 10.w),
+        Text(
+          formattedKst,
+          textScaler: fixedScale,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18.sp,
+            color: const Color(0xFF111827),
+          ),
+        ),
+      ],
+    ),
+  );
 
-  // ✅ 시간 칩: 텍스트 스케일 고정 + 잘림 방지(한 줄/ellipsis)
-  Widget _attemptChip(String formattedKst) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '1회차',
-            textScaler: fixedScale,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 18.sp,
-              color: AppColors.btnColorDark,
-            ),
-          ),
-          SizedBox(width: 10.w),
-          Text(
-            formattedKst,
-            textScaler: fixedScale, // ← 시스템 글씨 키워도 여기선 고정
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18.sp,
-              color: const Color(0xFF111827),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ✅ 점수 원: 내부 숫자/분모 모두 컨테이너 크기 비례 + 스케일 고정
   Widget _scoreCircle(int score, int total) {
-    final double d = 140.w; // 원 지름
-    final double big = d * 0.40; // 큰 숫자 폰트
-    final double small = d * 0.20; // /분모 폰트
-
+    final double d = 140.w;
+    final double big = d * 0.40;
+    final double small = d * 0.20;
     return SizedBox(
       width: d,
       height: d,
@@ -309,11 +363,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '$score',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(
-                  forceStrutHeight: true,
-                  height: 1,
-                  fontSize: big,
-                ),
                 style: TextStyle(
                   fontSize: big,
                   fontWeight: FontWeight.w900,
@@ -324,11 +373,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
               Text(
                 '/$total',
                 textScaler: fixedScale,
-                strutStyle: StrutStyle(
-                  forceStrutHeight: true,
-                  height: 1,
-                  fontSize: small,
-                ),
                 style: TextStyle(
                   fontSize: small,
                   fontWeight: FontWeight.w800,
@@ -371,7 +415,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
               ),
               child: Text(
                 eval.text,
-                textScaler: fixedScale, // 뱃지 내부도 넘침 방지
+                textScaler: fixedScale,
                 style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 17.sp,
@@ -385,80 +429,72 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  Widget _riskBar(double position) {
-    // position: 0(양호, 녹색) ~ 1(매우 주의, 빨강)
-    return SizedBox(
-      height: 16.h,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final w = c.maxWidth;
-          return Stack(
-            alignment: Alignment.centerLeft,
-            children: [
-              Container(
-                width: w,
-                height: 6.h,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF10B981), // green
-                      Color(0xFFF59E0B), // amber
-                      Color(0xFFEF4444), // red
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(999),
+  Widget _riskBar(double position) => SizedBox(
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-              ),
-              Positioned(
-                left: (w - 18.w) * position,
-                child: Container(
-                  width: 18.w,
-                  height: 18.w,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: const Color(0xFF9CA3AF),
-                      width: 2,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _warnBanner() {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-      margin: EdgeInsets.only(bottom: 12.h),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF1F2),
-        border: Border.all(color: const Color(0xFFFCA5A5)),
-        borderRadius: BorderRadius.circular(14.r),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
-          SizedBox(width: 8.w),
-          Expanded(
-            child: Text(
-              '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
-              textScaler: const TextScaler.linear(1.0),
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 19.sp,
-                color: const Color(0xFF7F1D1D),
+                borderRadius: BorderRadius.circular(999),
               ),
             ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+
+  Widget _warnBanner() => Container(
+    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+    margin: EdgeInsets.only(bottom: 12.h),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF1F2),
+      border: Border.all(color: const Color(0xFFFCA5A5)),
+      borderRadius: BorderRadius.circular(14.r),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
+            textScaler: const TextScaler.linear(1.0),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 19.sp,
+              color: const Color(0xFF7F1D1D),
+            ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 
   List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
     final items = <Widget>[];
@@ -470,73 +506,75 @@ class _StoryResultPageState extends State<StoryResultPage> {
       }
     }
 
-    addIfLow(
-      '직접화행',
-      '직접화행',
-      '기본 대화에 대한 이해가 부족하여 화자의 의도를 바로 파악하는 데\n어려움이 보입니다. 대화 응용\n훈련으로 개선할 수 있습니다.',
-    );
-    addIfLow(
-      '간접화행',
-      '간접화행',
-      '간접적으로 표현된 의도를 해석하는 능력이 미흡합니다. 맥락 추론\n훈련을 통해 보완이 필요합니다.',
-    );
-    addIfLow(
-      '질문화행',
-      '질문화행',
-      '대화에서 주고받는 정보 판단과 질문\n의도 파악이 부족합니다. 정보 파악\n중심의 활동이 필요합니다.',
-    );
-    addIfLow(
-      '단언화행',
-      '단언화행',
-      '상황에 맞는 감정/진술을\n이해하고 표현 의도를\n읽는 능력이 부족합니다.\n상황·정서 파악 활동을 권합니다.',
-    );
-    addIfLow(
-      '의례화화행',
-      '의례화화행',
-      '인사·감사 등 예절적 표현의 의도\n이해가 낮습니다. 일상 의례 표현\n중심의 학습을 권장합니다.',
-    );
+    addIfLow('직접화행', '직접화행', '기본 대화 의도 파악이 미흡합니다. 대화 응용 훈련으로 개선하세요.');
+    addIfLow('간접화행', '간접화행', '간접적 표현 해석이 약합니다. 맥락 추론 훈련이 필요합니다.');
+    addIfLow('질문화행', '질문화행', '질문 의도 파악이 부족합니다. 정보 파악 활동을 권장합니다.');
+    addIfLow('단언화행', '단언화행', '상황에 맞는 진술 이해가 부족합니다. 상황·정서 파악 활동을 권합니다.');
+    addIfLow('의례화화행', '의례화화행', '예절적 표현 이해가 낮습니다. 일상 의례 표현 학습을 권장합니다.');
 
     if (items.isEmpty) {
-      items.add(
-        _evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습을 통해 더\n안정적인 이해를 유지해 보세요.'),
-      );
+      items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습으로 안정적 이해를 유지하세요.'));
     }
     return items;
   }
 
-  Widget _evalBlock(String title, String body) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.all(12.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(12.r),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+  Widget _evalBlock(String title, String body) => Container(
+    width: double.infinity,
+    padding: EdgeInsets.all(12.w),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF9FAFB),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          textScaler: const TextScaler.linear(1.0),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 20.sp,
+            color: const Color(0xFF111827),
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          body,
+          textScaler: const TextScaler.linear(1.0),
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 19.sp,
+            color: const Color(0xFF4B5563),
+            height: 1.5,
+          ),
+        ),
+      ],
+    ),
+  );
+
+  // CTA
+  Widget _brainCta() {
+    final double font = 22.sp;
+    final double iconSize = font * 1.25;
+    return ElevatedButton.icon(
+      onPressed: () {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
+          (route) => false,
+        );
+      },
+      icon: Icon(Icons.videogame_asset_rounded, size: iconSize),
+      label: Text(
+        '두뇌 게임으로 이동',
+        textScaler: fixedScale,
+        style: TextStyle(fontWeight: FontWeight.w900, fontSize: font),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            textScaler: const TextScaler.linear(1.0),
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 20.sp,
-              color: const Color(0xFF111827),
-            ),
-          ),
-          SizedBox(height: 6.h),
-          Text(
-            body,
-            textScaler: const TextScaler.linear(1.0),
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 19.sp,
-              color: const Color(0xFF4B5563),
-              height: 1.5,
-            ),
-          ),
-        ],
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFFFD43B),
+        foregroundColor: Colors.black,
+        shape: const StadiumBorder(),
+        elevation: 0,
       ),
     );
   }
@@ -551,7 +589,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
         position: 0.5,
       );
     }
-    final risk = s.riskRatio; // 0~1
+    final risk = s.riskRatio;
     if (risk >= 0.75) {
       return _EvalView(
         text: '매우 주의',
@@ -585,33 +623,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
         position: risk,
       );
     }
-  }
-
-  // ✅ 아이콘/텍스트를 함께 고정 스케일로 맞추고, 아이콘 크기를 폰트에 연동
-  Widget _brainCta() {
-    final double font = 22.sp;
-    final double iconSize = font * 1.25; // 텍스트 대비 살짝 크게
-
-    return ElevatedButton.icon(
-      onPressed: () {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
-          (route) => false,
-        );
-      },
-      icon: Icon(Icons.videogame_asset_rounded, size: iconSize),
-      label: Text(
-        '두뇌 게임으로 이동',
-        textScaler: fixedScale,
-        style: TextStyle(fontWeight: FontWeight.w900, fontSize: font),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFFFFD43B),
-        foregroundColor: Colors.black,
-        shape: const StadiumBorder(),
-        elevation: 0,
-      ),
-    );
   }
 }
 
