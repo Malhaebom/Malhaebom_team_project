@@ -13,18 +13,27 @@ const Signup = () => {
 
   const labelStyle = {
     fontSize: "16px",
-    fontWeight: "bold",
-    marginBottom: "8px",
+    fontWeight: "600",
+    fontFamily: "Pretendard-Regular, -apple-system, BlinkMacSystemFont, sans-serif",
+    marginBottom: "6px",
     display: "block",
+    color: "#4a5568",
+    letterSpacing: "0.025em",
+    textTransform: "uppercase",
   };
 
   const inputStyle = {
     width: "100%",
-    padding: "12px",
-    borderRadius: "10px",
-    border: "1px solid #ccc",
-    fontSize: "16px",
-    marginBottom: "20px",
+    padding: "14px 16px",
+    borderRadius: "12px",
+    border: "2px solid #e2e8f0",
+    fontSize: "15px",
+    marginBottom: "24px",
+    backgroundColor: "#f8fafc",
+    color: "#1a202c",
+    transition: "all 0.2s ease",
+    fontFamily: "Pretendard-Regular, sans-serif",
+    outline: "none",
   };
 
   const genderButtonStyle = (selected, type) => {
@@ -49,28 +58,45 @@ const Signup = () => {
       {/* 공통 배경 */}
       <Background />
 
-      <div
-        className="wrap"
-        style={{
-          maxWidth: "520px",
-          margin: "0 auto",
-          paddingTop: "80px",
-          fontFamily: "Pretendard-Regular",
-        }}
-      >
-        {/* 타이틀 */}
-        <h2
-          style={{
-            textAlign: "center",
-            marginBottom: "30px",
-            fontFamily: "ONE-Mobile-Title",
-            fontSize: "32px",
-          }}
-        >
-          회원가입
-        </h2>
+             <div
+         className="wrap"
+         style={{
+           maxWidth: "520px",
+           margin: "0 auto",
+           paddingTop: "80px",
+           paddingLeft: "20px",
+           paddingRight: "20px",
+           fontFamily: "Pretendard-Regular",
+         }}
+       >
+                  {/* 타이틀 */}
+         <h2
+           style={{
+             textAlign: "center",
+             marginBottom: "40px",
+             fontFamily: "Pretendard-Bold, -apple-system, BlinkMacSystemFont, sans-serif",
+             fontSize: "32px",
+             fontWeight: "800",
+             color: "#2d3748",
+             letterSpacing: "-0.02em",
+             lineHeight: "1.1",
+           }}
+         >
+           회원가입
+         </h2>
 
-        {/* 닉네임 */}
+                             {/* 테두리 박스 컨테이너 */}
+           <div
+             style={{
+               border: "2px solid rgba(255, 255, 255, 0.8)",
+               borderRadius: "15px",
+               padding: "30px",
+               margin: "0 5%",
+               background: "rgba(255, 255, 255, 0.9)",
+               boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
+             }}
+           >
+           {/* 닉네임 */}
         <label style={labelStyle}>닉네임</label>
         <input
           type="text"
@@ -110,14 +136,14 @@ const Signup = () => {
           placeholder="비밀번호를 다시 입력하세요"
         />
 
-        {/* 생년월일 */}
-        <label style={labelStyle}>생년월일</label>
-        <input
-          type="date"
-          value={birth}
-          onChange={(e) => setBirth(e.target.value)}
-          style={inputStyle}
-        />
+                 {/* 생년월일 */}
+         <label style={labelStyle}>생년월일</label>
+         <input
+           type="date"
+           value={birth}
+           onChange={(e) => setBirth(e.target.value)}
+           style={inputStyle}
+         />
 
         {/* 성별 */}
         <label style={labelStyle}>성별</label>
@@ -156,23 +182,37 @@ const Signup = () => {
           회원가입
         </button>
 
-        {/* 로그인 안내 */}
-        <div style={{ marginTop: "20px", textAlign: "center", fontSize: "14px" }}>
-          계정을 보유하고 계신가요?{" "}
-          <span
-            style={{
-              color: "#4a85d1",
-              fontWeight: "bold",
-              cursor: "pointer",
-            }}
-            onClick={() => navigate("/login")}
-          >
-            로그인
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-};
+                                                                                                                                               {/* 로그인 안내 */}
+            <div style={{ 
+              marginTop: "12px", 
+              marginBottom: "3px",
+              textAlign: "center", 
+              fontSize: "14px",
+              color: "#64748b",
+              fontFamily: "Pretendard-Regular, sans-serif",
+              lineHeight: "1.5"
+            }}>
+           계정을 보유하고 계신가요?{" "}
+           <span
+             style={{
+               color: "#4a85d1",
+               fontWeight: "600",
+               cursor: "pointer",
+               textDecoration: "underline",
+               textUnderlineOffset: "2px",
+               transition: "color 0.2s ease",
+             }}
+             onMouseEnter={(e) => e.currentTarget.style.color = "#3182ce"}
+             onMouseLeave={(e) => e.currentTarget.style.color = "#4a85d1"}
+             onClick={() => navigate("/login")}
+           >
+             로그인
+           </span>
+         </div>
+         </div>
+       </div>
+     </div>
+   );
+ };
 
 export default Signup;

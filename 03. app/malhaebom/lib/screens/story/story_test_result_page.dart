@@ -1,12 +1,25 @@
 import 'dart:convert';
+import 'dart:io' show Platform; // ★ 추가
+import 'package:flutter/foundation.dart' show kIsWeb; // ★ 추가
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
-// ★ 서버 베이스 URL (에뮬레이터 사용 시)
-const String API_BASE = 'http://10.0.2.2:4000/str';
+// ★ 서버 베이스 URL (dart-define > 자동감지)
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
+
+      if (kIsWeb) return 'http://localhost:4000'; // Flutter Web 디버그
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // Android 에뮬레이터
+      if (Platform.isIOS) return 'http://localhost:4000'; // iOS 시뮬레이터
+
+      // 실기기 기본값: 같은 Wi-Fi의 PC IP로 바꿔 두세요.
+      return 'http://192.168.0.23:4000';
+    })();
 
 // ✅ 버튼/칩/원 내부처럼 “넘치면 안 되는 컨테이너”에서 쓸 고정 스케일러
 const TextScaler fixedScale = TextScaler.linear(1.0);
@@ -582,7 +595,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     return ElevatedButton.icon(
       onPressed: () {
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => BrainTrainingMainPage()),
+          MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
           (route) => false,
         );
       },

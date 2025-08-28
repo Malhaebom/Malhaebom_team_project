@@ -42,10 +42,10 @@ const Login = () => {
     width: "100%",
     padding: "15px",
     fontSize: "18px",
-    marginBottom: "15px",
     borderRadius: "12px",
     border: "1px solid #ccc",
     boxSizing: "border-box",
+    display: "block",
   };
 
   const buttonStyle = (bgColor, hoverColor) => ({
@@ -57,9 +57,9 @@ const Login = () => {
     border: "none",
     borderRadius: "12px",
     cursor: "pointer",
-    marginBottom: "20px",
     transition: "all 0.2s",
     textAlign: "center",
+    display: "block",
   });
 
   const handleMouseEnter = (e, hoverColor) =>
@@ -119,67 +119,72 @@ const Login = () => {
         >
           나를 지키는 특별한 습관
         </h6>
-        <p
-          style={{
-            fontSize: "26px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "30px",
-          }}
-        >
-          지금 시작하세요!
-        </p>
+                 <p
+           style={{
+             fontSize: "26px",
+             color: "#000",
+             textAlign: "center",
+             marginBottom: "30px",
+           }}
+         >
+           지금 시작하세요!
+         </p>
 
-        {!nick && (
-          <>
-            {/* 소셜 로그인 */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                marginBottom: "20px",
-              }}
-            >
-              <button style={socialBtnStyle("#F7E600")}>
-                <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
-                카카오로 시작하기
-              </button>
-              <button style={socialBtnStyle("#00C73C", "#fff")}>
-                <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
-                네이버로 시작하기
-              </button>
-              <button style={socialBtnStyle("#000", "#fff")}>
-                <img src="/img/google.png" alt="구글" style={socialIconStyle} />
-                구글로 시작하기
+         {!nick && (
+           <>
+                           {/* 흰색 카드 컨테이너 - 마이페이지와 동일한 구조 */}
+              <div
+                style={{
+                  background: "#fff",
+                  padding: "15px 10px",
+                  borderRadius: "15px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "15px",
+                  maxWidth: "400px",
+                  margin: "0 auto",
+                }}
+              >
+                             <button style={socialBtnStyle("#F7E600")}>
+                 <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
+                 카카오로 시작하기
+               </button>
+               <button style={socialBtnStyle("#00C73C", "#fff")}>
+                 <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
+                 네이버로 시작하기
+               </button>
+               <button style={socialBtnStyle("#000", "#fff")}>
+                 <img src="/img/google.png" alt="구글" style={socialIconStyle} />
+                 구글로 시작하기
+               </button>
+
+              {/* 입력칸 */}
+              <input
+                type="text"
+                placeholder="전화번호"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                style={inputStyle}
+              />
+              <input
+                type="password"
+                placeholder="비밀번호"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={inputStyle}
+              />
+
+              {/* 로그인 버튼 */}
+              <button
+                style={buttonStyle("#4a85d1", "#5f9cec")}
+                onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+                onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+                onClick={handleLogin}
+              >
+                로그인
               </button>
             </div>
-
-            {/* 입력칸 */}
-            <input
-              type="text"
-              placeholder="전화번호"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-            />
-
-            {/* 로그인 버튼 */}
-            <button
-              style={buttonStyle("#4a85d1", "#5f9cec")}
-              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
-              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
-              onClick={handleLogin}
-            >
-              로그인
-            </button>
           </>
         )}
 

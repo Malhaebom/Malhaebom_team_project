@@ -1,5 +1,5 @@
 // src/pages/Home.jsx
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -7,23 +7,41 @@ import Background from "./Background/Background";
 
 export default function Home() {
   const navigate = useNavigate();
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
     AOS.init();
+
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   const boxStyle = {
-    borderRadius: "20px", // 모서리 둥글기
-    overflow: "hidden",    // 이미지가 밖으로 튀어나오지 않도록
+    borderRadius: "20px",
+    overflow: "hidden",
+  };
+
+  const wrapStyle = {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "column",
+    minHeight: "100vh",
   };
 
   return (
     <div className="content">
+      {/* 화면 가로 1000 이상일 때만 배경 */}
+      {windowWidth > 1100 && <Background />}
 
-      {/* 공통 배경 추가 */}
-      <Background />
-
-      <div className="wrap">
+      <div className="wrap" style={windowWidth <= 1000 ? wrapStyle : {}}>
         <header>
           <div className="hd_inner">
             <h1 className="logo">말해봄</h1>
@@ -93,7 +111,7 @@ export default function Home() {
             </div>
 
             {/* 마이페이지 */}
-            <div className="box" data-aos="fade-up" data-aos-duration="2500" style={boxStyle} >
+            <div className="box" data-aos="fade-up" data-aos-duration="2500" style={boxStyle}>
               <div>
                 <h2>마이페이지</h2>
                 <p>누구님 환영합니다.</p>

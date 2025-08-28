@@ -35,14 +35,11 @@ const sign = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 
 /* =========================
  * 모바일 앱 콜백 URI (flutter_web_auth_2)
- * 예: myapp://auth/callback
  * ========================= */
 const APP_CALLBACK = process.env.APP_CALLBACK || "myapp://auth/callback";
 
 /* =========================
  * 공개 베이스 URL + 리다이렉트 경로
- * - ADB reverse 사용할 땐: PUBLIC_BASE_URL = "http://localhost:4000"
- * - ngrok 등 HTTPS 터널 사용 시: "https://<서브도메인>.ngrok-free.app"
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/+$/, "");
 const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
@@ -53,33 +50,32 @@ function assertEnv(v, name) {
   if (!v) console.error(`[ENV MISSING] ${name} not set`);
 }
 
-// OAuth 설정값 (client_id/secret)
+// OAuth 설정값
 const GOOGLE = {
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
 };
 const KAKAO = {
   client_id: process.env.KAKAO_CLIENT_ID,
-  client_secret: process.env.KAKAO_CLIENT_SECRET || "", // 선택
+  client_secret: process.env.KAKAO_CLIENT_SECRET || "",
 };
 const NAVER = {
   client_id: process.env.NAVER_CLIENT_ID,
   client_secret: process.env.NAVER_CLIENT_SECRET,
 };
 
-// 필수 env 경고
 assertEnv(GOOGLE.client_id, "GOOGLE_CLIENT_ID");
 assertEnv(GOOGLE.client_secret, "GOOGLE_CLIENT_SECRET");
 assertEnv(KAKAO.client_id, "KAKAO_CLIENT_ID");
 assertEnv(NAVER.client_id, "NAVER_CLIENT_ID");
 assertEnv(NAVER.client_secret, "NAVER_CLIENT_SECRET");
-// PUBLIC_BASE_URL은 아래 buildRedirectUri에서 자동 보완되지만 명시 권장
+
 if (!PUBLIC_BASE_URL) {
   console.warn("[ENV NOTICE] PUBLIC_BASE_URL not set. Will infer from request host or fallback to http://localhost:4000");
 }
 
 /* =========================
- * 요청 호스트 캐시 (개발 편의)
+ * 요청 호스트 캐시
  * ========================= */
 let reqHostCache = "";
 router.use((req, _res, next) => {
@@ -93,13 +89,9 @@ router.use((req, _res, next) => {
 
 /* =========================
  * redirect_uri 구성기
- * 우선순위: PUBLIC_BASE_URL > 요청 Host > http://localhost:4000
  * ========================= */
 function buildRedirectUri(path) {
-  const base =
-    PUBLIC_BASE_URL ||
-    reqHostCache ||
-    "http://localhost:4000";
+  const base = PUBLIC_BASE_URL || reqHostCache || "http://localhost:4000";
   return base.replace(/\/+$/, "") + path;
 }
 
@@ -111,9 +103,7 @@ const GOOGLE_STATE = new Map();
 const KAKAO_STATE  = new Map();
 const NAVER_STATE  = new Map();
 
-function saveState(store, state) {
-  store.set(state, Date.now());
-}
+function saveState(store, state) { store.set(state, Date.now()); }
 function verifyAndDeleteState(store, state) {
   const ts = store.get(state);
   store.delete(state);
@@ -122,8 +112,44 @@ function verifyAndDeleteState(store, state) {
 }
 
 /* =========================
- * 공통: 앱으로 리다이렉트
+ * 공통: 앱으로 리다이렉트/에러
+ *  - 브라우저 탭이 전면에 남는 문제를 줄이기 위해 HTML 브리지 사용
  * ========================= */
+function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>${title}</title>
+  <style>
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px;line-height:1.5}
+    .box{max-width:520px;margin:24px auto;padding:20px;border:1px solid #eee;border-radius:12px}
+    .btn{display:inline-block;margin-top:12px;padding:10px 14px;border-radius:8px;background:#344CB7;color:#fff;text-decoration:none}
+    .muted{color:#666;font-size:14px}
+  </style>
+  <script>
+    (function(){
+      var target = ${JSON.stringify(toUrl)};
+      try { window.location.replace(target); } catch(e) {}
+      setTimeout(function(){
+        var hint = document.getElementById('hint');
+        if (hint) hint.style.display = 'block';
+      }, 800);
+    })();
+  </script>
+</head>
+<body>
+  <div class="box">
+    <h3>${title}</h3>
+    <p class="muted">${hint}</p>
+    <a class="btn" href="${toUrl}">${btnLabel}</a>
+    <p id="hint" class="muted" style="display:none;margin-top:8px;">버튼이 작동하지 않으면 브라우저 탭을 닫아 주세요.</p>
+  </div>
+</body>
+</html>`;
+}
+
 function redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type }) {
   const url =
     APP_CALLBACK +
@@ -131,15 +157,17 @@ function redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type }) {
     `&sns_user_id=${encodeURIComponent(sns_user_id)}` +
     `&sns_nick=${encodeURIComponent(sns_nick ?? "")}` +
     `&sns_login_type=${encodeURIComponent(sns_login_type)}`;
-  return res.redirect(url);
+
+  const html = htmlBridge(url, "앱으로 돌아가는 중…", "앱으로 돌아가기");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(html);
 }
 
-/* =========================
- * 공통: 에러 리다이렉트
- * ========================= */
 function redirectError(res, msg) {
   const url = APP_CALLBACK + `?error=${encodeURIComponent(msg)}`;
-  return res.redirect(url);
+  const html = htmlBridge(url, "로그인 처리 중 오류", "앱으로 돌아가기", "자동 전환되지 않으면 버튼을 눌러 주세요.");
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(html);
 }
 
 /* =========================
@@ -159,17 +187,25 @@ async function ensureSnsUser({ sns_user_id, sns_nick, sns_login_type }) {
 }
 
 /* =========================
+ * Helper: reauth 파라미터 해석
+ * ========================= */
+function getReauthFlags(req) {
+  const reauth = String(req.query.reauth || "") === "1";
+  return { reauth };
+}
+
+/* =========================
  * 1) Google 로그인
- * - 구글 콘솔 Authorized redirect URIs:
- *   http://localhost:4000/auth/google/callback  (ADB reverse)
- *   또는
- *   https://<ngrok>/auth/google/callback       (터널 사용)
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(GOOGLE_STATE, state);
 
+  const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(GOOGLE_REDIRECT_PATH);
+  console.log("[GOOGLE] redirect_uri:", redirect_uri);
+
+  const prompt = reauth ? "select_account consent" : "select_account";
 
   const url =
     "https://accounts.google.com/o/oauth2/v2/auth?" +
@@ -178,10 +214,11 @@ router.get("/google", (req, res) => {
       redirect_uri,
       response_type: "code",
       scope: "profile email",
-      prompt: "select_account",
+      prompt,
       access_type: "offline",
       state,
     });
+
   res.redirect(url);
 });
 
@@ -239,17 +276,23 @@ router.get("/kakao", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(KAKAO_STATE, state);
 
+  const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(KAKAO_REDIRECT_PATH);
+  console.log("[KAKAO] redirect_uri:", redirect_uri);
 
-  const url =
-    "https://kauth.kakao.com/oauth/authorize?" +
-    qs.stringify({
-      client_id: KAKAO.client_id,
-      redirect_uri,
-      response_type: "code",
-      scope: "profile_nickname account_email",
-      state,
-    });
+  const params = {
+    client_id: KAKAO.client_id,
+    redirect_uri,
+    response_type: "code",
+    scope: "profile_nickname account_email",
+    state,
+  };
+
+  if (reauth) {
+    params.prompt = "login";
+  }
+
+  const url = "https://kauth.kakao.com/oauth/authorize?" + qs.stringify(params);
   res.redirect(url);
 });
 
@@ -289,7 +332,6 @@ router.get("/kakao/callback", async (req, res) => {
     const sns_nick      = String(acct.profile?.nickname ?? "");
     const sns_login_type = "kakao";
 
-    // 이메일 미동의 계정은 id 사용
     if (!sns_user_id) sns_user_id = String(profileRes.data?.id ?? "");
     if (!sns_user_id) return redirectError(res, "카카오 아이디 없음");
 
@@ -310,16 +352,22 @@ router.get("/naver", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(NAVER_STATE, state);
 
+  const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(NAVER_REDIRECT_PATH);
+  console.log("[NAVER] redirect_uri:", redirect_uri);
 
-  const url =
-    "https://nid.naver.com/oauth2.0/authorize?" +
-    qs.stringify({
-      client_id: NAVER.client_id,
-      response_type: "code",
-      redirect_uri,
-      state,
-    });
+  const params = {
+    client_id: NAVER.client_id,
+    response_type: "code",
+    redirect_uri,
+    state,
+  };
+
+  if (reauth) {
+    params.auth_type = "reprompt";
+  }
+
+  const url = "https://nid.naver.com/oauth2.0/authorize?" + qs.stringify(params);
   res.redirect(url);
 });
 

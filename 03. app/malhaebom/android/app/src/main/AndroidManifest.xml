@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.brain_up">
 
   <uses-permission android:name="android.permission.INTERNET" />
 
@@ -11,41 +13,46 @@
     <activity
         android:name=".MainActivity"
         android:exported="true"
-        android:launchMode="singleTask"
-        android:taskAffinity=""
+        android:launchMode="singleTop"
         android:theme="@style/LaunchTheme"
         android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
         android:hardwareAccelerated="true"
         android:windowSoftInputMode="adjustResize">
+
       <meta-data
           android:name="io.flutter.embedding.android.NormalTheme"
           android:resource="@style/NormalTheme" />
+
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
 
-    <!-- 🔥 콜백은 플러그인 액티비티가 받는다 -->
+    <!-- flutter_web_auth_2 콜백 수신용 -->
     <activity
         android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
         android:exported="true"
         android:noHistory="true"
         android:excludeFromRecents="true"
         android:theme="@style/Theme.Transparent">
+
       <intent-filter android:label="flutter_web_auth_2">
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
-        <!-- 서버의 APP_CALLBACK 과 정확히 일치 -->
-        <data android:scheme="myapp" android:host="auth" android:path="/callback" />
+        <!-- myapp://auth/callback 과 일치 -->
+        <data
+            android:scheme="myapp"
+            android:host="auth"
+            android:pathPrefix="/callback" />
       </intent-filter>
     </activity>
 
     <meta-data android:name="flutterEmbedding" android:value="2" />
   </application>
 
-  <!-- (선택) 필요한 쿼리 -->
+  <!-- (선택) 쿼리 -->
   <queries>
     <intent>
       <action android:name="android.intent.action.PROCESS_TEXT" />
