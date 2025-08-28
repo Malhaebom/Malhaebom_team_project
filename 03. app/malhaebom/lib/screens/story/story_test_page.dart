@@ -187,42 +187,44 @@ class _StoryTestPageState extends State<StoryTestPage>
     final cover = (root['image'] as String?) ?? fallbackCover;
     final List tests = (root['test'] as List?) ?? const [];
 
-    return tests.map<StoryQuestion>((raw) {
-      final type = (raw['type'] ?? '').toString();
-      final prompt = (raw['title'] ?? '').toString();
-      final choices =
-          (raw['list'] as List?)?.map((e) => e.toString()).toList() ??
+    return tests
+        .map<StoryQuestion>((raw) {
+          final type = (raw['type'] ?? '').toString();
+          final prompt = (raw['title'] ?? '').toString();
+          final choices =
+              (raw['list'] as List?)?.map((e) => e.toString()).toList() ??
               const <String>[];
-      final a = raw['answer'];
+          final a = raw['answer'];
 
-      List<String> sounds = const [];
-      final rs = raw['sounds'];
-      if (rs is List) {
-        sounds = rs.map((e) => e.toString()).toList();
-      } else if (raw['sound'] != null) {
-        sounds = [raw['sound'].toString()];
-      }
+          List<String> sounds = const [];
+          final rs = raw['sounds'];
+          if (rs is List) {
+            sounds = rs.map((e) => e.toString()).toList();
+          } else if (raw['sound'] != null) {
+            sounds = [raw['sound'].toString()];
+          }
 
-      int? ans;
-      if (a is int) {
-        if (a == 0) {
-          ans = null;
-        } else if (a > 0 && a <= choices.length) {
-          ans = a - 1;
-        } else {
-          ans = null;
-        }
-      }
+          int? ans;
+          if (a is int) {
+            if (a == 0) {
+              ans = null;
+            } else if (a > 0 && a <= choices.length) {
+              ans = a - 1;
+            } else {
+              ans = null;
+            }
+          }
 
-      return StoryQuestion(
-        category: type,
-        prompt: prompt,
-        choices: choices,
-        answerIndex: ans,
-        cover: cover,
-        sounds: sounds,
-      );
-    }).toList(growable: false);
+          return StoryQuestion(
+            category: type,
+            prompt: prompt,
+            choices: choices,
+            answerIndex: ans,
+            cover: cover,
+            sounds: sounds,
+          );
+        })
+        .toList(growable: false);
   }
 
   // ====== 현재 문항 사운드 자동 재생 ======
@@ -313,13 +315,14 @@ class _StoryTestPageState extends State<StoryTestPage>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => StoryResultPage(
-          score: _pointScore,
-          total: totalPoints,
-          byCategory: byCategory,
-          byType: byType,
-          testedAt: DateTime.now(),
-        ),
+        builder:
+            (_) => StoryResultPage(
+              score: _pointScore,
+              total: totalPoints,
+              byCategory: byCategory,
+              byType: byType,
+              testedAt: DateTime.now(),
+            ),
       ),
     );
   }
@@ -329,11 +332,20 @@ class _StoryTestPageState extends State<StoryTestPage>
 
   @override
   Widget build(BuildContext context) {
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     if (_questions.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: AppColors.btnColorDark,
           centerTitle: true,
+          toolbarHeight: _appBarH(context),
           title: Text(
             widget.title,
             style: TextStyle(
@@ -376,7 +388,7 @@ class _StoryTestPageState extends State<StoryTestPage>
         style: TextStyle(
           fontFamily: _kFont,
           fontWeight: FontWeight.w700,
-          fontSize: 18.sp,
+          fontSize: 20.sp,
           color: AppColors.white,
         ),
       ),
@@ -428,7 +440,11 @@ class _StoryTestPageState extends State<StoryTestPage>
           onPressed: (_selected == null) ? null : _next,
           child: Text(
             _index < _questions.length - 1 ? '다음' : '완료',
-            style: TextStyle(fontFamily: _kFont, fontWeight: FontWeight.w900, fontSize: 16.sp),
+            style: TextStyle(
+              fontFamily: _kFont,
+              fontWeight: FontWeight.w900,
+              fontSize: 16.sp,
+            ),
           ),
         ),
       ),
@@ -502,16 +518,20 @@ class _StoryTestPageState extends State<StoryTestPage>
             child: SizedBox(
               height: 10.h,
               child: LayoutBuilder(
-                builder: (context, c) => Stack(
-                  children: [
-                    Container(width: c.maxWidth, color: const Color(0xFFE5E7EB)),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      width: c.maxWidth * _progress,
-                      color: AppColors.btnColorDark,
+                builder:
+                    (context, c) => Stack(
+                      children: [
+                        Container(
+                          width: c.maxWidth,
+                          color: const Color(0xFFE5E7EB),
+                        ),
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          width: c.maxWidth * _progress,
+                          color: AppColors.btnColorDark,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
               ),
             ),
           ),

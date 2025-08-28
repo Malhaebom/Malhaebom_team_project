@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle, FlutterError;
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:malhaebom/theme/colors.dart';
 
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -129,33 +130,43 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
 
   @override
   Widget build(BuildContext context) {
+
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return Scaffold(
       backgroundColor: kBg,
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: AppColors.btnColorDark,
           elevation: 0.5,
           centerTitle: true,
           leadingWidth: 0,
-          automaticallyImplyLeading: false,
+          // automaticallyImplyLeading: false,
+          toolbarHeight: _appBarH(context),
           title: Text(
             '${widget.title} 연극',
             textScaler: const TextScaler.linear(1.0),
             style: TextStyle(
               fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w700,
               fontSize: 20.sp,
-              color: Colors.black,
+              color: Colors.white,
             ),
           ),
-          actions: [
-            IconButton(
-              onPressed: () => Navigator.pop(context, _savedPath != null),
-              icon: const Icon(Icons.close),
-              color: Colors.black87,
-            ),
-          ],
+          // actions: [
+          //   IconButton(
+          //     onPressed: () => Navigator.pop(context, _savedPath != null),
+          //     icon: const Icon(Icons.close),
+          //     color: Colors.black87,
+          //   ),
+          // ],
         ),
       ),
       body: Center(
@@ -283,7 +294,10 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
                     ),
-                    label: const Text('내 녹음 듣기', textScaler: const TextScaler.linear(1.0),),
+                    label: const Text(
+                      '내 녹음 듣기',
+                      textScaler: const TextScaler.linear(1.0),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           _savedPath == null

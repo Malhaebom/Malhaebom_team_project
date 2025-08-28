@@ -58,7 +58,17 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_native_splash: ^2.4.1
 
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/logo/logo_splash.png
+  android_gravity: center
+  ios_content_mode: center
+  android_12:
+    color: "#FFFFFF"
+    image: assets/logo/logo_splash.png
+  web: false
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -78,7 +88,7 @@ flutter:
   - assets/logo/
   - assets/icons/
   - assets/logo/logo_long.png
-  - assets/terms_and_conditions.json
+  - assets/terms_and_conditions.json  
 
   # 메인 화면 (홈)
   - assets/logo/logo_brainup.png

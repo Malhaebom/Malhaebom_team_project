@@ -23,41 +23,40 @@ class _StoryMainPageState extends State<StoryMainPage> {
   Widget build(BuildContext context) {
     final tales = Fairytales; // ✅ 데이터는 건드리지 않음
 
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return ScreenUtilInit(
       minTextAdapt: true,
       builder:
           (_, __) => BackToHome(
             child: Scaffold(
               // ===== 파란 AppBar (얇고 크게) =====
-              appBar: PreferredSize(
-                preferredSize: Size.fromHeight(kToolbarHeight),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
-                  ),
-                  child: AppBar(
+              appBar: AppBar(
                     automaticallyImplyLeading: true,
                     centerTitle: true,
                     backgroundColor: AppColors.btnColorDark,
-                    elevation: 0,
+                    toolbarHeight: _appBarH(context),
+                    // elevation: 0,
                     title: Text(
                       '회상 동화',
                       textScaler: const TextScaler.linear(1.0),
                       style: TextStyle(
                         fontFamily: _kFont,
-                        fontWeight: FontWeight.w500, // 얇게
-                        fontSize: 30.sp, // 크게
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20.sp,
                         color: Colors.white,
                         // height: 1.0,
                       ),
                     ),
                   ),
-                ),
-              ),
 
               backgroundColor: AppColors.background,
-
               // ===== 본문: 큼직한 카드 리스트 =====
               body: SingleChildScrollView(
                 child: Padding(
@@ -129,7 +128,9 @@ class _StoryMainPageState extends State<StoryMainPage> {
                                           tale.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          textScaler: const TextScaler.linear(1.0),
+                                          textScaler: const TextScaler.linear(
+                                            1.0,
+                                          ),
                                           style: TextStyle(
                                             fontFamily: _kFont,
                                             fontSize: 19.sp,
@@ -146,7 +147,9 @@ class _StoryMainPageState extends State<StoryMainPage> {
                                           overflow: TextOverflow.ellipsis,
                                           maxLines: 4, // ← 줄 수를 늘려서 더 많이 보이게
                                           textAlign: TextAlign.start,
-                                          textScaler: const TextScaler.linear(1.0),
+                                          textScaler: const TextScaler.linear(
+                                            1.0,
+                                          ),
                                           style: TextStyle(
                                             fontFamily: _kFont,
                                             fontSize:

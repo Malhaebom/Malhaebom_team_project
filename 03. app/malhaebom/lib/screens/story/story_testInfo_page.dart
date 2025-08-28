@@ -18,18 +18,28 @@ class StoryTestinfoPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: AppColors.btnColorDark,
         elevation: 0.5,
         centerTitle: true,
+        toolbarHeight: _appBarH(context),
         title: Text(
           '화행 인지검사',
           style: TextStyle(
+            fontFamily: 'GmarketSans',
             fontWeight: FontWeight.w700,
             fontSize: 20.sp,
-            color: Colors.black,
+            color: Colors.white,
           ),
         ),
       ),
@@ -148,8 +158,9 @@ class StoryTestinfoPage extends StatelessWidget {
   void _goToOverlay(BuildContext context) {
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (_, __, ___) =>
-            StoryTestOverlayPage(title: title, storyImg: storyImg),
+        pageBuilder:
+            (_, __, ___) =>
+                StoryTestOverlayPage(title: title, storyImg: storyImg),
         transitionsBuilder:
             (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),

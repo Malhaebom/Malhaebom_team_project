@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Slider from "react-slick";
 import AOS from "aos";
 import "aos/dist/aos.css";
+import Background from "../../Background/Background";
 
 export default function Course() {
   const [searchParams] = useSearchParams();
@@ -16,26 +17,10 @@ export default function Course() {
 
   const menu = useMemo(
     () => ({
-      "동화듣기": {
-        desc: "타임슬랩으로 진행되는 동화 듣기",
-        image: "/drawable/course_read.jpg",
-        course: "/book/training/course/read?bookId=",
-      },
-      "화행검사": {
-        desc: "동화에 대한 질의를 통한 인지능력 판단",
-        image: "/drawable/course_exam.jpg",
-        course: "/book/training/course/exam?bookId=",
-      },
-      "동화 연극하기": {
-        desc: "이야기 주인공의 대사 따라하기",
-        image: "/drawable/course_play.jpg",
-        course: "/book/training/course/play?bookId=",
-      },
-      "워크북 풀어보기": {
-        desc: "워크북 풀어보기",
-        image: "/drawable/course_workbook.jpg",
-        course: "/book/training/course/workbook?bookId=",
-      },
+      "동화듣기": { desc: "타임슬랩으로 진행되는 동화 듣기", image: "/drawable/course_read.jpg", course: "/book/training/course/read?bookId=" },
+      "화행검사": { desc: "동화에 대한 질의를 통한 인지능력 판단", image: "/drawable/course_exam.jpg", course: "/book/training/course/exam?bookId=" },
+      "동화 연극하기": { desc: "이야기 주인공의 대사 따라하기", image: "/drawable/course_play.jpg", course: "/book/training/course/play?bookId=" },
+      "워크북 풀어보기": { desc: "워크북 풀어보기", image: "/drawable/course_workbook.jpg", course: "/book/training/course/workbook?bookId=" },
     }),
     []
   );
@@ -59,31 +44,66 @@ export default function Course() {
 
   const goCourse = (courseBase) => navigate(`${courseBase}${bookId}`);
 
-  // ▶ QuizLibrary와 동일한 slick 옵션
+  // ✅ Book/Quiz와 동일한 커스텀 화살표
+  const NextArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        right: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/next.png" alt="Next" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
+  const PrevArrow = ({ onClick }) => (
+    <div
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: -50,
+        transform: "translateY(-50%)",
+        cursor: "pointer",
+        zIndex: 10,
+      }}
+      onClick={onClick}
+    >
+      <img src="/img/prev.png" alt="Prev" style={{ width: 40, height: 40 }} />
+    </div>
+  );
+
   const settings = {
     slidesToShow: 1,
     slidesToScroll: 1,
     autoplay: false,
     autoplaySpeed: 4000,
     dots: true,
-    centerMode: true,       // 옆 카드 살짝 보이기
-    centerPadding: "50px",  // 원본과 동일
+    centerMode: true,
+    centerPadding: "50px",
     focusOnSelect: true,
     infinite: true,
-    arrows: false,
+    arrows: true,           // 기존 false → true
+    nextArrow: <NextArrow />,
+    prevArrow: <PrevArrow />,
     adaptiveHeight: true,
     accessibility: false,
   };
 
   return (
     <div className="content">
-      {/* ✅ 최소 보정: 오른쪽 치우침 제거 + 좌우 패딩 대칭 보장 */}
       <style>{`
         .ct_slide01 .slick-track { display:flex !important; margin:0 auto !important; }
         .ct_slide01 .slick-slide > div { display:flex; justify-content:center; box-sizing:border-box; }
         .ct_slide01 .slick-list { padding: 0 50px !important; }
         .slider_img { position:relative; height:200px; }
       `}</style>
+
+      <Background />
 
       <div className="wrap">
         <header>
@@ -116,13 +136,7 @@ export default function Course() {
                       src={value.image}
                       alt={key}
                       onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
-                      style={{
-                        width: "100%",
-                        height: 200,
-                        display: "inline-block",
-                        borderRadius: 10,
-                        objectFit: "cover",
-                      }}
+                      style={{ width: "100%", height: 200, display: "inline-block", borderRadius: 10, objectFit: "cover" }}
                     />
                   </div>
                   <div className="slider_tit">
