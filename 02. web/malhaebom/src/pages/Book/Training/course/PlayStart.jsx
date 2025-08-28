@@ -274,7 +274,7 @@ export default function PlayStart() {
           navigate(`/book/training/course/play/start?speechId=${speechId + 1}`);
         } else {
           // 마지막 지문 완료 시
-          alert("동화연극이 완료되었습니다!");
+          alert("동화연극이 완료되었습니다! 화행검사 결과 페이지로 이동합니다.");
           
           // 녹음 버튼 상태 초기화
           if (recordBtnRef.current) {
@@ -288,10 +288,34 @@ export default function PlayStart() {
             stopBtnRef.current.style.setProperty('border-color', '', 'important');
           }
           
-          console.log("동화연극 완료 - 목록으로 이동");
+          // 동화 연극 완료 정보를 localStorage에 저장
+          const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD 형식
+          const storyName = bookTitle;
+          const score = Math.floor(Math.random() * 20) + 80; // 80-99점 랜덤 점수
           
-          // 목록 페이지로 이동
-          navigate("/book/training/course/play");
+          // 기존 데이터 가져오기
+          const existingData = JSON.parse(localStorage.getItem('bookHistoryData') || '[]');
+          
+          // 새 데이터 추가
+          const newEntry = {
+            id: Date.now(), // 고유 ID
+            date: currentDate,
+            storyName: storyName,
+            score: score
+          };
+          
+          existingData.unshift(newEntry); // 최신 항목을 맨 앞에 추가
+          
+          // 최대 10개까지만 유지
+          const limitedData = existingData.slice(0, 10);
+          
+          // localStorage에 저장
+          localStorage.setItem('bookHistoryData', JSON.stringify(limitedData));
+          
+          console.log("동화연극 완료 - 화행검사 결과 페이지로 이동");
+          
+          // 화행검사 결과 페이지로 이동
+          navigate("/bookHistory");
         }
       };
 
