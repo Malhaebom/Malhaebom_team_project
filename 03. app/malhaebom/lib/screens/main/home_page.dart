@@ -80,18 +80,6 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: AppColors.background,
 
-      // ✅ 상단에 간단한 로그아웃 버튼 추가
-      appBar: AppBar(
-        title: const Text('홈'),
-        actions: [
-          IconButton(
-            tooltip: '로그아웃',
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-          ),
-        ],
-      ),
-
       // ✅ 시스템 상단/하단 영역 피해서 배치
       body: SafeArea(
         child: Center(
