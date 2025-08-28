@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 
@@ -36,10 +36,20 @@ export default function QuizResult() {
       },
     });
 
+  // ✅ 브라우저 가로 너비 상태
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100);
+
+  useEffect(() => {
+    const handleResize = () => setIsWide(window.innerWidth > 1100);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <div className="content">
-            {/* 공통 배경 추가 */}
-      <Background />
+      {/* ✅ 1100px 이상일 때만 Background 렌더링 */}
+      {isWide && <Background />}
+
       <div className="wrap">
         <header>
           <div className="hd_inner">

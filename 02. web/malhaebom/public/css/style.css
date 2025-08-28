@@ -19,6 +19,7 @@
 .ct_slide01 > div .slider_tit .slider_p {height:50px;}
 .ct_slide01 > div button {margin-top:30px;}
 
+
 .ct_video {width:100%; min-height:180px; background:#ddd;}
 .ct_video_tit {width:100%; text-align:center; font-size:1.1em; margin-bottom:15px;}
 .ct_video_tit i {margin-right:5px;}
@@ -79,3 +80,5 @@
 .ct_body > div .tit {font-size:1.2em; font-weight:bold; margin-bottom:15px;}
 .ct_body > div p {line-height:1.3;}
 .ct_body > div button {margin-top:20px;}
+
+

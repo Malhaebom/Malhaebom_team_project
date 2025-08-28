@@ -1,4 +1,3 @@
-// src/pages/book/training/Course.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Slider from "react-slick";
@@ -14,6 +13,8 @@ export default function Course() {
 
   const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(true);
+
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
 
   const menu = useMemo(
     () => ({
@@ -42,9 +43,15 @@ export default function Course() {
     })();
   }, [bookId, BASE]);
 
+  // 브라우저 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const goCourse = (courseBase) => navigate(`${courseBase}${bookId}`);
 
-  // ✅ Book/Quiz와 동일한 커스텀 화살표
   const NextArrow = ({ onClick }) => (
     <div
       style={{
@@ -87,7 +94,7 @@ export default function Course() {
     centerPadding: "50px",
     focusOnSelect: true,
     infinite: true,
-    arrows: true,           // 기존 false → true
+    arrows: true,
     nextArrow: <NextArrow />,
     prevArrow: <PrevArrow />,
     adaptiveHeight: true,
@@ -103,7 +110,7 @@ export default function Course() {
         .slider_img { position:relative; height:200px; }
       `}</style>
 
-      <Background />
+      {windowWidth > 1100 && <Background />} {/* 1100 이하일 때 렌더링하지 않음 */}
 
       <div className="wrap">
         <header>

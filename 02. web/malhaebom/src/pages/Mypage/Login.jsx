@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useEffect, useState } from "react";
+=======
+import React, { useState, useEffect } from "react";
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
@@ -15,6 +19,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [nick, setNick] = useState(""); // 로그인 후 닉네임
 
+<<<<<<< HEAD
   // 로그인 상태 복구: 이미 로그인되어 /login에 오면 홈으로 보냄
   useEffect(() => {
     (async () => {
@@ -62,6 +67,21 @@ const Login = () => {
       console.error("로그인 오류:", err);
       alert(msg);
     }
+=======
+  // 브라우저 가로 폭 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const handleLogin = () => {
+    console.log("로그인 버튼 클릭", { phone, password });
+    setNick("홍길동");
+    navigate("/mypage");
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
   };
 
   const handleLogout = async () => {
@@ -129,8 +149,8 @@ const Login = () => {
 
   return (
     <div className="content">
-      {/* 공통 배경 */}
-      <Background />
+      {/* 가로 1100 이상일 때만 배경 렌더링 */}
+      {windowWidth > 1100 && <Background />}
 
       <div
         className="wrap"
@@ -191,6 +211,7 @@ const Login = () => {
         </p>
 
         {!nick && (
+<<<<<<< HEAD
           <>
             {/* 흰색 카드 컨테이너 - 디자인 유지 */}
             <div
@@ -218,37 +239,64 @@ const Login = () => {
                 <img src="/img/google.png" alt="구글" style={socialIconStyle} />
                 구글로 시작하기
               </button>
+=======
+          <div
+            style={{
+              background: "#fff",
+              padding: "15px 10px",
+              borderRadius: "15px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "15px",
+              maxWidth: "400px",
+              margin: "0 auto",
+            }}
+          >
+            <button style={socialBtnStyle("#F7E600")}>
+              <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
+              카카오로 시작하기
+            </button>
+            <button style={socialBtnStyle("#00C73C", "#fff")}>
+              <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
+              네이버로 시작하기
+            </button>
+            <button style={socialBtnStyle("#000", "#fff")}>
+              <img src="/img/google.png" alt="구글" style={socialIconStyle} />
+              구글로 시작하기
+            </button>
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 
-              {/* 입력칸 */}
-              <input
-                type="text"
-                placeholder="전화번호"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                style={inputStyle}
-              />
-              <input
-                type="password"
-                placeholder="비밀번호"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={inputStyle}
-              />
+            <input
+              type="text"
+              placeholder="전화번호"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              style={inputStyle}
+            />
+            <input
+              type="password"
+              placeholder="비밀번호"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              style={inputStyle}
+            />
 
-              {/* 로그인 버튼 */}
-              <button
-                style={buttonStyle("#4a85d1", "#5f9cec")}
-                onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
-                onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
-                onClick={handleLogin}
-              >
-                로그인
-              </button>
-            </div>
-          </>
+            <button
+              style={buttonStyle("#4a85d1", "#5f9cec")}
+              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+              onClick={handleLogin}
+            >
+              로그인
+            </button>
+          </div>
         )}
 
+<<<<<<< HEAD
         {/* 로그아웃 버튼 (로그인 시에만 표시) */}
+=======
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
         {nick && (
           <button
             style={buttonStyle("#FF4D4D", "#d13c3c")}
@@ -260,7 +308,6 @@ const Login = () => {
           </button>
         )}
 
-        {/* 회원가입 */}
         <p
           style={{
             textAlign: "center",

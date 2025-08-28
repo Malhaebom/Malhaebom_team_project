@@ -322,6 +322,7 @@ class _StoryTestPageState extends State<StoryTestPage>
               byCategory: byCategory,
               byType: byType,
               testedAt: DateTime.now(),
+              storyTitle: widget.title,
             ),
       ),
     );

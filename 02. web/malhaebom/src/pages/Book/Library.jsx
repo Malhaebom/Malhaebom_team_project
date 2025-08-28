@@ -1,3 +1,4 @@
+<<<<<<< HEAD
   // src/pages/Book/Library.jsx
   import React, { useEffect, useMemo, useRef, useState } from "react";
   import { useNavigate } from "react-router-dom";
@@ -5,15 +6,30 @@
   import "aos/dist/aos.css";
   import Background from "../Background/Background";
   // slick CSS는 index.html에서 CDN 로드 전제로 둡니다.
+=======
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import AOS from "aos";
+import "aos/dist/aos.css";
+import Background from "../Background/Background";
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 
   export default function BookLibrary() {
     const navigate = useNavigate();
     const BASE = (import.meta.env && import.meta.env.BASE_URL) || "/";
 
+<<<<<<< HEAD
     const [fairytales, setFairytales] = useState(null);
     const [SliderCmp, setSliderCmp] = useState(null);
     const [sliderErr, setSliderErr] = useState(null);
     const [sliderKey, setSliderKey] = useState(0);
+=======
+  const [fairytales, setFairytales] = useState(null);
+  const [SliderCmp, setSliderCmp] = useState(null);
+  const [sliderErr, setSliderErr] = useState(null);
+  const [sliderKey, setSliderKey] = useState(0);
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100); // ✅ 배경 조건
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 
     const sliderWrapRef = useRef(null);
 
@@ -22,6 +38,7 @@
       AOS.init({ once: true });
     }, []);
 
+<<<<<<< HEAD
     // react-slick 동적 import
     useEffect(() => {
       let mounted = true;
@@ -36,6 +53,33 @@
         });
       return () => { mounted = false; };
     }, []);
+=======
+  // ✅ 창 크기 감지
+  useEffect(() => {
+    const handleResize = () => {
+      setIsWide(window.innerWidth > 1100);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // react-slick 동적 import
+  useEffect(() => {
+    let mounted = true;
+    import("react-slick")
+      .then((m) => {
+        const Comp = m?.default || m;
+        if (mounted) setSliderCmp(() => Comp);
+      })
+      .catch((e) => {
+        console.error("[BookLibrary] failed to load react-slick:", e);
+        setSliderErr(e);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 
     // 데이터 로드
     useEffect(() => {
@@ -124,6 +168,7 @@
       return Object.entries(fairytales);
     }, [fairytales]);
 
+<<<<<<< HEAD
     return (
       <div className="content">
         <style>{`
@@ -135,6 +180,20 @@
         `}</style>
               {/* 공통 배경 추가 */}
         <Background />
+=======
+  return (
+    <div className="content">
+      <style>{`
+        .ct_slide01 .slick-list { overflow: hidden !important; }
+        .ct_slide01 .slick-track { display: flex !important; align-items: stretch; }
+        .ct_slide01 .slick-slide, .ct_slide01 .slick-slide > div { height: 100%; }
+        .ct_slide01 .slick-slide > div > div { display: flex; flex-direction: column; height: 100%; }
+        .ct_slide01 .slider_img { text-align: center; }
+      `}</style>
+
+      {/* ✅ 1100px 초과일 때만 배경 표시 */}
+      {isWide && <Background />}
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 
         <div className="wrap">
           <header>

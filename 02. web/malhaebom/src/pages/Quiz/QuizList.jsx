@@ -13,8 +13,16 @@ export default function QuizList() {
   const [brainTraining, setBrainTraining] = useState(null);
   const [brainTrainingArr, setBrainTrainingArr] = useState(null);
   const [title, setTitle] = useState("");
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100);
 
-  useEffect(() => { AOS.init(); }, []);
+  // 브라우저 창 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setIsWide(window.innerWidth > 1100);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => { AOS.init({ once: true }); }, []);
 
   useEffect(() => {
     (async () => {
@@ -59,7 +67,7 @@ export default function QuizList() {
   }, [brainTraining, quizType]);
 
   const goToQuizPlay = (qType, quizId) => {
-    if (!listData || !bannerSuffix) return; // 로딩 완료 전 클릭 방지
+    if (!listData || !bannerSuffix) return;
     const topicData = listData.map(item => ({ ...item }));
     const quizTitle = bannerSuffix ? `${bannerSuffix} 영역` : "퀴즈";
     navigate(`/quiz/play?quizType=${qType}&quizId=${quizId}&qid=0`, {
@@ -69,8 +77,9 @@ export default function QuizList() {
 
   return (
     <div className="content">
-            {/* 공통 배경 추가 */}
-      <Background />
+      {/* ✅ 1100px 이상일 때만 Background 렌더링 */}
+      {isWide && <Background />}
+      
       <div className="wrap">
         <header>
           <div className="hd_inner">

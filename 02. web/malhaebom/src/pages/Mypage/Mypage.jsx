@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 import React, { useEffect, useState } from "react";
+=======
+import React, { useState, useEffect } from "react";
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
@@ -24,6 +28,15 @@ const Mypage = () => {
         setNick("");
       }
     })();
+  }, []);
+
+  // 브라우저 가로 폭 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   // 버튼 스타일 함수
@@ -61,8 +74,7 @@ const Mypage = () => {
 
   return (
     <div className="content">
-      {/* 공통 배경 */}
-      <Background />
+      {windowWidth > 1100 && <Background />}
 
       <div
         className="wrap"
@@ -73,7 +85,6 @@ const Mypage = () => {
           fontFamily: "Pretendard-Regular",
         }}
       >
-        {/* 타이틀 */}
         <h2
           style={{
             textAlign: "center",
@@ -85,7 +96,6 @@ const Mypage = () => {
           마이페이지
         </h2>
 
-        {/* 환영 문구 */}
         {nick && (
           <p
             style={{
@@ -100,7 +110,6 @@ const Mypage = () => {
           </p>
         )}
 
-        {/* 버튼 컨테이너 */}
         <div
           style={{
             background: "#fff",
@@ -112,6 +121,7 @@ const Mypage = () => {
             gap: "15px",
           }}
         >
+<<<<<<< HEAD
           {/* 로그인 이동 버튼 (미로그인일 때만 노출) */}
           {!nick && (
             <button
@@ -142,16 +152,41 @@ const Mypage = () => {
             onMouseEnter={(e) => handleMouseEnter(e, "#3f5a41")}
             onMouseLeave={(e) => handleMouseLeave(e, "#4E6C50")}
             onClick={goBookHistory}
+=======
+          {/* 로그인 하러가기 버튼 */}
+          <button
+            style={buttonStyle("#488eca", "#3a72a8")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#3a72a8")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#488eca")}
+            onClick={() => navigate("/login")}
+          >
+            로그인 하러가기
+          </button>
+
+          {/* 동화 화행검사 결과 이동 */}
+          <button
+            style={buttonStyle("#8d61ac", "#6f4988")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#6f4988")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#8d61ac")}
+            onClick={() => navigate("/bookHistory")}
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
           >
             동화 화행검사 결과
           </button>
 
           {/* 인지능력검사 결과 이동 */}
           <button
+<<<<<<< HEAD
             style={buttonStyle("#9C27B0", "#7B1FA2")}
             onMouseEnter={(e) => handleMouseEnter(e, "#7B1FA2")}
             onMouseLeave={(e) => handleMouseLeave(e, "#9C27B0")}
             onClick={goInterviewHistory}
+=======
+            style={buttonStyle("#a93c7b", "#862d5f")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#862d5f")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#a93c7b")}
+            onClick={() => navigate("/InterviewHistory")}
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
           >
             인지능력검사 결과
           </button>

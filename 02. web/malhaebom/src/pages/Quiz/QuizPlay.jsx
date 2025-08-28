@@ -42,8 +42,16 @@ export default function QuizPlay() {
   const [answerDataArr, setAnswerDataArr] = useState([...initialAnswerArr]);
   const [cnt, setCnt] = useState(0);
   const [showResultBtn, setShowResultBtn] = useState(false); // ✅ 결과보기 버튼 표시 여부
+  const [isWide, setIsWide] = useState(window.innerWidth > 1100); // ✅ 브라우저 너비 상태
 
-  useEffect(() => { AOS.init(); }, []);
+  // 브라우저 창 리사이즈 감지
+  useEffect(() => {
+    const handleResize = () => setIsWide(window.innerWidth > 1100);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => { AOS.init({ once: true }); }, []);
 
   useEffect(() => {
     (async () => {
@@ -83,9 +91,6 @@ export default function QuizPlay() {
     });
   };
 
-  /** ========================
-   * 공통 제출 로직
-   ======================== */
   const handleSubmit = (submitValue) => {
     if (!current) return;
 
@@ -100,10 +105,8 @@ export default function QuizPlay() {
     setAnswerDataArr(newAnswerArr);
 
     if (isRetryMode) {
-      // ✅ 다시풀기 모드 → 결과보기 버튼 노출
       setShowResultBtn(true);
     } else {
-      // ✅ 기본 모드 → 다음 문제로 진행
       if (currentIndex + 1 < currentTopicArr.length) {
         setCurrentIndex(currentIndex + 1);
       } else {
@@ -112,12 +115,8 @@ export default function QuizPlay() {
     }
   };
 
-  /** ========================
-   * Type 별 핸들러
-   ======================== */
   const SubmitType0 = (submitData) => handleSubmit(submitData);
   const SubmitType1 = (submitData) => handleSubmit(submitData);
-
   const SubmitType2 = (submitData) => {
     if (!current) return;
     const maxIndex = current.question.length;
@@ -148,7 +147,6 @@ export default function QuizPlay() {
     const audio = document.querySelector(".soundType3");
     if (audio) { audio.load(); audio.play(); }
   };
-
   const SubmitType3 = () => handleSubmit(cnt);
 
   if (!current) return (
@@ -168,8 +166,9 @@ export default function QuizPlay() {
 
   return (
     <div className="content">
-            {/* 공통 배경 추가 */}
-      <Background />
+      {/* ✅ 1100px 이상일 때만 Background 렌더링 */}
+      {isWide && <Background />}
+      
       <div className="wrap">
         <header>
           <div className="hd_inner">

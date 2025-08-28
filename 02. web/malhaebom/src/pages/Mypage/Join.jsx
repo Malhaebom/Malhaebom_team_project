@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 // src/pages/Join.jsx
 import React, { useState } from "react";
+=======
+import React, { useState, useEffect } from "react";
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
@@ -18,6 +22,15 @@ const Join = () => {
   const [birth, setBirth] = useState("");
   const [gender, setGender] = useState("");
   const navigate = useNavigate();
+
+  // 브라우저 가로 폭 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const labelStyle = {
     fontSize: "16px",
@@ -95,8 +108,8 @@ const Join = () => {
 
   return (
     <div className="content">
-      {/* 공통 배경 */}
-      <Background />
+      {/* 브라우저 가로 1100 이상일 때만 배경 렌더링 */}
+      {windowWidth > 1100 && <Background />}
 
       <div
         className="wrap"
@@ -218,7 +231,10 @@ const Join = () => {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#5f9cec")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#4a85d1")}
+<<<<<<< HEAD
             onClick={submit}
+=======
+>>>>>>> 35b679a0e8a44e8eb4031d1f8d3833f107a499be
           >
             회원가입
           </button>

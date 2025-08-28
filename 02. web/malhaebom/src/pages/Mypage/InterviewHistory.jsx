@@ -1,7 +1,24 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Background from "../Background/Background";
+import { useMicrophone } from "../../MicrophoneContext.jsx";
 
 const InterviewHistory = () => {
+  const { isMicrophoneActive } = useMicrophone();
+
+  // 브라우저 가로 폭 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // 페이지 진입 시 마이크 상태 확인
+  useEffect(() => {
+    console.log("InterviewHistory 페이지 진입 - 마이크 상태:", isMicrophoneActive);
+  }, [isMicrophoneActive]);
+
   const interviewData = [
     { id: 1, date: "2025-08-05", score: 78 },
     { id: 2, date: "2025-08-15", score: 88 },
@@ -15,8 +32,8 @@ const InterviewHistory = () => {
 
   return (
     <div className="content">
-      {/* 공통 배경 */}
-      <Background />
+      {/* 가로 1100 이상일 때만 배경 렌더링 */}
+      {windowWidth > 1100 && <Background />}
 
       <div
         className="wrap"
@@ -55,7 +72,13 @@ const InterviewHistory = () => {
                 }}
               >
                 <span style={{ fontSize: "18px", color: "#333" }}>{item.date}</span>
-                <span style={{ fontSize: "18px", fontWeight: "bold", color: getScoreColor(item.score) }}>
+                <span
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: getScoreColor(item.score),
+                  }}
+                >
                   {item.score}점
                 </span>
               </div>
