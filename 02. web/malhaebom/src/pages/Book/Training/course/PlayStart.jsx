@@ -3,11 +3,89 @@ import useQuery from "../../../../hooks/useQuery.js";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import Background from "../../../Background/Background";
+import { useMicrophone } from "../../../../MicrophoneContext.jsx";
+import { useNavigate } from "react-router-dom";
 
+// 진행률 표시 컴포넌트
+function ProgressBar({ current, total }) {
+  if (!total || total <= 0) return null;
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 20,
+      }}
+    >
+      <span
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
+          border: "2px solid #3f51b5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#3f51b5",
+          fontWeight: "bold",
+        }}
+      >
+        {current}
+      </span>
+
+      <div
+        style={{
+          flex: 1,
+          height: 8,
+          background: "#ccc",
+          margin: "0 10px",
+          borderRadius: 4,
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            width: `${(current / total) * 100}%`,
+            height: "100%",
+            background: "#3f51b5",
+            borderRadius: 4,
+            transition: "width 0.3s ease",
+          }}
+        />
+      </div>
+
+      <span
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "50%",
+          border: "2px solid #ccc",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#999",
+          fontWeight: "bold",
+        }}
+      >
+        {total}
+      </span>
+    </div>
+  );
+}
 
 export default function PlayStart() {
   const query = useQuery();
+  const navigate = useNavigate();
   const speechId = Number(query.get("speechId") ?? "0");
+  const { 
+    isMicrophoneActive, 
+    hasPermission, 
+    mediaRecorderRef: globalMediaRecorderRef,
+    streamRef: globalStreamRef 
+  } = useMicrophone();
 
   const [bookTitle, setBookTitle] = useState("동화");
   const [speech, setSpeech] = useState(null); // 배열
@@ -17,7 +95,6 @@ export default function PlayStart() {
   const recordBtnRef = useRef(null);
   const stopBtnRef = useRef(null);
   const soundClipsRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
 
   useEffect(() => {
@@ -34,7 +111,7 @@ export default function PlayStart() {
     const speechPath = localStorage.getItem("speechPath");
     if (!speechPath) {
       alert("연극 데이터 경로가 없습니다. 목록으로 이동합니다.");
-      location.href = "/book/training/course/play?bookId=0";
+      navigate("/book/training/course/play?bookId=0");
       return;
     }
     fetch(`/autobiography/${speechPath}`)
@@ -53,12 +130,12 @@ export default function PlayStart() {
         console.error(e);
         alert("연극 데이터를 불러오지 못했습니다.");
       });
-  }, [speechId]);
+  }, [speechId, navigate]);
 
   // 3) 페이지 진입 시 알림 + 음성 재생
   useEffect(() => {
-    alert("연극을 시작합니다");
-  }, []);
+    // alert 제거 - 더 이상 시작 메시지 표시하지 않음
+  }, []); // speechId 의존성 제거하여 1회만 실행
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -70,106 +147,183 @@ export default function PlayStart() {
     });
   }, [audioSrc]);
 
-  // 4) 녹음 기능 설정
+  // 4) 뒤로가기 및 페이지 이탈 처리
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "녹음 중인 경우 데이터가 손실될 수 있습니다. 정말 나가시겠습니까?";
+      return e.returnValue;
+    };
+
+    const handlePopState = (e) => {
+      e.preventDefault();
+      window.location.reload();
+      window.history.back();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // 5) 녹음 기능 설정 (회상훈련 방식으로 개선)
   useEffect(() => {
     const recordBtn = recordBtnRef.current;
     const stopBtn = stopBtnRef.current;
     const soundClips = soundClipsRef.current;
 
     if (!recordBtn || !stopBtn || !soundClips) return;
-
-    if (!navigator.mediaDevices) {
-      alert("마이크를 사용할 수 없는 환경입니다!");
-      // Vue 코드에서는 recordBox 제거 + history.go(-2)
-      history.go(-2);
+    
+    // 전역 마이크가 활성화되지 않았다면 대기
+    if (!isMicrophoneActive || !hasPermission) {
+      console.log("마이크 권한 대기 중...");
       return;
     }
 
-    let streamCleanup = null;
+    // 전역 스트림을 사용하여 MediaRecorder 생성
+    if (globalStreamRef.current) {
+      const mediaRecorder = new MediaRecorder(globalStreamRef.current);
+      globalMediaRecorderRef.current = mediaRecorder;
 
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        streamCleanup = () => {
-          stream.getTracks().forEach((t) => t.stop());
-        };
+      // 이벤트 리스너 정리 함수
+      const cleanup = () => {
+        recordBtn.onclick = null;
+        stopBtn.onclick = null;
+      };
 
-        recordBtn.onclick = () => {
+      // 녹음 버튼 클릭 이벤트
+      const handleRecordClick = () => {
+        console.log("녹음 버튼 클릭됨, MediaRecorder 상태:", mediaRecorder.state);
+        if (mediaRecorder.state === "inactive") {
           mediaRecorder.start();
-          recordBtn.style.background = "red";
-          recordBtn.style.color = "black";
-        };
-
-        stopBtn.onclick = () => {
-          mediaRecorder.stop();
-          recordBtn.style.background = "";
-          recordBtn.style.color = "";
-        };
-
-        mediaRecorder.ondataavailable = (e) => {
-          chunksRef.current.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          // 컨테이너 비우고 새로 추가
-          while (soundClips.firstChild) {
-            soundClips.removeChild(soundClips.firstChild);
-          }
-
-          const clipContainer = document.createElement("article");
-          const audio = document.createElement("audio");
-          audio.setAttribute("controls", "");
-          clipContainer.appendChild(audio);
-
-          const blob = new Blob(chunksRef.current, {
-            type: "audio/mp3 codecs=opus",
-          });
-          chunksRef.current = [];
-
-          const audioURL = URL.createObjectURL(blob);
-          audio.src = audioURL;
-
-          // 파일 저장 링크
-          const a = document.createElement("a");
-          a.href = audio.src;
-          a.download = "voiceRecord";
-          clipContainer.appendChild(a);
-
-          soundClips.appendChild(clipContainer);
-
-          // 자동 다운로드 (원본 로직과 동일)
-          a.click();
-        };
-      })
-      .catch((err) => {
-        console.log("오류 발생 :", err);
-        alert("마이크를 사용할 수 없는 환경입니다!");
-        history.go(-2);
-      });
-
-    return () => {
-      try {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          mediaRecorderRef.current.stop();
+          
+          // 녹음 버튼 스타일 적용 (빨간바탕 하얀글씨) - !important 사용
+          recordBtn.style.setProperty('background', 'red', 'important');
+          recordBtn.style.setProperty('color', 'white', 'important');
+          recordBtn.style.setProperty('border-color', 'red', 'important');
+          
+          // 정지 버튼 스타일 적용 (파란바탕 하얀글씨) - !important 사용
+          stopBtn.style.setProperty('background', '#3f51b5', 'important');
+          stopBtn.style.setProperty('color', 'white', 'important');
+          stopBtn.style.setProperty('border-color', '#3f51b5', 'important');
+          
+          console.log("녹음 시작 - 버튼 스타일 적용됨");
+          console.log("녹음 버튼 스타일:", recordBtn.style.background, recordBtn.style.color);
+          console.log("정지 버튼 스타일:", stopBtn.style.background, stopBtn.style.color);
         }
-      } catch {}
-      if (streamCleanup) {
-        streamCleanup();
-      }
-    };
-  }, []);
+      };
+
+      // 정지 버튼 클릭 이벤트
+      const handleStopClick = () => {
+        console.log("정지 버튼 클릭됨, MediaRecorder 상태:", mediaRecorder.state);
+        if (mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+          
+          // 버튼 스타일 초기화 - !important 사용
+          recordBtn.style.setProperty('background', '', 'important');
+          recordBtn.style.setProperty('color', '', 'important');
+          recordBtn.style.setProperty('border-color', '', 'important');
+          stopBtn.style.setProperty('background', '', 'important');
+          stopBtn.style.setProperty('color', '', 'important');
+          stopBtn.style.setProperty('border-color', '', 'important');
+          
+          console.log("녹음 정지 - 버튼 스타일 초기화됨");
+        }
+      };
+
+      // 이벤트 리스너 등록
+      recordBtn.onclick = handleRecordClick;
+      stopBtn.onclick = handleStopClick;
+
+      mediaRecorder.ondataavailable = (e) => {
+        chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log("MediaRecorder onstop 이벤트 발생");
+        while (soundClips.firstChild) {
+          soundClips.removeChild(soundClips.firstChild);
+        }
+
+        const clipContainer = document.createElement("article");
+        const audio = document.createElement("audio");
+        audio.setAttribute("controls", "");
+        clipContainer.appendChild(audio);
+
+        const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
+        chunksRef.current = [];
+
+        const audioURL = URL.createObjectURL(blob);
+        audio.src = audioURL;
+
+        const a = document.createElement("a");
+        a.href = audio.src;
+        a.download = `동화연극_${bookTitle}_${speechId + 1}.mp3`;
+        clipContainer.appendChild(a);
+
+        soundClips.appendChild(clipContainer);
+        a.click();
+
+        // 🔹 녹음 후 즉시 다음 지문으로 자동 이동 (딜레이 제거)
+        if (speechId + 1 < speech.length) {
+          console.log(`다음 지문으로 이동: ${speechId + 1} -> ${speechId + 2}`);
+          navigate(`/book/training/course/play/start?speechId=${speechId + 1}`);
+        } else {
+          // 마지막 지문 완료 시
+          alert("동화연극이 완료되었습니다!");
+          
+          // 녹음 버튼 상태 초기화
+          if (recordBtnRef.current) {
+            recordBtnRef.current.style.setProperty('background', '', 'important');
+            recordBtnRef.current.style.setProperty('color', '', 'important');
+            recordBtnRef.current.style.setProperty('border-color', '', 'important');
+          }
+          if (stopBtnRef.current) {
+            stopBtnRef.current.style.setProperty('background', '', 'important');
+            stopBtnRef.current.style.setProperty('color', '', 'important');
+            stopBtnRef.current.style.setProperty('border-color', '', 'important');
+          }
+          
+          console.log("동화연극 완료 - 목록으로 이동");
+          
+          // 목록 페이지로 이동
+          navigate("/book/training/course/play");
+        }
+      };
+
+      // 컴포넌트 언마운트 시 이벤트 리스너 정리
+      return cleanup;
+    }
+  }, [speechId, speech, navigate, isMicrophoneActive, hasPermission, bookTitle]);
+
+  // 6) 페이지 로드 시 버튼 스타일 초기화
+  useEffect(() => {
+    const recordBtn = recordBtnRef.current;
+    const stopBtn = stopBtnRef.current;
+    
+    if (recordBtn && stopBtn) {
+      // 페이지 로드 시 버튼 스타일 초기화 - !important 사용
+      recordBtn.style.setProperty('background', '', 'important');
+      recordBtn.style.setProperty('color', '', 'important');
+      recordBtn.style.setProperty('border-color', '', 'important');
+      stopBtn.style.setProperty('background', '', 'important');
+      stopBtn.style.setProperty('color', '', 'important');
+      stopBtn.style.setProperty('border-color', '', 'important');
+      console.log("페이지 로드 - 버튼 스타일 초기화됨");
+    }
+  }, [speechId]); // speechId가 변경될 때마다 버튼 스타일 초기화
 
   const item = Array.isArray(speech) ? speech[speechId] : null;
 
   return (
     <div className="content">
-                  {/* 공통 배경 추가 */}
       <Background />
       <div className="wrap">
         <Header title={bookTitle} />
-        {/* 원본: 상단에 오디오 태그 */}
         <audio className="speechAudio0" ref={audioRef}>
           {audioSrc && <source src={audioSrc} type="audio/mpeg" />}
         </audio>
@@ -205,6 +359,7 @@ export default function PlayStart() {
             </div>
           </div>
         </div>
+        <ProgressBar current={speechId + 1} total={speech?.length || 0} />
       </div>
     </div>
   );

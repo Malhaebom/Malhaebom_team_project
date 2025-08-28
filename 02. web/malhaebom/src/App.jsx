@@ -46,6 +46,7 @@ import QuizResult from "./pages/Quiz/QuizResult.jsx";
 
 // Context (default export 사용)
 import ScoreProvider from "./ScoreContext.jsx";
+import { MicrophoneProvider } from "./MicrophoneContext.jsx";
 
 /** ─────────────────────────────────────────────────────────────
  * 간단한 에러 바운더리: 어느 라우트에서 깨지는지 바로 표시
@@ -101,8 +102,8 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ScoreProvider>
-      
-      <Routes>
+      <MicrophoneProvider>
+        <Routes>
         {/* 홈 */}
         <Route
           path="/"
@@ -323,7 +324,8 @@ export default function App() {
 
         {/* fallback */}
         <Route path="*" element={<Navigate to="/book/library" replace />} />
-      </Routes>
+        </Routes>
+      </MicrophoneProvider>
     </ScoreProvider>
   );
 }

@@ -1,7 +1,15 @@
-import React from "react";
+import React, { useEffect } from "react";
 import Background from "../Background/Background";
+import { useMicrophone } from "../../MicrophoneContext.jsx";
 
 const InterviewHistory = () => {
+  const { isMicrophoneActive } = useMicrophone();
+  
+  // 페이지 진입 시 마이크 상태 확인
+  useEffect(() => {
+    console.log("InterviewHistory 페이지 진입 - 마이크 상태:", isMicrophoneActive);
+  }, [isMicrophoneActive]);
+
   const interviewData = [
     { id: 1, date: "2025-08-05", score: 78 },
     { id: 2, date: "2025-08-15", score: 88 },
