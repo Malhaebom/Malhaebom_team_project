@@ -1,6 +1,14 @@
+// src/pages/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
+import axios from "axios";
+
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 const Login = () => {
   const navigate = useNavigate();
@@ -8,26 +16,65 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [nick, setNick] = useState(""); // 로그인 후 닉네임
 
-  // 브라우저 가로 폭 상태
+  // 브라우저 가로 폭 상태 (배경 노출 조건)
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const handleLogin = () => {
-    console.log("로그인 버튼 클릭", { phone, password });
-    setNick("홍길동");
-    navigate("/mypage");
+  // 로그인 상태 복구: 이미 로그인되어 /login에 오면 홈으로 보냄
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await API.get("/userLogin/me");
+        if (data?.ok && data.isAuthed) {
+          setNick(data.nick || "");
+          navigate("/"); // 이미 로그인 상태면 홈으로
+        } else {
+          setNick("");
+        }
+      } catch {
+        setNick("");
+      }
+    })();
+  }, [navigate]);
+
+  const handleLogin = async () => {
+    try {
+      const user_id = (phone || "").trim();
+      const pwd = (password || "").trim();
+
+      if (!user_id || !pwd) {
+        alert("전화번호와 비밀번호를 모두 입력하세요.");
+        return;
+      }
+
+      const { data } = await API.post("/userLogin/login", { user_id, pwd });
+      if (data?.ok) {
+        setNick(data.nick || "");
+        navigate("/"); // 로그인 성공 후 홈으로 이동
+      } else {
+        alert(data?.msg || "로그인 실패");
+      }
+    } catch (err) {
+      const msg =
+        err?.response?.data?.msg ||
+        (err?.response?.status === 400
+          ? "요청 형식이 올바르지 않습니다."
+          : "로그인 중 오류가 발생했습니다.");
+      console.error("로그인 오류:", err);
+      alert(msg);
+    }
   };
 
-  const handleLogout = () => {
-    console.log("로그아웃 클릭");
-    setNick("");
-  };
+  // SNS 시작 (백엔드 OAuth 시작 URL로 이동)
+  const startKakao = () => (window.location.href = "http://localhost:3001/auth/kakao");
+  const startNaver = () => (window.location.href = "http://localhost:3001/auth/naver");
+  const startGoogle = () => (window.location.href = "http://localhost:3001/auth/google");
 
+  // 스타일 도우미
   const socialBtnStyle = (bgColor, color = "#000") => ({
     display: "flex",
     alignItems: "center",
@@ -43,9 +90,7 @@ const Login = () => {
     transition: "all 0.2s",
     fontSize: "18px",
   });
-
   const socialIconStyle = { width: "24px", height: "24px" };
-
   const inputStyle = {
     width: "100%",
     padding: "15px",
@@ -55,8 +100,7 @@ const Login = () => {
     boxSizing: "border-box",
     display: "block",
   };
-
-  const buttonStyle = (bgColor, hoverColor) => ({
+  const buttonStyle = (bgColor) => ({
     width: "100%",
     padding: "15px",
     fontSize: "20px",
@@ -69,7 +113,6 @@ const Login = () => {
     textAlign: "center",
     display: "block",
   });
-
   const handleMouseEnter = (e, hoverColor) =>
     (e.currentTarget.style.backgroundColor = hoverColor);
   const handleMouseLeave = (e, bgColor) =>
@@ -89,21 +132,6 @@ const Login = () => {
           fontFamily: "Pretendard-Regular",
         }}
       >
-        {/* 로그인 후 환영 문구 */}
-        {nick && (
-          <p
-            style={{
-              textAlign: "center",
-              marginBottom: "30px",
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#344CB7",
-            }}
-          >
-            {nick}님 환영합니다!
-          </p>
-        )}
-
         {/* 로고 */}
         <img
           src="/img/logo.png"
@@ -138,69 +166,56 @@ const Login = () => {
           지금 시작하세요!
         </p>
 
-        {!nick && (
-          <div
-            style={{
-              background: "#fff",
-              padding: "15px 10px",
-              borderRadius: "15px",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "15px",
-              maxWidth: "400px",
-              margin: "0 auto",
-            }}
-          >
-            <button style={socialBtnStyle("#F7E600")}>
-              <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
-              카카오로 시작하기
-            </button>
-            <button style={socialBtnStyle("#00C73C", "#fff")}>
-              <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
-              네이버로 시작하기
-            </button>
-            <button style={socialBtnStyle("#000", "#fff")}>
-              <img src="/img/google.png" alt="구글" style={socialIconStyle} />
-              구글로 시작하기
-            </button>
-
-            <input
-              type="text"
-              placeholder="전화번호"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={inputStyle}
-            />
-            <input
-              type="password"
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
-            />
-
-            <button
-              style={buttonStyle("#4a85d1", "#5f9cec")}
-              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
-              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
-              onClick={handleLogin}
-            >
-              로그인
-            </button>
-          </div>
-        )}
-
-        {nick && (
-          <button
-            style={buttonStyle("#FF4D4D", "#d13c3c")}
-            onMouseEnter={(e) => handleMouseEnter(e, "#d13c3c")}
-            onMouseLeave={(e) => handleMouseLeave(e, "#FF4D4D")}
-            onClick={handleLogout}
-          >
-            로그아웃
+        <div
+          style={{
+            background: "#fff",
+            padding: "15px 10px",
+            borderRadius: "15px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "15px",
+            maxWidth: "400px",
+            margin: "0 auto",
+          }}
+        >
+          <button style={socialBtnStyle("#F7E600")} onClick={startKakao}>
+            <img src="/img/kakao.png" alt="카카오" style={socialIconStyle} />
+            카카오로 시작하기
           </button>
-        )}
+          <button style={socialBtnStyle("#00C73C", "#fff")} onClick={startNaver}>
+            <img src="/img/naver.png" alt="네이버" style={socialIconStyle} />
+            네이버로 시작하기
+          </button>
+          <button style={socialBtnStyle("#000", "#fff")} onClick={startGoogle}>
+            <img src="/img/google.png" alt="구글" style={socialIconStyle} />
+            구글로 시작하기
+          </button>
+
+          <input
+            type="text"
+            placeholder="전화번호"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            style={inputStyle}
+          />
+          <input
+            type="password"
+            placeholder="비밀번호"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={inputStyle}
+          />
+
+          <button
+            style={buttonStyle("#4a85d1")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+            onClick={handleLogin}
+          >
+            로그인
+          </button>
+        </div>
 
         <p
           style={{

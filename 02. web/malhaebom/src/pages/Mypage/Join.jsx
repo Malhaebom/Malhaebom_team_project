@@ -1,8 +1,16 @@
+// src/pages/Join.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
+import axios from "axios";
 
-const Signup = () => {
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
+
+const Join = () => {
   const [nick, setNick] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -60,6 +68,38 @@ const Signup = () => {
       margin: "0 5px",
       transition: "all 0.2s",
     };
+  };
+
+  const submit = async () => {
+    try {
+      if (!nick || !phone || !password || !birth || !gender) {
+        alert("필수 항목을 모두 입력하세요.");
+        return;
+      }
+      if (password !== passwordCheck) {
+        alert("비밀번호가 일치하지 않습니다.");
+        return;
+      }
+
+      const payload = {
+        phone,       // user_id로 사용
+        pwd: password,
+        nick,
+        birth,       // YYYY-MM-DD → 서버에서 YEAR만 저장
+        gender,      // male/female → 서버에서 M/F 변환
+      };
+
+      const { data } = await API.post("/userJoin/register", payload);
+      if (data?.ok) {
+        alert("회원가입이 완료되었습니다. 로그인해 주세요.");
+        navigate("/login");
+      } else {
+        alert(data?.msg || "회원가입 실패");
+      }
+    } catch (err) {
+      console.error("회원가입 오류:", err);
+      alert("회원가입 중 오류가 발생했습니다.");
+    }
   };
 
   return (
@@ -187,6 +227,7 @@ const Signup = () => {
             }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#5f9cec")}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#4a85d1")}
+            onClick={submit}
           >
             회원가입
           </button>
@@ -226,4 +267,4 @@ const Signup = () => {
   );
 };
 
-export default Signup;
+export default Join;
