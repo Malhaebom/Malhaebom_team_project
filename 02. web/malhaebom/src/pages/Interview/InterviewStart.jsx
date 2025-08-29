@@ -8,7 +8,7 @@ import Background from "../Background/Background";
 import { useNavigate } from "react-router-dom";
 import { useMicrophone } from "../../MicrophoneContext.jsx";
 
-export default function InterviewStart() {
+function InterviewStart() {
   const query = useQuery();
   const navigate = useNavigate();
   const { 
@@ -22,6 +22,7 @@ export default function InterviewStart() {
   const [bookTitle] = useState("회상훈련");
   const [questions, setQuestions] = useState([]);
   const [questionId, setQuestionId] = useState(initialQuestionId);
+  const [isRecording, setIsRecording] = useState(false);
 
   const recordBtnRef = useRef(null);
   const stopBtnRef = useRef(null);
@@ -39,6 +40,23 @@ export default function InterviewStart() {
     
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // 페이지 로드 시 버튼 초기 상태 설정
+  useEffect(() => {
+    const recordBtn = recordBtnRef.current;
+    const stopBtn = stopBtnRef.current;
+    
+    if (recordBtn && stopBtn) {
+      // 초기 상태: 녹음 버튼 활성화, 정지 버튼 비활성화
+      recordBtn.style.background = "#3f51b5";
+      recordBtn.style.color = "white";
+      recordBtn.disabled = false;
+      
+      stopBtn.style.background = "red";
+      stopBtn.style.color = "white";
+      stopBtn.disabled = true;
+    }
+  }, [questionId]); // questionId가 변경될 때마다 버튼 상태 초기화
 
   // 인터뷰 질문 JSON 로드
   useEffect(() => {
@@ -94,14 +112,32 @@ export default function InterviewStart() {
 
       recordBtn.onclick = () => {
         mediaRecorder.start();
+        setIsRecording(true);
+        
+        // 녹음 버튼: 빨간 배경, 하얀 글씨, 비활성화
         recordBtn.style.background = "red";
         recordBtn.style.color = "white";
+        recordBtn.disabled = true;
+        
+        // 정지 버튼: 파란 배경, 하얀 글씨, 활성화
+        stopBtn.style.background = "#3f51b5";
+        stopBtn.style.color = "white";
+        stopBtn.disabled = false;
       };
 
       stopBtn.onclick = () => {
         mediaRecorder.stop();
-        recordBtn.style.background = "";
-        recordBtn.style.color = "";
+        setIsRecording(false);
+        
+        // 녹음 버튼: 파란 배경, 하얀 글씨, 활성화
+        recordBtn.style.background = "#3f51b5";
+        recordBtn.style.color = "white";
+        recordBtn.disabled = false;
+        
+        // 정지 버튼: 빨간 배경, 하얀 글씨, 비활성화
+        stopBtn.style.background = "red";
+        stopBtn.style.color = "white";
+        stopBtn.disabled = true;
       };
 
       mediaRecorder.ondataavailable = (e) => chunksRef.current.push(e.data);
@@ -131,9 +167,16 @@ export default function InterviewStart() {
           setQuestionId((prev) => prev + 1);
         } else {
           alert("모든 인터뷰가 완료되었습니다!");
+          // 버튼 상태 초기화
           if (recordBtnRef.current) {
-            recordBtnRef.current.style.background = "";
-            recordBtnRef.current.style.color = "";
+            recordBtnRef.current.style.background = "#3f51b5";
+            recordBtnRef.current.style.color = "white";
+            recordBtnRef.current.disabled = false;
+          }
+          if (stopBtnRef.current) {
+            stopBtnRef.current.style.background = "red";
+            stopBtnRef.current.style.color = "white";
+            stopBtnRef.current.disabled = true;
           }
           navigate("/InterviewHistory");
         }
@@ -145,21 +188,9 @@ export default function InterviewStart() {
 
   return (
     <div className="content">
-      {/* 가로 1100 이상일 때만 배경 렌더링 */}
-      {windowWidth > 1100 && <Background />}
-      
-      <div
-        className="wrap"
-        style={{
-          maxWidth: "520px",
-          margin: "0 auto",
-          padding: "80px 20px",
-          fontFamily: "Pretendard-Regular",
-          display: "block",
-          alignItems: "unset",
-          justifyContent: "unset",
-        }}
-      >
+      {/* 공통 배경 추가 */}
+      <Background />
+      <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">
           <div className="ct_inner">
@@ -169,21 +200,23 @@ export default function InterviewStart() {
               data-aos="fade-up"
               data-aos-duration="1000"
             >
-              <p>{currentQuestion?.speechText ?? "로딩 중..."}</p>
+              <p>{currentQuestion?.questionText ?? "로딩 중..."}</p>
               <div className="bt_flex">
-                <button className="question_bt" ref={recordBtnRef}>
-                  <i className="xi-play"></i>녹음
+                <button className="question_bt" id="record" type="button" ref={recordBtnRef}>
+                  녹음
                 </button>
-                <button className="question_bt" ref={stopBtnRef}>
-                  <i className="xi-pause"></i>정지
+                <button className="question_bt" id="stop" type="button" ref={stopBtnRef}>
+                  정지
                 </button>
               </div>
               <div id="sound-clips" ref={soundClipsRef} style={{ marginTop: 40 }} />
             </div>
           </div>
         </div>
-        <ProgressBar current={questionId + 1} total={questions.length} />
+        <ProgressBar current={questionId + 1} total={questions?.length || 0} />
       </div>
     </div>
   );
-}
+};
+
+export default InterviewStart;
