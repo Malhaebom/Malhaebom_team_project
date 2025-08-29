@@ -12,8 +12,8 @@ const BookHistory = () => {
   }, []);
 
   const bookData = [
-    { id: 1, date: "2025-08-01", storyName: "할머니와 바나나", score: 85 },
-    { id: 2, date: "2025-08-12", storyName: "어머니의 벙어리 장갑", score: 92 },
+    { id: 1, date: "2025-08-01", score: 85 },
+    { id: 2, date: "2025-08-12", score: 92 },
   ];
 
   const getScoreColor = (score) => {
@@ -63,10 +63,7 @@ const BookHistory = () => {
                   alignItems: "center",
                 }}
               >
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontSize: "18px", color: "#333" }}>{item.date}</span>
-                  <span style={{ fontSize: "14px", color: "#666" }}>{item.storyName}</span>
-                </div>
+                <span style={{ fontSize: "18px", color: "#333" }}>{item.date}</span>
                 <span
                   style={{
                     fontSize: "18px",

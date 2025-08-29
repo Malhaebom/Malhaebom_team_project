@@ -52,6 +52,45 @@
 .ct_theater_a .bt_flex button {width:47%;}
 .ct_theater_a .bt_flex button:last-child {background:#f71d1d;}
 
+/* 연극 페이지만을 위한 전용 클래스 */
+.ct_theater_question {
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.ct_theater_question p {
+    height: auto !important;
+    min-height: auto !important;
+    padding: 15px !important;
+    word-break: break-all !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+    text-align: left !important;
+    margin-bottom: 0 !important;
+    white-space: pre-wrap !important;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+
+.ct_theater_question + .bt_flex {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 20px;
+}
+
+.ct_theater_question + .bt_flex button {
+    width: 47%;
+}
+
+.ct_theater_question + .bt_flex button:last-child {
+    background: #f71d1d;
+}
+
 .ct_imgflex {display:flex; flex-wrap:wrap; justify-content:space-between;}
 .ct_imgflex .ct_tit {width:100%; text-align:center; margin-bottom:30px; font-size:1.1em;}
 .ct_imgflex .ct_img {width:47%; min-height:130px; background:#ddd; margin-bottom:20px; border-radius:10px; transition:all .2s;}
