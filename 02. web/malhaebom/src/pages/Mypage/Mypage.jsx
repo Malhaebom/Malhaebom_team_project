@@ -1,14 +1,36 @@
+// src/pages/Mypage.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
+import axios from "axios";
+
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 const Mypage = () => {
   const navigate = useNavigate();
-  const [nick, setNick] = useState("홍길동"); // 실제 로그인 정보로 변경 가능
 
-  // 브라우저 가로 폭 상태
+  // 로그인 닉네임 (세션 복구로 채움)
+  const [nick, setNick] = useState("");
+
+  // 로그인 상태 복구
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await API.get("/userLogin/me");
+        if (data?.ok && data.isAuthed) setNick(data.nick || "");
+        else setNick("");
+      } catch {
+        setNick("");
+      }
+    })();
+  }, []);
+
+  // 브라우저 가로 폭 상태 (배경 노출 조건)
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
@@ -34,6 +56,21 @@ const Mypage = () => {
     (e.currentTarget.style.backgroundColor = hoverColor);
   const handleMouseLeave = (e, bgColor) =>
     (e.currentTarget.style.backgroundColor = bgColor);
+
+  // 이동 핸들러
+  const goLogin = () => navigate("/login");
+  const goBookHistory = () => navigate("/bookHistory");
+  const goInterviewHistory = () => navigate("/InterviewHistory");
+
+  // 로그아웃
+  const logout = async () => {
+    try {
+      await API.post("/userLogin/logout");
+      setNick("");
+    } catch (e) {
+      console.error("로그아웃 오류:", e);
+    }
+  };
 
   return (
     <div className="content">
@@ -84,32 +121,46 @@ const Mypage = () => {
             gap: "15px",
           }}
         >
-          {/* 로그인 하러가기 버튼 */}
-          <button
-            style={buttonStyle("#488eca", "#3a72a8")}
-            onMouseEnter={(e) => handleMouseEnter(e, "#3a72a8")}
-            onMouseLeave={(e) => handleMouseLeave(e, "#488eca")}
-            onClick={() => navigate("/login")}
-          >
-            로그인 하러가기
-          </button>
+          {/* 로그인 이동 버튼 (미로그인일 때만 노출) */}
+          {!nick && (
+            <button
+              style={buttonStyle("#4a85d1", "#5f9cec")}
+              onMouseEnter={(e) => handleMouseEnter(e, "#5f9cec")}
+              onMouseLeave={(e) => handleMouseLeave(e, "#4a85d1")}
+              onClick={goLogin}
+            >
+              로그인 하러가기
+            </button>
+          )}
+
+          {/* 로그아웃 버튼 (로그인 상태일 때만 노출) */}
+          {nick && (
+            <button
+              style={buttonStyle("#FF4D4D", "#d13c3c")}
+              onMouseEnter={(e) => handleMouseEnter(e, "#d13c3c")}
+              onMouseLeave={(e) => handleMouseLeave(e, "#FF4D4D")}
+              onClick={logout}
+            >
+              로그아웃
+            </button>
+          )}
 
           {/* 동화 화행검사 결과 이동 */}
           <button
-            style={buttonStyle("#8d61ac", "#6f4988")}
-            onMouseEnter={(e) => handleMouseEnter(e, "#6f4988")}
-            onMouseLeave={(e) => handleMouseLeave(e, "#8d61ac")}
-            onClick={() => navigate("/bookHistory")}
+            style={buttonStyle("#4E6C50", "#3f5a41")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#3f5a41")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#4E6C50")}
+            onClick={goBookHistory}
           >
             동화 화행검사 결과
           </button>
 
           {/* 인지능력검사 결과 이동 */}
           <button
-            style={buttonStyle("#a93c7b", "#862d5f")}
-            onMouseEnter={(e) => handleMouseEnter(e, "#862d5f")}
-            onMouseLeave={(e) => handleMouseLeave(e, "#a93c7b")}
-            onClick={() => navigate("/InterviewHistory")}
+            style={buttonStyle("#9C27B0", "#7B1FA2")}
+            onMouseEnter={(e) => handleMouseEnter(e, "#7B1FA2")}
+            onMouseLeave={(e) => handleMouseLeave(e, "#9C27B0")}
+            onClick={goInterviewHistory}
           >
             인지능력검사 결과
           </button>

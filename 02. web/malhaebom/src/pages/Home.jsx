@@ -3,36 +3,59 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
-import Background from "./Background/Background";
+import axios from "axios";
+import Background from "./Background/Background"; // ✅ 원래 경로 유지
+
+// ✅ API 인스턴스
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 export default function Home() {
   const navigate = useNavigate();
+
+  // ✅ 반응형 배경/레이아웃
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
+  // ✅ 로그인 상태 복구용 닉네임
+  const [nick, setNick] = useState("");
+
+  // AOS 및 리사이즈 핸들러
   useEffect(() => {
     AOS.init();
-
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-
+    const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const boxStyle = {
-    borderRadius: "20px",
-    overflow: "hidden",
-  };
+  // ✅ 진입 시 세션 확인하여 닉네임 복구
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await API.get("/userLogin/me");
+        if (data?.ok && data.isAuthed) setNick(data.nick || "");
+        else setNick("");
+      } catch {
+        setNick("");
+      }
+    })();
+  }, []);
 
+  // 스타일
+  const boxStyle = { borderRadius: "20px", overflow: "hidden" };
   const wrapStyle = {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "column"
+    flexDirection: "column",
+  };
+
+  // ✅ “이동하기” 라벨 유지, 동작만 조건 분기
+  const goMyOrLogin = () => {
+    if (nick) navigate("/Mypage");
+    else navigate("/login");
   };
 
   return (
@@ -61,7 +84,7 @@ export default function Home() {
           <div className="ct_banner">훈련을 통해 활력을 되찾아요!</div>
 
           <div className="ct_home ct_inner">
-            {/* 회상 인터뷰 */}
+            {/* 인지 능력 검사 */}
             <div className="box" data-aos="fade-up" data-aos-duration="1000" style={boxStyle}>
               <div>
                 <h2>인지 능력 검사</h2>
@@ -113,14 +136,16 @@ export default function Home() {
             <div className="box" data-aos="fade-up" data-aos-duration="2500" style={boxStyle}>
               <div>
                 <h2>마이페이지</h2>
-                <p>누구님 환영합니다.</p>
+                {/* ✅ 닉네임 반영 */}
+                <p>{nick ? `${nick}님 환영합니다.` : "로그인 후 이용해 주세요."}</p>
                 <img
                   src="/img/home_icon03.png"
                   onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
                   alt="마이페이지"
                 />
               </div>
-              <button type="button" onClick={() => navigate("/Mypage")}>
+              {/* ✅ 라벨 그대로, 조건 분기 */}
+              <button type="button" onClick={goMyOrLogin}>
                 이동하기
               </button>
             </div>
