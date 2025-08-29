@@ -1,0 +1,57 @@
+[{
+    "type": 0,
+    "question": [{
+        "title": "적절한 대처법을 선택하세요.",
+        "image": "image/p_solution_1_1.png",
+        "question": ["출입문을 발로 찬다.", "문에 바짝 기대어 기다린다.", "응급벨을 누르고 대화를 시도한다.", "문틈에 손을 끼워 억지로 연다."],
+        "answer": 2
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "적절한 대처법을 선택하세요.",
+        "image": "image/p_solution_2.png",
+        "question": ["파란(초록) 신호가 켜지기 전에 건넌다.", "빨간 신호가 켜지면 건너간다.", "신호 상관없이 빠르게 뛰어간다.", "파란(초록) 신호와 주변의 차를 확인하고 건넌다."],
+        "answer": 3
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "다음 표는 감전사고 예방법입니다. 아래와 관련있는 물건을 고르세요.",
+        "image": "image/p_solution_3.png",
+        "question": ["구두", "주전자", "의자", "전자레인지"],
+        "answer": 3
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "사진에서 보이는 날씨 상황에서 가장 필요한 물건을 고르세요.",
+        "image": "image/p_solution_4.png",
+        "question": ["축구공", "우산", "자전거", "돋보기"],
+        "answer": 1
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "제시된 그림의 재료로 만들 수 있는 음식을 고르시오.",
+        "image": "image/p_solution_5.png",
+        "question": ["된장찌개", "불고기", "콩나물국", "배추김치"],
+        "answer": 3
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "제시된 그림의 재료로 만들 수 있는 음식을 고르시오.",
+        "image": "image/p_solution_6.png",
+        "question": ["햄버거", "떡국", "통닭", "두부"],
+        "answer": 3
+    }]
+}, {
+    "type": 0,
+    "question": [{
+        "title": "나는 사람을 태울 수 있을 정도로 크고, 긴 다리와 찰랑거리는 꼬리를 가지고 있어요. 나는 누구 일까요?",
+        "image": "image/p_solution_7.png",
+        "question": ["닭", "돼지", "말", "하마"],
+        "answer": 2
+    }]
+}]

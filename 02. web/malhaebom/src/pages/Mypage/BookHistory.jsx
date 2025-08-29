@@ -1,0 +1,92 @@
+import React, { useState, useEffect } from "react";
+import Background from "../Background/Background";
+
+const BookHistory = () => {
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+
+  // 브라우저창 너비 감지
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const bookData = [
+    { id: 1, date: "2025-08-01", storyName: "할머니와 바나나", score: 85 },
+    { id: 2, date: "2025-08-12", storyName: "어머니의 벙어리 장갑", score: 92 },
+  ];
+
+  const getScoreColor = (score) => {
+    if (score >= 90) return "#4CAF50";
+    if (score >= 80) return "#FFC107";
+    return "#F44336";
+  };
+
+  return (
+    <div className="content">
+      {/* 일정 너비 이상일 때만 배경 표시 */}
+      {windowWidth > 1100 && <Background />}
+
+      <div
+        className="wrap"
+        style={{
+          maxWidth: "520px",
+          margin: "0 auto",
+          padding: "80px 20px",
+          fontFamily: "Pretendard-Regular",
+        }}
+      >
+        {/* 타이틀 */}
+        <h2
+          style={{
+            textAlign: "center",
+            marginBottom: "30px",
+            fontFamily: "ONE-Mobile-Title",
+            fontSize: "32px",
+          }}
+        >
+          동화 화행검사 결과
+        </h2>
+
+        {bookData.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
+            {bookData.map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  background: "#fff",
+                  borderRadius: "12px",
+                  padding: "20px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontSize: "18px", color: "#333" }}>{item.date}</span>
+                  <span style={{ fontSize: "14px", color: "#666" }}>{item.storyName}</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    color: getScoreColor(item.score),
+                  }}
+                >
+                  {item.score}점
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ textAlign: "center", color: "#888", fontSize: "16px" }}>
+            아직 검사 이력이 없습니다.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default BookHistory;
