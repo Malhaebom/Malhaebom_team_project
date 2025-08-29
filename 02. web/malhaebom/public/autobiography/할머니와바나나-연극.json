@@ -1,0 +1,277 @@
+[
+  {
+    "title": "동화연극하기1",
+    "speechText": "경찰1: 할머님, 댁이 어디세요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 01 경찰1.mp3"
+  },
+  {
+    "title": "동화연극하기2",
+    "speechText": "할머니: 부산...동구... 초량동.", 
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 02 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기3",
+    "speechText": "경찰2: 치매 팔찌를 하고 계시는데요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 03 경찰2.mp3"
+  },
+  {
+    "title": "동화연극하기4",
+    "speechText": "경찰1: 한 번 확인해보자고.", 
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 04 경찰1.mp3"
+  },
+  {
+    "title": "동화연극하기5",
+    "speechText": "경찰2: 선배님, 할머니 집이 수영구인데요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 05 경찰2.mp3"
+  },
+  {
+    "title": "동화연극하기6",
+    "speechText": "경찰1: 할머니~ 수영동이 할머니 댁이시죠? 댁으로 모셔다 드릴게요.",
+    "speechAudio": "fairytale/할머니와바나나/voice/01p 06 경찰1.mp3"
+  },
+  {
+    "title": "동화연극하기7",
+    "speechText": "손자: 누구세요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/02p 01 손자.mp3"
+  },
+  {
+    "title": "동화연극하기8",
+    "speechText": "경찰1: 안녕하세요. 강애자 할머님 댁 맞으신가요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/02p 02 경찰1.mp3"
+  },
+  {
+    "title": "동화연극하기9",
+    "speechText": "손자: 네! 저희 할머니 집 맞아요!",
+    "speechAudio": "fairytale/할머니와바나나/voice/02p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기10",
+    "speechText": "손자: 할머니! 어디 갔다온 거예요! 없어져서 걱정했잖아!", 
+    "speechAudio": "fairytale/할머니와바나나/voice/02p 04 손자.mp3"
+  },
+  {
+    "title": "동화연극하기11",
+    "speechText": "손자: 애자씨~ 어디 갔다왔어요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/03p 01 손자.mp3"
+  },
+  {
+    "title": "동화연극하기12",
+    "speechText": "할머니: 우리 손자 주현이 바나나 사러 시장 갔다 왔지~",
+    "speechAudio": "fairytale/할머니와바나나/voice/03p 02 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기13",
+    "speechText": "손자: 와~ 정말? 할머니 바나나 주세요. 바나나~", 
+    "speechAudio": "fairytale/할머니와바나나/voice/03p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기14",
+    "speechText": "손자: 바나나~ 할머니, 바나나 주세요~",
+    "speechAudio": "fairytale/할머니와바나나/voice/04p 01 손자.mp3"
+  },
+  {
+    "title": "동화연극하기15",
+    "speechText": "할머니: 우리 주현이 바나나 먹고싶어? 바나나 사러 갈까?",
+    "speechAudio": "fairytale/할머니와바나나/voice/04p 02 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기16",
+    "speechText": "손자: 응! 할머니 가자!",
+    "speechAudio": "fairytale/할머니와바나나/voice/04p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기17",
+    "speechText": "할머니: 아저씨~ 국제시장으로 가주세요.",
+    "speechAudio": "fairytale/할머니와바나나/voice/05p 01 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기18",
+    "speechText": "택시아저씨: 국제시장이요? 네~",
+    "speechAudio": "fairytale/할머니와바나나/voice/05p 02 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기19",
+    "speechText": "손자: 할머니! 우리 바나나 사러 가는 거 맞지? 국제시장?", 
+    "speechAudio": "fairytale/할머니와바나나/voice/05p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기20",
+    "speechText": "할머니: 그려~ 그려~ 우리 주현이 좋아하는 바나나 사러가자.",
+    "speechAudio": "fairytale/할머니와바나나/voice/05p 04 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기21",
+    "speechText": "택시아저씨: 도착했습니다. 3천원이요~",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 01 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기22",
+    "speechText": "택시아저씨: 할머니!! 할머니 계산하셔야죠!",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 02 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기23",
+    "speechText": "택시아저씨: 할머니! 돈을 주고 가야지 그냥 가면 어떻게 해요!",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 03 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기24",
+    "speechText": "할머니: 응? 내가 아저씨한테 돈을 왜 줘요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 04 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기25",
+    "speechText": "택시아저씨: 택시를 탔으면 돈을 줘야죠!",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 05 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기26",
+    "speechText": "할머니: 택시를 탔다고? 내가? 아닌데... 안탔는데...",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 06 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기27",
+    "speechText": "택시아저씨: 초량동에서 손주랑 같이 택시타고 오셨잖아요!",
+    "speechAudio": "fairytale/할머니와바나나/voice/06p 07 택시아저씨.mp3"
+  },
+  {
+    "title": "동화연극하기28",
+    "speechText": "과일가게아줌마: 아가 엄마 어딨어?",
+    "speechAudio": "fairytale/할머니와바나나/voice/07p 01 과일가게아줌마.mp3"
+  },
+  {
+    "title": "동화연극하기29",
+    "speechText": "손자: 할머니랑 왔어요.",
+    "speechAudio": "fairytale/할머니와바나나/voice/07p 02 손자.mp3"
+  },
+  {
+    "title": "동화연극하기30",
+    "speechText": "손자: 할머니! 계산하래! 만오천원!", 
+    "speechAudio": "fairytale/할머니와바나나/voice/07p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기31",
+    "speechText": "할머니: 계산을 안했던가... 돈이 어디갔지...?",
+    "speechAudio": "fairytale/할머니와바나나/voice/07p 04 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기32",
+    "speechText": "과일가게아줌마: 이 할머니가! 추석 대목부터 재수없게! 얘! 바나나 두고 저리가렴!",
+    "speechAudio": "fairytale/할머니와바나나/voice/07p 05 과일가게아줌마.mp3"
+  },
+  {
+    "title": "동화연극하기33",
+    "speechText": "경찰: 왜 이렇게 시끄러워요? 무슨 일이세요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 01 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기34",
+    "speechText": "과일가게아줌마: 아니! 저 할머니가 돈도 없으면서 손자를 데리고 와서 게산도 안하고 바나나 먹고 그냥 갈려고 하잖아요!",
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 02 과일가게아줌마.mp3"
+  },
+  {
+    "title": "동화연극하기35",
+    "speechText": "경찰: 할머니 성함이 어떻게 되세요?", 
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 03 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기36",
+    "speechText": "손자: 우리 할머니 이름은 강! 애자! 자자! 예요!",
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 04 손자.mp3"
+  },
+  {
+    "title": "동화연극하기37",
+    "speechText": "경찰: 할머니 계산하셔야죠?",
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 05 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기38",
+    "speechText": "할머니: 응?...", 
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 06 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기39",
+    "speechText": "손자: 계산해야지! 할머니!",
+    "speechAudio": "fairytale/할머니와바나나/voice/08p 07 손자.mp3"
+  },
+  {
+    "title": "동화연극하기40",
+    "speechText": "경찰: 할머니 댁이 어디세요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/09p 01 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기41",
+    "speechText": "할머니: 그게... 기억이...",
+    "speechAudio": "fairytale/할머니와바나나/voice/09p 02 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기42",
+    "speechText": "손자: 우리 할머니 집은... 부산 동구 초량동이에요.",
+    "speechAudio": "fairytale/할머니와바나나/voice/09p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기43",
+    "speechText": "경찰: 할머니가 정신이 없으신 것 같으니 일단 댁에 모셔다 드려야겠습니다. 할머니 집에 가시죠.",
+    "speechAudio": "fairytale/할머니와바나나/voice/09p 04 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기44",
+    "speechText": "경찰: 강애자 할머니 댁 맞습니까?",
+    "speechAudio": "fairytale/할머니와바나나/voice/10p 01 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기45",
+    "speechText": "며느리: 네? 무슨 일이신가요?",
+    "speechAudio": "fairytale/할머니와바나나/voice/10p 02 며느리.mp3"
+  },
+  {
+    "title": "동화연극하기46",
+    "speechText": "경찰: 할머니가 손자와 같이 국제시장 가서 택시 요금과 손자가 먹은 바나나도 계산을 하지 않아서 모시고 오게 되었습니다.", 
+    "speechAudio": "fairytale/할머니와바나나/voice/10p 03 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기47",
+    "speechText": "며느리: 정말 죄송합니다. 명절 음식으로 준비하느라 어머니께서 나가셨는지도 몰랐네요. 제가 계산하러 가겠습니다.",
+    "speechAudio": "fairytale/할머니와바나나/voice/10p 04 며느리.mp3"
+  },
+  {
+    "title": "동화연극하기48",
+    "speechText": "경찰: 할머님이 기억력이 많이 안 좋으신가봐요...?",
+    "speechAudio": "fairytale/할머니와바나나/voice/11p 01 경찰.mp3"
+  },
+  {
+    "title": "동화연극하기49",
+    "speechText": "며느리: 네... 저희 어머님 기억력이 예전같지 않으시네요. 그래서 제가 어머니 지갑을 가지고 있었어요.",
+    "speechAudio": "fairytale/할머니와바나나/voice/11p 02 며느리.mp3"
+  },
+  {
+    "title": "동화연극하기50",
+    "speechText": "손자: 엄마! 경찰차야~ 경찰 아저씨~",
+    "speechAudio": "fairytale/할머니와바나나/voice/11p 03 손자.mp3"
+  },
+  {
+    "title": "동화연극하기51",
+    "speechText": "며느리: 아주머니... 저희 어머니가 기억력이 예전같지가 않아서 지갑을 들고 가시는 걸 잊으신 것 같아요. 죄송합니다.", 
+    "speechAudio": "fairytale/할머니와바나나/voice/11p 04 며느리.mp3"
+  },
+  {
+    "title": "동화연극하기52",
+    "speechText": "과일가게아줌마: 아... 네... 그런거였군요. 제가 실수를 한것 같네요. 아가 아줌마가 미안했어.", 
+    "speechAudio": "fairytale/할머니와바나나/voice/11p 05 과일가게아줌마.mp3"
+  },
+  {
+    "title": "동화연극하기53",
+    "speechText": "손자: 애자씨~ 우리 어디 갈까? 바나나 사러 시장갈까?",
+    "speechAudio": "fairytale/할머니와바나나/voice/12p 01 손자.mp3"
+  },
+  {
+    "title": "동화연극하기54",
+    "speechText": "할머니: 응~ 우리 주현이 좋아하는 바나나 사러 가자~",
+    "speechAudio": "fairytale/할머니와바나나/voice/12p 02 할머니.mp3"
+  },
+  {
+    "title": "동화연극하기55",
+    "speechText": "손자: 애자씨~ 내가 업어줄게.",
+    "speechAudio": "fairytale/할머니와바나나/voice/12p 03 손자.mp3"
+  }
+]

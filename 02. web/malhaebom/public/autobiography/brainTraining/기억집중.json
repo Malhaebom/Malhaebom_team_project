@@ -1,0 +1,97 @@
+[{
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_1_1.png",
+            "title": "색깔과 단어가 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 0
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_2.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 0
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_3.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_4.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_5.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_6.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_7.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 0
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_8.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_9.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_10.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 0
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_11.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    },
+    {
+        "type": 1,
+        "question": [{
+            "image": "image/p_remember_12.png",
+            "title": "보기 도형과 문제 도형이 일치하면 O, 틀리면 X로 버튼을 눌러 표시하세요.",
+            "answer": 1
+        }]
+    }
+]
