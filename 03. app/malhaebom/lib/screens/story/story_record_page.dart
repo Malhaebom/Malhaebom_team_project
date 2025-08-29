@@ -1,8 +1,12 @@
 // lib/screens/story/story_record_page.dart
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/theme/colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 // repo를 별칭으로 임포트하여 타입 충돌 방지
 import '../../data/fairytale_repo.dart' as repo;
@@ -44,14 +48,6 @@ class _RecordProgressStore {
       done.map((e) => e.toString()).toList(),
     );
   }
-
-  /// 한 줄을 완료로 마킹(추가 저장)
-  static Future<Set<int>> markDone(String title, int index) async {
-    final set = await load(title);
-    set.add(index);
-    await save(title, set);
-    return set;
-  }
 }
 
 class _StoryRecordPageState extends State<StoryRecordPage> {
@@ -63,6 +59,32 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
   static const _textSub = Color(0xFF6B7280);
   static const _blue = Color(0xFF3B5BFF);
 
+  // 저장 위치/파일명 규칙 (녹음 화면과 동일해야 함)
+  static const String _recFolder = 'story_records';
+  static const String _ext = '.m4a';
+
+  int _bookIndexFromTitle(String title) {
+    switch (title.trim()) {
+      case '어머니의 벙어리 장갑':
+        return 1;
+      case '아버지와 결혼식':
+        return 2;
+      case '할머니와 바나나':
+        return 3;
+      case '아들의 호빵':
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
+  Future<String> _filePathForLine(int oneBasedLine) async {
+    final base = await getApplicationDocumentsDirectory();
+    final dir = Directory(p.join(base.path, _recFolder));
+    final key = '${_bookIndexFromTitle(widget.title)}-$oneBasedLine$_ext';
+    return p.join(dir.path, key);
+  }
+
   // ✅ repo.RoleLine으로 통일
   late final List<repo.RoleLine> _items; // 텍스트+오디오
   late final int _count;
@@ -73,7 +95,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
   /// 영구 저장소 기준의 완료 인덱스(0-based)
   Set<int> _doneSet = <int>{};
 
-  bool _loaded = false; // prefs 로딩 완료 여부
+  bool _loaded = false; // 초기 로딩 완료 여부
 
   @override
   void initState() {
@@ -90,10 +112,6 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
     } else {
       // 2) repo에서 rolePlay 자동 추출(텍스트+사운드)
       temp = repo.FairytaleRepo.getRolePlayItems(widget.title);
-      // 만약 getRolePlayItems 반환 타입이 List<Map>이라면 아래처럼 매핑하세요:
-      // temp = repo.FairytaleRepo.getRolePlayItems(widget.title)
-      //     .map<repo.RoleLine>((m) => repo.RoleLine(text: m['text'], sound: m['sound']))
-      //     .toList(growable: false);
     }
 
     // 3) 둘 다 비었을 때만 totalLines(혹은 1)로 placeholder 생성
@@ -104,16 +122,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
         (i) =>
             repo.RoleLine(text: '${i + 1}번 대사의 스크립트가 여기에 표시됩니다.', sound: null),
       );
-
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('원본 대사 목록을 찾지 못해 자리표시로 표시합니다. (제목/데이터/경로 확인)'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      });
+      // (알림 제거)
     }
 
     _items = temp; // ✅ 단 한 번만 초기화
@@ -122,16 +131,28 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
     // 일단 전부 false로 구성해 두고,
     recorded = List<bool>.filled(_count, false);
 
-    // 이후 prefs에서 실제 완료 집합을 읽어 반영(비동기)
-    _loadRecordedFromPrefs();
+    // 이후 prefs + 디스크에서 실제 완료 집합을 읽어 반영(비동기)
+    _hydrateFromPrefsAndDisk();
   }
 
-  Future<void> _loadRecordedFromPrefs() async {
-    final set = await _RecordProgressStore.load(widget.title);
-    if (!mounted) return;
+  /// prefs와 디스크 스캔 결과의 합집합으로 recorded 초기화
+  Future<void> _hydrateFromPrefsAndDisk() async {
+    final prefsSet = await _RecordProgressStore.load(widget.title);
+    final diskSet = <int>{};
 
+    // 디스크에 실제 파일이 있는지 1.._count 스캔
+    for (int i = 1; i <= _count; i++) {
+      final path = await _filePathForLine(i);
+      if (await File(path).exists()) {
+        diskSet.add(i - 1); // 0-based
+      }
+    }
+
+    final union = <int>{...prefsSet, ...diskSet};
+
+    if (!mounted) return;
     setState(() {
-      _doneSet = set;
+      _doneSet = union;
       for (final idx in _doneSet) {
         if (idx >= 0 && idx < recorded.length) {
           recorded[idx] = true;
@@ -139,25 +160,31 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
       }
       _loaded = true;
     });
+
+    // 합집합을 prefs에 동기화(선택적이지만 이후 속도/일관성에 도움)
+    await _RecordProgressStore.save(widget.title, union);
   }
 
-  /// 한 줄 완료 → 상태/디스크에 동시 반영
-  Future<void> _markRecorded(int zeroBasedIndex) async {
-    // 메모리 반영
-    if (zeroBasedIndex >= 0 && zeroBasedIndex < recorded.length) {
-      setState(() {
-        recorded[zeroBasedIndex] = true;
+  /// 한 줄만 디스크에서 다시 체크하여 반영 (녹음 화면에서 돌아올 때 호출)
+  Future<void> _refreshOneFromDisk(int zeroBasedIndex) async {
+    final i = zeroBasedIndex + 1; // 1-based
+    final path = await _filePathForLine(i);
+    final exists = await File(path).exists();
+
+    if (!mounted) return;
+    setState(() {
+      recorded[zeroBasedIndex] = exists;
+      if (exists) {
         _doneSet.add(zeroBasedIndex);
-      });
-    }
-    // 디스크 반영
+      } else {
+        _doneSet.remove(zeroBasedIndex);
+      }
+    });
     await _RecordProgressStore.save(widget.title, _doneSet);
   }
 
   @override
   Widget build(BuildContext context) {
-    
-    // 기종에 맞는 상단바 크기 설정
     double _appBarH(BuildContext context) {
       final shortest = MediaQuery.sizeOf(context).shortestSide;
       if (shortest >= 840) return 88; // 큰 태블릿
@@ -173,8 +200,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
           backgroundColor: AppColors.btnColorDark,
           elevation: 0.5,
           centerTitle: true,
-          leadingWidth: 0,
-          // automaticallyImplyLeading: false,
+          // leadingWidth: 0,
           toolbarHeight: _appBarH(context),
           title: Text(
             '${widget.title} 연극',
@@ -189,13 +215,6 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
               color: Colors.white,
             ),
           ),
-          // actions: [
-          //   IconButton(
-          //     onPressed: () => Navigator.pop(context),
-          //     icon: const Icon(Icons.close),
-          //     color: Colors.black87,
-          //   ),
-          // ],
         ),
       ),
       body: Center(
@@ -203,9 +222,7 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
           constraints: BoxConstraints(maxWidth: 380.w),
           child:
               !_loaded
-                  ? const Center(
-                    child: CircularProgressIndicator(),
-                  ) // prefs 로드 전 로딩
+                  ? const Center(child: CircularProgressIndicator())
                   : ListView(
                     padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
                     children: [
@@ -318,26 +335,21 @@ class _StoryRecordPageState extends State<StoryRecordPage> {
                                 number: idx + 1,
                                 done: recorded[idx],
                                 onTap: () async {
-                                  final bool? ok = await Navigator.push<bool>(
+                                  await Navigator.push<bool>(
                                     context,
                                     MaterialPageRoute(
                                       builder:
                                           (_) => StoryRecordingPage(
                                             title: widget.title,
                                             lineNumber: idx + 1,
-                                            totalLines:
-                                                _count, // 진행바 최대값은 실제 개수
+                                            totalLines: _count,
                                             lineText: item.text,
-                                            lineAssetPath:
-                                                item.sound, // 원본 오디오 경로(있으면)
+                                            lineAssetPath: item.sound,
                                           ),
                                     ),
                                   );
-                                  // 녹음 저장까지 완료되었을 때만 true를 돌려받음
-                                  if (ok == true) {
-                                    // 메모리 + 디스크 동시 반영
-                                    await _markRecorded(idx);
-                                  }
+                                  // ✅ 돌아올 때, 해당 라인의 파일 존재 여부를 디스크에서 다시 확인
+                                  await _refreshOneFromDisk(idx);
                                 },
                               );
                             }),

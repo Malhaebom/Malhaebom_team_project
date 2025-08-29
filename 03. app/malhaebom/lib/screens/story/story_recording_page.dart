@@ -18,6 +18,7 @@ class StoryRecordingPage extends StatefulWidget {
   final int lineNumber; // 몇 번 대사인지(1..N)
   final int totalLines; // 총 대사 수(실제 개수로 전달)
   final String lineText; // 대사 내용
+
   /// pubspec.yaml에 선언된 "정확한" 경로. 예) assets/fairytale/어머니의벙어리/1/line01.mp3
   /// 또는 접두어 없이 fairytale/... 으로 들어와도 허용 (본 파일에서 보정)
   final String? lineAssetPath;
@@ -60,6 +61,56 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
   late final Animation<double> _sliderAnim;
   late double _sliderValue;
 
+  // === 저장 경로 관련 상수/헬퍼 ===
+  static const String _recFolder = 'story_records';
+  static const String _ext = '.m4a';
+
+  // 책 제목 → 고정 번호 매핑 (파일명 첫 자리)
+  int _bookIndexFromTitle(String title) {
+    switch (title.trim()) {
+      case '어머니의 벙어리 장갑':
+        return 1;
+      case '아버지와 결혼식':
+        return 2;
+      case '할머니와 바나나':
+        return 3;
+      case '아들의 호빵':
+        return 4;
+      default:
+        return 0; // 알 수 없는 제목일 때
+    }
+  }
+
+  // 파일 키: "책번호-대사번호" (예: 1-19)
+  String _recordKey() {
+    final bookIdx = _bookIndexFromTitle(widget.title);
+    return '$bookIdx-${widget.lineNumber}';
+  }
+
+  Future<Directory> _ensureRecDir() async {
+    final base = await getApplicationDocumentsDirectory();
+    final dir = Directory(p.join(base.path, _recFolder));
+    if (!(await dir.exists())) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  Future<String> _targetFilePath() async {
+    final dir = await _ensureRecDir();
+    return p.join(dir.path, '${_recordKey()}$_ext');
+  }
+
+  // 기존 저장 파일 있으면 로드
+  Future<void> _loadSavedIfExists() async {
+    try {
+      final path = await _targetFilePath();
+      if (await File(path).exists()) {
+        if (mounted) setState(() => _savedPath = path);
+      }
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +138,9 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
     _assetPlayer.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _isAssetPlaying = false);
     });
+
+    // 페이지 진입 시 기존 저장 파일 있으면 버튼 활성화
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedIfExists());
   }
 
   @override
@@ -130,7 +184,6 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
 
   @override
   Widget build(BuildContext context) {
-
     // 기종에 맞는 상단바 크기 설정
     double _appBarH(BuildContext context) {
       final shortest = MediaQuery.sizeOf(context).shortestSide;
@@ -147,8 +200,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
           backgroundColor: AppColors.btnColorDark,
           elevation: 0.5,
           centerTitle: true,
-          leadingWidth: 0,
-          // automaticallyImplyLeading: false,
+          // leadingWidth: 0,
           toolbarHeight: _appBarH(context),
           title: Text(
             '${widget.title} 연극',
@@ -160,13 +212,6 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
               color: Colors.white,
             ),
           ),
-          // actions: [
-          //   IconButton(
-          //     onPressed: () => Navigator.pop(context, _savedPath != null),
-          //     icon: const Icon(Icons.close),
-          //     color: Colors.black87,
-          //   ),
-          // ],
         ),
       ),
       body: Center(
@@ -296,7 +341,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
                     ),
                     label: const Text(
                       '내 녹음 듣기',
-                      textScaler: const TextScaler.linear(1.0),
+                      textScaler: TextScaler.linear(1.0),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
@@ -365,7 +410,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
   Future<void> _onTapSpeechBubblePlayAsset() async {
     final raw = widget.lineAssetPath?.trim();
     if (raw == null || raw.isEmpty) {
-      _showSnack('원본 오디오가 없어요.');
+      // 알림 제거: 그냥 반환
       return;
     }
 
@@ -394,57 +439,76 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
       if (parent.isNotEmpty) {
         await _debugDumpAssets(contains: parent);
       }
-      _showSnack('원본 오디오를 찾을 수 없어요.\npubspec.yaml 또는 파일 경로(대소문자/공백)를 확인해 주세요.');
       if (mounted) setState(() => _isAssetPlaying = false);
     } catch (_) {
-      _showSnack('원본 오디오를 찾을 수 없어요.');
       if (mounted) setState(() => _isAssetPlaying = false);
     }
   }
 
-  // ====== 동작(녹음/저장) ======
+  // ====== 동작(녹음/저장) — 영구 저장 + 덮어쓰기 ======
   Future<void> _toggleRecording() async {
     if (_isAssetPlaying) {
       await _assetPlayer.stop();
       if (mounted) setState(() => _isAssetPlaying = false);
     }
+    if (_isMyPlaying) {
+      await _myPlayer.stop();
+      if (mounted) setState(() => _isMyPlaying = false);
+    }
 
+    // ── 녹음 중이면 STOP ─────────────────────────
     if (_isRecording) {
-      final path = await _recorder.stop();
+      final stoppedPath = await _recorder.stop(); // 일부 플랫폼에선 null 가능
+      final path = stoppedPath ?? await _targetFilePath();
+
       if (mounted) {
         setState(() {
           _isRecording = false;
-          _savedPath = path;
+          _savedPath = path; // 저장 완료
         });
+      }
+
+      // ★ 파일이 실제 저장됐으면 완료(true)로 반환 → 리스트에서 체크 표시됨
+      final exists = await File(path).exists();
+      if (exists && mounted) {
+        Navigator.pop(context, true);
       }
       return;
     }
 
+    // ── 녹음 시작 ────────────────────────────────
     final hasPerm = await _recorder.hasPermission();
     if (!hasPerm) {
-      _showSnack('마이크 권한이 필요해요.');
+      // 권한 없으면 그냥 반환
       return;
     }
 
-    final dir = await getTemporaryDirectory();
-    final filename =
-        'story_${widget.title}_${widget.lineNumber}_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    final filePath = p.join(dir.path, filename);
+    try {
+      final path = await _targetFilePath();
 
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-      ),
-      path: filePath,
-    );
+      // 같은 대사 재녹음 시 기존 파일 삭제 → 같은 경로로 저장(덮어쓰기)
+      final f = File(path);
+      if (await f.exists()) {
+        await f.delete();
+      }
 
-    if (mounted) {
-      setState(() {
-        _isRecording = true;
-        _isMyPlaying = false;
-      });
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 128000,
+          sampleRate: 44100,
+        ),
+        path: path, // 영구 경로로 직접 기록
+      );
+
+      if (mounted) {
+        setState(() {
+          _isRecording = true;
+          _savedPath = path; // 미리 세팅 → UI에서 재생 버튼 활성
+        });
+      }
+    } catch (_) {
+      // 실패 시 조용히 무시
     }
   }
 
@@ -497,10 +561,5 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
         ),
       ),
     );
-  }
-
-  void _showSnack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 }
