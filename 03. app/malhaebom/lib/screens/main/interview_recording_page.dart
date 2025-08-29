@@ -241,7 +241,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
       }
       if (mounted) setState(() => _isAssetPlaying = true);
     } on FlutterError {
-      _showSnack('원본 오디오를 찾을 수 없어요.(에셋 경로 확인)');
+      // 스낵바 제거: 에셋 실패 시 로그만 남김
       if (mounted) setState(() => _isAssetPlaying = false);
       final full = (widget.assetPath ?? '').trim();
       if (full.isNotEmpty) {
@@ -249,8 +249,9 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
         final parent = p.basename(p.dirname(full));
         if (parent.isNotEmpty) await _debugDumpAssets(contains: parent);
       }
-    } catch (_) {
-      _showSnack('오디오 재생에 실패했어요.');
+    } catch (e) {
+      // 스낵바 제거: 재생 실패 시 로그만 남김
+      debugPrint('오디오 재생 실패: $e');
       if (mounted) setState(() => _isAssetPlaying = false);
     }
   }
@@ -296,13 +297,6 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
                 color: Colors.white,
               ),
             ),
-            // actions: [
-            //   IconButton(
-            //     onPressed: () => Navigator.pop(context, _thisDone),
-            //     icon: const Icon(Icons.close),
-            //     color: Colors.black87,
-            //   ),
-            // ],
           ),
           body: Center(
             child: ConstrainedBox(
@@ -411,26 +405,26 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
                       style: ButtonStyle(
                         backgroundColor:
                             MaterialStateProperty.resolveWith<Color>((states) {
-                              if (states.contains(MaterialState.disabled)) {
-                                final scheme = Theme.of(context).colorScheme;
-                                return scheme.onSurface.withOpacity(0.12);
-                              }
-                              return const Color(0xFFFFD400);
-                            }),
+                          if (states.contains(MaterialState.disabled)) {
+                            final scheme = Theme.of(context).colorScheme;
+                            return scheme.onSurface.withOpacity(0.12);
+                          }
+                          return const Color(0xFFFFD400);
+                        }),
                         foregroundColor:
                             MaterialStateProperty.resolveWith<Color>((states) {
-                              if (states.contains(MaterialState.disabled)) {
-                                final scheme = Theme.of(context).colorScheme;
-                                return scheme.onSurface.withOpacity(0.38);
-                              }
-                              return Colors.black;
-                            }),
+                          if (states.contains(MaterialState.disabled)) {
+                            final scheme = Theme.of(context).colorScheme;
+                            return scheme.onSurface.withOpacity(0.38);
+                          }
+                          return Colors.black;
+                        }),
                         shape:
                             MaterialStateProperty.all<RoundedRectangleBorder>(
-                              RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
+                          RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
                         elevation: MaterialStateProperty.all<double>(0),
                         textStyle: MaterialStateProperty.all<TextStyle>(
                           TextStyle(
@@ -493,7 +487,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
   Future<void> _startRecording() async {
     if (_isRecording) return;
     if (_recordLocked) {
-      _showSnack('이 라인은 다시 녹음할 수 없어요.');
+      // 스낵바 제거: 잠금 상태면 조용히 무시
       return;
     }
 
@@ -504,7 +498,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
 
     final hasPerm = await _recorder.hasPermission();
     if (!hasPerm) {
-      _showSnack('마이크 권한이 필요해요.');
+      // 스낵바 제거: 권한 없음 시 조용히 무시(필요시 설정 페이지 유도 로직 추가 가능)
       return;
     }
 
@@ -553,7 +547,7 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
     setState(() {
       _recordLocked = true;
     });
-    _showSnack('제한 시간(30초) 초과. 다음 버튼으로 진행하세요.');
+    // 스낵바 제거: 시간 초과 메시지 없음
   }
 
   void _cancelRecTimer() {
@@ -611,13 +605,13 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
       await _stopRecording(); // 정지 + 저장 + 재로딩
       if (!mounted) return;
       setState(() => _recordLocked = true);
-      _showSnack('녹음을 종료했습니다. 이 라인은 다시 녹음할 수 없습니다.');
+      // 스낵바 제거: 종료 안내 없음
     } else {
       if (_thisDone) {
         setState(() => _recordLocked = true);
-        _showSnack('이미 완료된 라인입니다. 다시 녹음할 수 없습니다.');
+        // 스낵바 제거: 이미 완료 안내 없음
       } else {
-        _showSnack('먼저 녹음을 시작한 뒤 끝내기를 눌러주세요.');
+        // 스낵바 제거: 먼저 녹음 시작 안내 없음
       }
     }
   }
@@ -711,11 +705,6 @@ class _InterviewRecordingPageState extends State<InterviewRecordingPage>
         ),
       ),
     );
-  }
-
-  void _showSnack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   String _fmt(Duration d) {
