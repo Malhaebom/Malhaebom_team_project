@@ -200,7 +200,7 @@ function InterviewStart() {
               data-aos="fade-up"
               data-aos-duration="1000"
             >
-              <p>{currentQuestion?.questionText ?? "로딩 중..."}</p>
+              <p>{currentQuestion?.speechText ?? "로딩 중..."}</p>
               <div className="bt_flex">
                 <button className="question_bt" id="record" type="button" ref={recordBtnRef}>
                   녹음

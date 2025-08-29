@@ -81,12 +81,18 @@ const Join = () => {
         return;
       }
 
+      // birth에서 연도만 추출 (YYYY-MM-DD → YYYY)
+      const birthYear = birth.split('-')[0];
+      
+      // gender 변환 (male/female → M/F)
+      const genderCode = gender === 'male' ? 'M' : 'F';
+      
       const payload = {
-        phone,       // user_id로 사용
+        user_id: phone,  // phone을 user_id로 사용
         pwd: password,
         nick,
-        birth,       // YYYY-MM-DD → 서버에서 YEAR만 저장
-        gender,      // male/female → 서버에서 M/F 변환
+        birthyear: birthYear,  // 연도만 전송
+        gender: genderCode,    // M/F 형식으로 변환
       };
 
       const { data } = await API.post("/userJoin/register", payload);
