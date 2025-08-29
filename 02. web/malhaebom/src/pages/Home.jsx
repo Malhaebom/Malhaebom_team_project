@@ -5,6 +5,7 @@ import AOS from "aos";
 import "aos/dist/aos.css";
 import axios from "axios";
 import Background from "./Background/Background"; // ✅ 원래 경로 유지
+import Logo from "../components/Logo.jsx";
 
 // ✅ API 인스턴스
 const API = axios.create({
@@ -66,7 +67,7 @@ export default function Home() {
       <div className="wrap" style={windowWidth <= 1000 ? wrapStyle : {}}>
         <header>
           <div className="hd_inner">
-            <h1 className="logo">말해봄</h1>
+            <Logo className="logo">말해봄</Logo>
             <div className="hd_left">
               <a onClick={() => navigate("/")}>
                 <i className="xi-angle-left-min" />
