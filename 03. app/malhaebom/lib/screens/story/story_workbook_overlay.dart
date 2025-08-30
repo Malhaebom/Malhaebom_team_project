@@ -185,7 +185,7 @@ class StoryWorkbookOverlayPage extends StatelessWidget {
                                             ),
                                           ),
                                           child: Text(
-                                            '영희네 가족이 물건을 마련하는 방법은 무엇인가요?',
+                                            '영희네 가족이 물건을 마련하는\n방법은 무엇인가요?',
                                             textAlign: TextAlign.center,
                                             style: TextStyle(
                                               fontFamily: _kFont,
