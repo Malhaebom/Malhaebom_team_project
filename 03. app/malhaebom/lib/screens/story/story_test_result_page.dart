@@ -1,3 +1,4 @@
+// lib/screens/story/story_test_result_page.dart
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -26,6 +27,7 @@ const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
+// ✅ 역슬래시 1개가 맞음
 String normalizeTitle(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 /// 카테고리 집계용
@@ -117,6 +119,132 @@ class _StoryResultPageState extends State<StoryResultPage> {
     };
   }
 
+  /// ---- 유저 식별자 로드 (user_key 통일) ----
+  /// 로그인 시(예시):
+  ///  - 일반: prefs.setString('user_key', userId)
+  ///  - SNS : prefs.setString('user_key', '${type.toLowerCase()}:$snsUserId')
+  Future<Map<String, String>> _identityForApi() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    String? readAny(List<String> keys) {
+      for (final k in keys) {
+        final vs = prefs.getString(k);
+        if (vs != null && vs.isNotEmpty) return vs;
+        final vi = prefs.getInt(k);
+        if (vi != null) return vi.toString();
+        final vd = prefs.getDouble(k);
+        if (vd != null) return vd.toString();
+        final vb = prefs.getBool(k);
+        if (vb != null) return vb ? '1' : '0';
+      }
+      return null;
+    }
+
+    // 1) user_key가 이미 있으면 그대로 사용
+    final direct = readAny(['user_key', 'userKey']);
+    if (direct != null && direct.isNotEmpty) {
+      return {'userKey': direct};
+    }
+
+    // 2) 로컬 ID 시도
+    final localId = readAny([
+      'user_id',
+      'userId',
+      'userid',
+      'phone',
+      'phoneNumber',
+      'phone_number',
+    ]);
+    if (localId != null && localId.isNotEmpty) {
+      await prefs.setString('user_key', localId);
+      return {'userKey': localId};
+    }
+
+    // 3) SNS 시도 (type:id 형태로 userKey 생성)
+    String? snsType =
+        readAny([
+          'sns_login_type',
+          'snsLoginType',
+          'login_provider',
+          'provider',
+          'social_type',
+          'loginType',
+        ])?.toLowerCase();
+    final snsId = readAny([
+      'sns_user_id',
+      'snsUserId',
+      'oauth_id',
+      'kakao_user_id',
+      'google_user_id',
+      'naver_user_id',
+    ]);
+
+    if (snsId != null &&
+        snsId.isNotEmpty &&
+        (snsType == 'kakao' || snsType == 'google' || snsType == 'naver')) {
+      final key = '$snsType:$snsId';
+      await prefs.setString('user_key', key);
+      return {'userKey': key};
+    }
+
+    // 4) ★ 최후 fallback: auth_user(JSON)에서 복구
+    final raw = prefs.getString('auth_user');
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final u = jsonDecode(raw) as Map<String, dynamic>;
+        final uid = (u['user_id'] ?? '').toString();
+        final t = (u['sns_login_type'] ?? '').toString().toLowerCase();
+        if (t.isNotEmpty && uid.isNotEmpty) {
+          final key = '$t:$uid';
+          await prefs.setString('user_key', key);
+          return {'userKey': key};
+        }
+        if (uid.isNotEmpty) {
+          await prefs.setString('user_key', uid);
+          return {'userKey': uid};
+        }
+      } catch (_) {}
+    }
+
+    debugPrint('[STR] identity -> EMPTY (no user_key/userId/snsId)');
+    return {};
+  }
+
+  // ---- 서버 최신 회차 조회 → "다음 회차" 계산 (있으면 우선 사용) ----
+  Future<int?> _serverNextAttempt(
+    String titleKey,
+    Map<String, String> identity,
+  ) async {
+    if (!kUseServer || identity.isEmpty) return null;
+    try {
+      final uri = Uri.parse(
+        '$API_BASE/str/latest',
+      ).replace(queryParameters: {...identity, 'storyKey': titleKey});
+      final res = await http.get(uri);
+      if (res.statusCode != 200) return null;
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+      final latest = j['latest'];
+      if (latest is Map) {
+        final ord = latest['clientAttemptOrder'] ?? latest['attemptOrder'];
+        if (ord is num) {
+          final next = ord.toInt() + 1;
+          debugPrint(
+            '[STR] serverNextAttempt("$titleKey") -> ${ord.toInt()} + 1 = $next',
+          );
+          return next;
+        }
+        // 서버에 기록은 있으나 회차 필드 없으면 1로 시작
+        return 1;
+      }
+      // 서버 기록 아예 없으면 1회차
+      return 1;
+    } catch (e) {
+      debugPrint('[STR] serverNextAttempt error: $e');
+      return null;
+    }
+  }
+
   // ---- 로컬 최신 저장 ----
   Future<void> _cacheLatestLocally(
     String title,
@@ -129,11 +257,14 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
-  // ---- 회차 증가(동화별) ----
+  // ---- 회차 증가(동화별, 로컬) ----
   Future<int> _bumpCount(String title) async {
     final prefs = await SharedPreferences.getInstance();
-    final next = (prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ?? 0) + 1;
-    await prefs.setInt('$PREF_STORY_COUNT_PREFIX$title', next);
+    final key = '$PREF_STORY_COUNT_PREFIX$title';
+    final prev = prefs.getInt(key) ?? 0;
+    final next = prev + 1;
+    await prefs.setInt(key, next);
+    debugPrint('[STR] _bumpCount("$title"): $prev -> $next');
     return next;
   }
 
@@ -146,42 +277,103 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   // ---- 저장 루틴 ----
-Future<void> _persistOnce() async {
-  if (_synced) return;
-  _synced = true;
+  Future<void> _persistOnce() async {
+    if (_synced) return;
+    _synced = true;
 
-  final originalTitle = widget.storyTitle ?? '동화';
-  final keyTitle = normalizeTitle(originalTitle);
+    final originalTitle = widget.storyTitle ?? '동화';
+    final keyTitle = normalizeTitle(originalTitle);
 
-  // 1) 동화별 회차 증가
-  final next = await _bumpCount(keyTitle);
-  if (mounted) setState(() => _attemptOrder = next);
+    // 0) 우선 identity 확보
+    final identity = await _identityForApi();
 
-  // 2) payload 생성(회차/키 포함)
-  final payload = _buildPayload(
-    titleOriginal: originalTitle,
-    titleKey: keyTitle,
-    attemptOrder: next,
-  );
+    // 1) 서버 기준 "다음 회차"가 있으면 그것을 우선 사용, 없으면 로컬 +1
+    int next =
+        (await _serverNextAttempt(keyTitle, identity)) ??
+        (await _bumpCount(keyTitle));
 
-  // 3) 로컬 최신 캐시 (키는 정규화 제목 사용)
-  await _cacheLatestLocally(keyTitle, payload);
+    // 서버에서 1회차라고 알려줬는데 로컬이 엉켜 있었다면 로컬도 덮어쓰기
+    if (kUseServer && identity.isNotEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('$PREF_STORY_COUNT_PREFIX$keyTitle', next);
+      } catch (_) {}
+    }
 
-  // 4) 옵션: 서버 전송
-  if (kUseServer) {
-    try {
-      final uri = Uri.parse('$API_BASE/str/attempt'); // ← 여기!
-      final res = await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(payload),
-      );
-      debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
-    } catch (e) {
-      debugPrint('[STR] POST error: $e');
+    if (mounted) setState(() => _attemptOrder = next);
+
+    // 2) payload 생성(회차/키 포함)
+    final payload = _buildPayload(
+      titleOriginal: originalTitle,
+      titleKey: keyTitle,
+      attemptOrder: next,
+    );
+
+    // 3) 로컬 최신 캐시 (키는 정규화 제목 사용)
+    await _cacheLatestLocally(keyTitle, payload);
+
+    // 4) 옵션: 서버 전송 (+ user_key)
+    if (kUseServer) {
+      try {
+        final merged = {...payload, ...identity};
+
+        // headers에도 같이 싣기
+        final headers = <String, String>{
+          'Content-Type': 'application/json; charset=utf-8',
+          if (identity['userKey'] != null) 'x-user-key': identity['userKey']!,
+        };
+
+        // querystring에도 같이 싣기 (프록시/커스텀헤더 차단 대비)
+        final base = Uri.parse('$API_BASE/str/attempt');
+        final uri =
+            identity.isEmpty
+                ? base
+                : base.replace(
+                  queryParameters: {'userKey': identity['userKey']!},
+                );
+
+        debugPrint('[STR] POST $uri');
+        debugPrint('[STR] headers: $headers');
+        debugPrint('[STR] body.identity.present = ${identity.isNotEmpty}');
+
+        // (선택) 사전 whoami 확인
+        try {
+          final who = Uri.parse(
+            '$API_BASE/str/whoami',
+          ).replace(queryParameters: identity);
+          final whoRes = await http.get(who);
+          debugPrint('[STR] whoami -> ${whoRes.statusCode} ${whoRes.body}');
+        } catch (_) {}
+
+        final res = await http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(merged),
+        );
+        debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
+
+        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화(선택적)
+        try {
+          final jr = jsonDecode(res.body);
+          if (jr is Map) {
+            final ord = jr['clientAttemptOrder'] ?? jr['attemptOrder'];
+            if (ord is num) {
+              final serverOrder = ord.toInt();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setInt(
+                '$PREF_STORY_COUNT_PREFIX$keyTitle',
+                serverOrder,
+              );
+              if (mounted) setState(() => _attemptOrder = serverOrder);
+              debugPrint('[STR] sync local count to server -> $serverOrder');
+            }
+          }
+        } catch (_) {}
+      } catch (e) {
+        debugPrint('[STR] POST error: $e');
+      }
     }
   }
-}
 
   // ---- KST 포맷 ----
   String _formatKst(DateTime dt) {
@@ -410,7 +602,7 @@ Future<void> _persistOnce() async {
     );
   }
 
-  // ✅ 변경: 윗줄에 (좌)라벨 (우)상태칩, 아래에 riskBar 배치
+  // ✅ 윗줄 라벨/칩 + 아래 게이지
   Widget _riskBarRow(String label, CategoryStat? stat) {
     final eval = _evalFromStat(stat);
     return Column(

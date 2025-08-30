@@ -54,7 +54,6 @@ class _LoginPageState extends State<LoginPage> {
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
 
-  // 🔻 기본 해제
   bool _autoLogin = false;
   bool _loggingIn = false;
   bool _bootChecked = false; // 앱 시작 시 자동로그인 검사 완료 여부
@@ -72,19 +71,104 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // ✅ 전화번호/로컬ID 정규화: 숫자만 남김
+  String _normPhone(String s) => s.replaceAll(RegExp(r'\D'), '');
+
+  // ================== IDENTITY 저장/마이그레이션 유틸 ==================
+
+  // ✅ 평문(전화번호) 로그인 → user_key = 숫자만(userId)
+  Future<void> _persistIdentityPlainLogin(String userId, {String? nick}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final norm = _normPhone(userId);
+    await prefs.setString('user_key', norm); // 핵심
+    await prefs.setString('user_id', norm); // 호환용
+    await prefs.remove('sns_user_id'); // 혹시 남아있던 SNS 흔적 정리
+    await prefs.remove('sns_login_type');
+    if (nick != null) {
+      final raw = prefs.getString('auth_user');
+      Map<String, dynamic> j = {};
+      if (raw != null) {
+        try {
+          j = (jsonDecode(raw) as Map).map((k, v) => MapEntry(k.toString(), v));
+        } catch (_) {}
+      }
+      j['user_id'] = norm;
+      j['nick'] = nick;
+      await prefs.setString('auth_user', jsonEncode(j));
+    }
+  }
+
+  // ✅ SNS 로그인 → user_key = "<type>:<id>"
+  Future<void> _persistIdentitySns({
+    required String snsUserId,
+    required String snsLoginType,
+    String? snsNick,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = '${snsLoginType.toLowerCase()}:$snsUserId';
+    await prefs.setString('user_key', key); // 핵심
+    await prefs.setString('sns_user_id', snsUserId); // 평평한 키
+    await prefs.setString('sns_login_type', snsLoginType.toLowerCase());
+    await prefs.setString('user_id', snsUserId); // 호환(있어도 무해)
+
+    // auth_user 업데이트(있으면)
+    final j = {
+      'user_id': snsUserId,
+      'nick': snsNick ?? '',
+      'sns_login_type': snsLoginType.toLowerCase(),
+    };
+    await prefs.setString('auth_user', jsonEncode(j));
+  }
+
+  // ✅ 예전 유저를 위한 one-time 마이그레이션 (토큰만 있고 user_key가 없는 경우)
+  Future<void> _migrateIdentityIfMissing() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasKey = (prefs.getString('user_key') ?? '').isNotEmpty;
+    if (hasKey) return;
+
+    final raw = prefs.getString('auth_user');
+    if (raw == null || raw.isEmpty) return;
+
+    try {
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      final snsType = (j['sns_login_type'] as String?)?.toLowerCase();
+      final uid = (j['user_id'] as String?) ?? '';
+
+      if (snsType == 'kakao' || snsType == 'google' || snsType == 'naver') {
+        if (uid.isNotEmpty) {
+          await _persistIdentitySns(
+            snsUserId: uid,
+            snsLoginType: snsType!,
+            snsNick: j['nick'] as String?,
+          );
+        }
+      } else if (uid.isNotEmpty) {
+        await _persistIdentityPlainLogin(
+          _normPhone(uid),
+          nick: j['nick'] as String?,
+        );
+      }
+    } catch (_) {
+      // ignore
+    }
+  }
+
+  // ================== 부팅 시 자동로그인 ==================
   Future<void> _loadPrefsAndMaybeAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final savedAuto = prefs.getBool('auto_login') ?? false;
     final token = prefs.getString('auth_token');
 
-    // ✅ UI에 저장된 값 즉시 반영
     if (mounted) {
       setState(() {
         _autoLogin = savedAuto;
       });
     }
 
-    // 앱 부팅 시 자동로그인 플로우: 저장된 토큰이 있고 auto_login=true 이면 검증
+    // ✅ 먼저 identity 마이그레이션 시도
+    await _migrateIdentityIfMissing();
+
+    // 저장된 토큰 + auto_login=true → 토큰 검증
     if (savedAuto && token != null && token.isNotEmpty) {
       try {
         final me = await http.get(
@@ -92,16 +176,13 @@ class _LoginPageState extends State<LoginPage> {
           headers: {'Authorization': 'Bearer $token'},
         );
         if (me.statusCode == 200 && mounted) {
-          // 유효 → 곧바로 홈
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (_) => const HomePage()),
             (route) => false,
           );
           return;
         }
-      } catch (_) {
-        // 네트워크 실패 시 그냥 로그인 화면 유지
-      }
+      } catch (_) {}
     }
     if (mounted) setState(() => _bootChecked = true);
   }
@@ -111,10 +192,12 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setBool('auto_login', v);
   }
 
+  // ================== 아이디/비번 로그인 ==================
   Future<void> _login() async {
     if (_loggingIn) return;
 
-    final userId = _phoneCtrl.text.trim();
+    final userIdRaw = _phoneCtrl.text.trim();
+    final userId = _normPhone(userIdRaw); // ✅ 숫자만
     final pwd = _pwCtrl.text;
     if (userId.isEmpty || pwd.isEmpty) {
       _snack('전화번호/비밀번호를 입력해 주세요.');
@@ -128,7 +211,7 @@ class _LoginPageState extends State<LoginPage> {
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'user_id': userId, 'pwd': pwd}),
+        body: jsonEncode({'user_id': userId, 'pwd': pwd}), // ✅ 서버에도 숫자만
       );
 
       if (!mounted) return;
@@ -144,7 +227,6 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         final prefs = await SharedPreferences.getInstance();
-        // ✅ 현재 체크박스(_autoLogin) 기준으로 저장/삭제
         if (_autoLogin) {
           await prefs.setString('auth_token', token);
           await _saveAutoLogin(true);
@@ -157,6 +239,12 @@ class _LoginPageState extends State<LoginPage> {
         if (user != null) {
           await prefs.setString('auth_user', jsonEncode(user));
         }
+
+        // ✅ 핵심: identity 평평한 키(숫자만) 저장
+        await _persistIdentityPlainLogin(
+          userId,
+          nick: user?['nick']?.toString(),
+        );
 
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomePage()),
@@ -175,36 +263,29 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ============== 핵심: SNS 로그인 시 '현재 체크박스 상태' 기준으로 처리 ==============
-  /// - 토큰 저장/삭제도 _autoLogin(사용자 UI 선택)에 맞춤
-  /// - reauth 트리거도 _autoLogin 및 lastAutoUsed/hasToken 조합으로 결정
+  /// ================== SNS 로그인 ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // ✅ 지금 화면의 체크박스 상태를 '원하는 설정'으로 확정하고 곧바로 저장(레이스 방지)
+    // ✅ 지금 화면의 체크박스 상태 즉시 저장
     final bool wantAuto = _autoLogin;
     await _saveAutoLogin(wantAuto);
 
     final bool hasToken = (prefs.getString('auth_token') ?? '').isNotEmpty;
     final bool? lastAutoUsed = prefs.getBool('auto_login_last');
 
-    // 자동로그인 OFF면 혼선 방지를 위해 남아있을 수 있는 토큰 제거
     if (!wantAuto) {
       await prefs.remove('auth_token');
     }
 
-    // 재인증 필요 판단
     bool needReauth = false;
     if (!wantAuto) {
-      needReauth = true; // OFF면 항상 계정선택/재동의
+      needReauth = true;
     } else {
-      if (!hasToken) needReauth = true; // 최초 바인딩
-      if (lastAutoUsed != null && lastAutoUsed != wantAuto) {
-        needReauth = true; // 이전 로그인 시 설정과 상이
-      }
+      if (!hasToken) needReauth = true;
+      if (lastAutoUsed != null && lastAutoUsed != wantAuto) needReauth = true;
     }
 
-    // 얇은 로딩 오버레이
     if (mounted) {
       showDialog(
         context: context,
@@ -241,14 +322,14 @@ class _LoginPageState extends State<LoginPage> {
       final token = uri.queryParameters['token'];
       final snsUserId = uri.queryParameters['sns_user_id'];
       final snsNick = uri.queryParameters['sns_nick'];
-      final snsLoginType = uri.queryParameters['sns_login_type'] ?? provider;
+      final snsLoginType =
+          (uri.queryParameters['sns_login_type'] ?? provider).toLowerCase();
 
       if (token == null || snsUserId == null) {
         _snack('SNS 로그인 응답이 올바르지 않습니다.');
         return;
       }
 
-      // ✅ 최종 저장도 wantAuto(현재 체크박스) 기준으로 일관 처리
       if (wantAuto) {
         await prefs.setString('auth_token', token);
         await _saveAutoLogin(true);
@@ -259,13 +340,11 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setBool('auto_login_last', false);
       }
 
-      await prefs.setString(
-        'auth_user',
-        jsonEncode({
-          'user_id': snsUserId,
-          'nick': snsNick ?? '',
-          'sns_login_type': snsLoginType,
-        }),
+      // ✅ 핵심: identity 평평한 키 저장(SNS는 그대로)
+      await _persistIdentitySns(
+        snsUserId: snsUserId,
+        snsLoginType: snsLoginType,
+        snsNick: snsNick,
       );
 
       if (!mounted) return;
@@ -289,9 +368,9 @@ class _LoginPageState extends State<LoginPage> {
   // (참고) 이 페이지에서 직접 로그아웃 쓸 일은 거의 없음. HomePage에서 pushAndRemoveUntil로 처리 권장.
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token'); // 자동로그인 토큰만 제거
-    await prefs.remove('auth_user'); // 사용자 정보 제거
-    // ⚠️ auto_login 값은 절대 건드리지 않음
+    await prefs.remove('auth_token');
+    await prefs.remove('auth_user');
+    // ⚠️ auto_login 값은 그대로 둠
     _snack('로그아웃되었습니다.');
   }
 
@@ -320,7 +399,6 @@ class _LoginPageState extends State<LoginPage> {
       context,
     ).copyWith(textScaler: const TextScaler.linear(1.0));
 
-    // 부팅 자동검사 중엔 로딩만 간단히
     if (!_bootChecked) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
