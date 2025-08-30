@@ -74,6 +74,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   final Map<String, StorySummary?> _storyLatest = {};
   final Map<String, int> _storyAttemptCounts = {};
 
+  // ===== 로그인 상태(user_key 존재 여부) =====
+  bool _hasUserKey = false;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +85,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       vsync: this,
     );
     _loadAll();
+    _checkUserKey(); // ⬅️ 초기 진입 시 로그인 여부 확인
   }
 
   @override
@@ -92,6 +96,15 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
   Future<void> _loadAll() async {
     await Future.wait([_loadLatest(), _loadStoryLatest()]);
+    await _checkUserKey(); // ⬅️ 데이터 로드 후에도 상태 동기화
+  }
+
+  // ===== user_key 존재 여부 확인 =====
+  Future<void> _checkUserKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = (prefs.getString('user_key') ?? '').trim();
+    if (!mounted) return;
+    setState(() => _hasUserKey = key.isNotEmpty);
   }
 
   // ===== 인지검사 로드 =====
@@ -344,25 +357,49 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // == 로그아웃 단독 버튼 ==
+  // == 로그인/로그아웃 토글 버튼 ==
   Widget _logoutButton(BuildContext context) {
+    final isLoggedIn = _hasUserKey;
+    final title = isLoggedIn ? '로그아웃' : '로그인';
+    final leadingIcon = isLoggedIn ? Icons.logout : Icons.login;
+
     return Material(
       color: AppColors.white,
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () async {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginPage()),
-            (route) => false,
-          );
+          if (isLoggedIn) {
+            // 로그아웃: 핵심 키만 정리 (auto_login은 유지)
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.remove('auth_token');
+            await prefs.remove('auth_user');
+            await prefs.remove('user_key');
+            await prefs.remove('sns_user_id');
+            await prefs.remove('sns_login_type');
+            await prefs.remove('user_id');
+
+            if (!mounted) return;
+            setState(() => _hasUserKey = false);
+            ScaffoldMessenger.of(context)
+                .showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
+
+            // 로그인 페이지로 스택 리셋
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+              (route) => false,
+            );
+          } else {
+            // 로그인: 로그인 페이지로 이동, 복귀 시 상태 갱신
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LoginPage()),
+            );
+            if (!mounted) return;
+            await _checkUserKey();
+            await _loadAll();
+          }
         },
         child: Container(
           decoration: BoxDecoration(
@@ -375,10 +412,10 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               Row(
                 children: [
                   SizedBox(width: 10.w),
-                  const Icon(Icons.logout, color: AppColors.text, size: 26),
+                  Icon(leadingIcon, color: AppColors.text, size: 26),
                   SizedBox(width: 5.w),
                   Text(
-                    '로그아웃',
+                    title,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     style: TextStyle(
@@ -444,12 +481,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             Padding(
               padding: EdgeInsets.only(top: 8.h),
-              child:
-                  _loading
-                      ? _skeleton()
-                      : (_latest == null
-                          ? _emptyLatest(context)
-                          : _latestCard(context, _latest!, _attemptCount)),
+              child: _loading
+                  ? _skeleton()
+                  : (_latest == null
+                      ? _emptyLatest(context)
+                      : _latestCard(context, _latest!, _attemptCount)),
             ),
           ],
         ),
@@ -504,58 +540,58 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             _storyLoading
                 ? Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: _skeleton(),
-                )
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: _skeleton(),
+                  )
                 : Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: Column(
-                    children: [
-                      TabBar(
-                        controller: _storyTabController,
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
-                        padding: EdgeInsets.zero,
-                        labelPadding: EdgeInsets.symmetric(horizontal: 14.w),
-                        labelColor: AppColors.btnColorDark,
-                        unselectedLabelColor: const Color(0xFF6B7280),
-                        indicatorColor: AppColors.btnColorDark,
-                        labelStyle: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'GmarketSans',
-                        ),
-                        unselectedLabelStyle: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'GmarketSans',
-                        ),
-                        tabs: [for (final t in kStoryTitles) Tab(text: t)],
-                      ),
-                      SizedBox(height: 12.h),
-                      SizedBox(
-                        height: 520.h,
-                        child: TabBarView(
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: Column(
+                      children: [
+                        TabBar(
                           controller: _storyTabController,
-                          children: [
-                            for (final t in kStoryTitles)
-                              SingleChildScrollView(
-                                child:
-                                    (_storyLatest[t] == null)
-                                        ? _emptyStory(t) // 첫 검사 전
-                                        : _storyCard(
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          padding: EdgeInsets.zero,
+                          labelPadding:
+                              EdgeInsets.symmetric(horizontal: 14.w),
+                          labelColor: AppColors.btnColorDark,
+                          unselectedLabelColor: const Color(0xFF6B7280),
+                          indicatorColor: AppColors.btnColorDark,
+                          labelStyle: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'GmarketSans',
+                          ),
+                          unselectedLabelStyle: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'GmarketSans',
+                          ),
+                          tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                        ),
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          height: 520.h,
+                          child: TabBarView(
+                            controller: _storyTabController,
+                            children: [
+                              for (final t in kStoryTitles)
+                                SingleChildScrollView(
+                                  child: (_storyLatest[t] == null)
+                                      ? _emptyStory(t) // 첫 검사 전
+                                      : _storyCard(
                                           context,
                                           t,
                                           _storyLatest[t]!,
                                           _storyAttemptCounts[t] ?? 0,
                                         ),
-                              ),
-                          ],
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
           ],
         ),
       ),
@@ -797,16 +833,15 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (_) => ir.InterviewResultPage(
-                          score: a.score,
-                          total: a.total,
-                          byCategory: a.byCategory,
-                          byType: a.byType ?? <String, ir.CategoryStat>{},
-                          testedAt: a.testedAt ?? DateTime.now(),
-                          interviewTitle: a.interviewTitle,
-                          persist: false,
-                        ),
+                    builder: (_) => ir.InterviewResultPage(
+                      score: a.score,
+                      total: a.total,
+                      byCategory: a.byCategory,
+                      byType: a.byType ?? <String, ir.CategoryStat>{},
+                      testedAt: a.testedAt ?? DateTime.now(),
+                      interviewTitle: a.interviewTitle,
+                      persist: false,
+                    ),
                   ),
                 );
               },
@@ -946,16 +981,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (_) => sr.StoryResultPage(
-                          score: s.score,
-                          total: s.total,
-                          byCategory: byCat,
-                          byType: byType,
-                          testedAt: s.testedAt ?? DateTime.now(),
-                          storyTitle: storyTitle,
-                          persist: false,
-                        ),
+                    builder: (_) => sr.StoryResultPage(
+                      score: s.score,
+                      total: s.total,
+                      byCategory: byCat,
+                      byType: byType,
+                      testedAt: s.testedAt ?? DateTime.now(),
+                      storyTitle: storyTitle,
+                      persist: false,
+                      fixedAttemptOrder: s.attemptOrder,
+                    ),
                   ),
                 );
                 if (!mounted) return;
@@ -985,28 +1020,28 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
   // ====== 공통 스켈레톤 ======
   Widget _skeleton() => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(16.w),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20.r),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(6, (i) {
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: 8.h),
-          child: Container(
-            height: 18.h,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-          ),
-        );
-      }),
-    ),
-  );
+        width: double.infinity,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(6, (i) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.h),
+              child: Container(
+                height: 18.h,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+              ),
+            );
+          }),
+        ),
+      );
 
   // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
@@ -1039,62 +1074,62 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-    height: 16.h,
-    child: LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF10B981),
-                    Color(0xFFF59E0B),
-                    Color(0xFFEF4444),
-                  ],
+        height: 16.h,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  width: w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF10B981),
+                        Color(0xFFF59E0B),
+                        Color(0xFFEF4444),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                Positioned(
+                  left: (w - 18.w) * position,
+                  child: Container(
+                    width: 18.w,
+                    height: 18.w,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+              ],
+            );
+          },
+        ),
+      );
 
   Widget _statusChip(_EvalView ev) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-    decoration: BoxDecoration(
-      color: ev.badgeBg,
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: ev.badgeBorder),
-    ),
-    child: Text(
-      ev.text,
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 14.sp,
-        color: ev.textColor,
-        fontFamily: 'GmarketSans',
-      ),
-    ),
-  );
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: ev.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: ev.badgeBorder),
+        ),
+        child: Text(
+          ev.text,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14.sp,
+            color: ev.textColor,
+            fontFamily: 'GmarketSans',
+          ),
+        ),
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
