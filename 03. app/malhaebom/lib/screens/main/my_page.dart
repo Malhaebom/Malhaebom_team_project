@@ -1,11 +1,13 @@
-// lib/screens/main/my_page.dart
 import 'dart:convert';
+import 'dart:io' show Platform; // ✅
+import 'package:flutter/foundation.dart' show kIsWeb; // ✅
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/screens/main/interview_list_page.dart';
 import 'package:malhaebom/screens/story/story_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http; // ✅
 
 import 'package:malhaebom/theme/colors.dart';
 import 'package:malhaebom/widgets/back_to_home.dart';
@@ -25,12 +27,25 @@ import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
+// ===== 서버 설정(StoryResultPage와 동일 규칙) =====
+const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
+      if (kIsWeb) return 'http://localhost:4000';
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
+      if (Platform.isIOS) return 'http://localhost:4000';
+      return 'http://192.168.0.23:4000';
+    })();
+
 // ===== 로컬 저장 키 =====
 const String PREF_LATEST_ATTEMPT = 'latest_attempt_v1';
 const String PREF_ATTEMPT_COUNT = 'attempt_count_v1';
 const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
 const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
 
+// ✅ 정규화 함수(공백 통일)
 String _norm(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 // 동화책 제목 목록(탭 라벨)
@@ -101,34 +116,162 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     });
   }
 
-  // ===== 동화별 최신 결과 로드 =====
+  // ===== 서버: 로그인 식별 파라미터 (user_key 통일) =====
+  Future<Map<String, String>> _identityParams() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    String? readAny(List<String> keys) {
+      for (final k in keys) {
+        final vs = prefs.getString(k);
+        if (vs != null && vs.isNotEmpty) return vs;
+        final vi = prefs.getInt(k);
+        if (vi != null) return vi.toString();
+        final vd = prefs.getDouble(k);
+        if (vd != null) return vd.toString();
+        final vb = prefs.getBool(k);
+        if (vb != null) return vb ? '1' : '0';
+      }
+      return null;
+    }
+
+    // 1) user_key 우선
+    final direct = readAny(['user_key', 'userKey']);
+    if (direct != null && direct.isNotEmpty) {
+      return {'userKey': direct};
+    }
+
+    // 2) 로컬/SNS로부터 유추 후 저장
+    final localId = readAny([
+      'user_id',
+      'userId',
+      'userid',
+      'phone',
+      'phoneNumber',
+      'phone_number',
+    ]);
+    String? snsType =
+        readAny([
+          'sns_login_type',
+          'snsLoginType',
+          'login_provider',
+          'provider',
+          'social_type',
+          'loginType',
+        ])?.toLowerCase();
+    final snsId = readAny([
+      'sns_user_id',
+      'snsUserId',
+      'oauth_id',
+      'kakao_user_id',
+      'google_user_id',
+      'naver_user_id',
+    ]);
+
+    if (localId != null && localId.isNotEmpty) {
+      await prefs.setString('user_key', localId);
+      return {'userKey': localId};
+    }
+    if (snsId != null &&
+        snsId.isNotEmpty &&
+        (snsType == 'kakao' || snsType == 'google' || snsType == 'naver')) {
+      final key = '$snsType:$snsId';
+      await prefs.setString('user_key', key);
+      return {'userKey': key};
+    }
+
+    // 4) ★ 최후 fallback: auth_user(JSON)에서 복구
+    final raw = prefs.getString('auth_user');
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        final u = jsonDecode(raw) as Map<String, dynamic>;
+        final uid = (u['user_id'] ?? '').toString();
+        final t = (u['sns_login_type'] ?? '').toString().toLowerCase();
+        if (t.isNotEmpty && uid.isNotEmpty) {
+          final key = '$t:$uid';
+          await prefs.setString('user_key', key);
+          return {'userKey': key};
+        }
+        if (uid.isNotEmpty) {
+          await prefs.setString('user_key', uid);
+          return {'userKey': uid};
+        }
+      } catch (_) {}
+    }
+
+    return {};
+  }
+
+  // ===== 서버: 특정 동화의 최신 결과 가져오기 =====
+  Future<StorySummary?> _fetchStoryLatestFromServer(String storyTitle) async {
+    if (!kUseServer) return null;
+
+    final idParams = await _identityParams();
+    if (idParams.isEmpty) return null; // 게스트라면 서버 조회 스킵
+
+    final q = {
+      ...idParams,
+      'storyKey': _norm(storyTitle),
+      'storyTitle': _norm(storyTitle), // ⬅️ 서버 fallback용으로 같이 전송
+    };
+
+    final uri = Uri.parse('$API_BASE/str/latest').replace(queryParameters: q);
+    try {
+      final res = await http.get(uri);
+      if (res.statusCode != 200) return null;
+
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+
+      final latest = j['latest'];
+      if (latest == null) return null;
+
+      return StorySummary.fromJson(latest as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ===== 동화별 최신 결과 로드 (서버 우선, 없으면 로컬 fallback) =====
   Future<void> _loadStoryLatest() async {
     setState(() => _storyLoading = true);
     final prefs = await SharedPreferences.getInstance();
 
+    // 과거 오남용 키 제거(있다면)
     await prefs.remove('$PREF_STORY_COUNT_PREFIX동화');
 
     for (final title in kStoryTitles) {
       final keyTitle = _norm(title);
 
+      // 1) 서버 조회
+      StorySummary? latestFromServer = await _fetchStoryLatestFromServer(title);
+
+      // 2) 로컬 캐시(백업)
+      StorySummary? latestFromLocal;
       String? js =
           prefs.getString('$PREF_STORY_LATEST_PREFIX$keyTitle') ??
           prefs.getString('$PREF_STORY_LATEST_PREFIX$title');
-
-      StorySummary? latest;
       if (js != null && js.isNotEmpty) {
         try {
-          latest =
-              StorySummary.fromJson(jsonDecode(js) as Map<String, dynamic>);
+          latestFromLocal = StorySummary.fromJson(
+            jsonDecode(js) as Map<String, dynamic>,
+          );
         } catch (_) {}
       }
-      _storyLatest[title] = latest;
 
-      int? cnt =
+      // 3) 우선순위: 서버 결과 > 로컬
+      final chosen = latestFromServer ?? latestFromLocal;
+
+      // 4) 회차 표기값: 서버(clientAttemptOrder) > 로컬 카운터
+      int attemptCount =
           prefs.getInt('$PREF_STORY_COUNT_PREFIX$keyTitle') ??
-          prefs.getInt('$PREF_STORY_COUNT_PREFIX$title');
+          prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ??
+          (chosen == null ? 0 : 1);
+      if (latestFromServer?.attemptOrder != null) {
+        attemptCount = latestFromServer!.attemptOrder!;
+      }
 
-      _storyAttemptCounts[title] = cnt ?? (latest == null ? 0 : 1);
+      _storyLatest[title] = chosen;
+      _storyAttemptCounts[title] = attemptCount;
     }
 
     setState(() => _storyLoading = false);
@@ -146,15 +289,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => StoryDetailPage(
-          title: asset.title,
-          storyImg: asset.titleImg,
-        ),
+        builder:
+            (_) =>
+                StoryDetailPage(title: asset.title, storyImg: asset.titleImg),
         settings: RouteSettings(
-          arguments: {
-            'storyIndex': idx,
-            'storyAsset': asset,
-          },
+          arguments: {'storyIndex': idx, 'storyAsset': asset},
         ),
       ),
     );
@@ -187,8 +326,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               onRefresh: _loadAll,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding:
-                    EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
+                padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
                 child: Column(
                   children: [
                     _logoutButton(context),
@@ -217,9 +355,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           final prefs = await SharedPreferences.getInstance();
           await prefs.clear();
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("로그아웃 되었습니다.")),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(builder: (_) => const LoginPage()),
@@ -228,9 +366,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         },
         child: Container(
           decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Colors.grey, width: 1.w),
-            ),
+            border: Border(bottom: BorderSide(color: Colors.grey, width: 1.w)),
           ),
           padding: EdgeInsets.symmetric(vertical: 12.h),
           child: Row(
@@ -278,8 +414,10 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 onTap: () => _openHistory(HistoryMode.cognition),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 8.h,
+                    horizontal: 10.w,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -292,8 +430,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      Icon(Icons.navigate_next,
-                          size: 34.h, color: AppColors.text),
+                      Icon(
+                        Icons.navigate_next,
+                        size: 34.h,
+                        color: AppColors.text,
+                      ),
                     ],
                   ),
                 ),
@@ -303,11 +444,12 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             Padding(
               padding: EdgeInsets.only(top: 8.h),
-              child: _loading
-                  ? _skeleton()
-                  : (_latest == null
-                      ? _emptyLatest(context)
-                      : _latestCard(context, _latest!, _attemptCount)),
+              child:
+                  _loading
+                      ? _skeleton()
+                      : (_latest == null
+                          ? _emptyLatest(context)
+                          : _latestCard(context, _latest!, _attemptCount)),
             ),
           ],
         ),
@@ -332,8 +474,10 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 onTap: () => _openHistory(HistoryMode.story),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
+                  padding: EdgeInsets.symmetric(
+                    vertical: 8.h,
+                    horizontal: 10.w,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -346,8 +490,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                      Icon(Icons.navigate_next,
-                          size: 34.h, color: AppColors.text),
+                      Icon(
+                        Icons.navigate_next,
+                        size: 34.h,
+                        color: AppColors.text,
+                      ),
                     ],
                   ),
                 ),
@@ -357,58 +504,58 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             _storyLoading
                 ? Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: _skeleton(),
-                  )
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: _skeleton(),
+                )
                 : Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: Column(
-                      children: [
-                        TabBar(
-                          controller: _storyTabController,
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.start,
-                          padding: EdgeInsets.zero,
-                          labelPadding:
-                              EdgeInsets.symmetric(horizontal: 14.w),
-                          labelColor: AppColors.btnColorDark,
-                          unselectedLabelColor: const Color(0xFF6B7280),
-                          indicatorColor: AppColors.btnColorDark,
-                          labelStyle: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'GmarketSans',
-                          ),
-                          unselectedLabelStyle: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w500,
-                            fontFamily: 'GmarketSans',
-                          ),
-                          tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: Column(
+                    children: [
+                      TabBar(
+                        controller: _storyTabController,
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        padding: EdgeInsets.zero,
+                        labelPadding: EdgeInsets.symmetric(horizontal: 14.w),
+                        labelColor: AppColors.btnColorDark,
+                        unselectedLabelColor: const Color(0xFF6B7280),
+                        indicatorColor: AppColors.btnColorDark,
+                        labelStyle: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'GmarketSans',
                         ),
-                        SizedBox(height: 12.h),
-                        SizedBox(
-                          height: 520.h,
-                          child: TabBarView(
-                            controller: _storyTabController,
-                            children: [
-                              for (final t in kStoryTitles)
-                                SingleChildScrollView(
-                                  child: (_storyLatest[t] == null)
-                                      ? _emptyStory(t) // 첫 검사 전
-                                      : _storyCard(
+                        unselectedLabelStyle: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'GmarketSans',
+                        ),
+                        tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                      ),
+                      SizedBox(height: 12.h),
+                      SizedBox(
+                        height: 520.h,
+                        child: TabBarView(
+                          controller: _storyTabController,
+                          children: [
+                            for (final t in kStoryTitles)
+                              SingleChildScrollView(
+                                child:
+                                    (_storyLatest[t] == null)
+                                        ? _emptyStory(t) // 첫 검사 전
+                                        : _storyCard(
                                           context,
                                           t,
                                           _storyLatest[t]!,
                                           _storyAttemptCounts[t] ?? 0,
                                         ),
-                                ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
           ],
         ),
       ),
@@ -435,8 +582,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.psychology_alt_outlined,
-              size: 40.sp, color: AppColors.text),
+          Icon(
+            Icons.psychology_alt_outlined,
+            size: 40.sp,
+            color: AppColors.text,
+          ),
           SizedBox(height: 10.h),
           Text(
             '첫 검사를 아직 안 하셨어요',
@@ -448,7 +598,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           ),
           SizedBox(height: 6.h),
           Text(
-            '3분이면 끝나요 🙂\n지금 검사하러 가볼까요?',
+            ' 3분이면 끝나요 🙂\n지금 검사하러 가볼까요?',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontWeight: FontWeight.w600,
@@ -583,7 +733,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 if (attemptCount > 0)
                   Container(
                     padding: EdgeInsets.symmetric(
-                        horizontal: 10.w, vertical: 6.h),
+                      horizontal: 10.w,
+                      vertical: 6.h,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(999),
@@ -645,15 +797,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ir.InterviewResultPage(
-                      score: a.score,
-                      total: a.total,
-                      byCategory: a.byCategory,
-                      byType: a.byType ?? <String, ir.CategoryStat>{},
-                      testedAt: a.testedAt ?? DateTime.now(),
-                      interviewTitle: a.interviewTitle,
-                      persist: false,
-                    ),
+                    builder:
+                        (_) => ir.InterviewResultPage(
+                          score: a.score,
+                          total: a.total,
+                          byCategory: a.byCategory,
+                          byType: a.byType ?? <String, ir.CategoryStat>{},
+                          testedAt: a.testedAt ?? DateTime.now(),
+                          interviewTitle: a.interviewTitle,
+                          persist: false,
+                        ),
                   ),
                 );
               },
@@ -713,7 +866,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 if (attemptCount > 0)
                   Container(
                     padding: EdgeInsets.symmetric(
-                        horizontal: 10.w, vertical: 6.h),
+                      horizontal: 10.w,
+                      vertical: 6.h,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(999),
@@ -764,10 +919,12 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           SizedBox(height: 12.h),
           ...order
               .where((k) => s.byCategory.containsKey(k))
-              .map((k) => Padding(
-                    padding: EdgeInsets.only(bottom: 10.h),
-                    child: _riskBarRow(k, s.byCategory[k]),
-                  )),
+              .map(
+                (k) => Padding(
+                  padding: EdgeInsets.only(bottom: 10.h),
+                  child: _riskBarRow(k, s.byCategory[k]),
+                ),
+              ),
           SizedBox(height: 6.h),
           SizedBox(
             width: double.infinity,
@@ -775,25 +932,30 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             child: ElevatedButton.icon(
               onPressed: () async {
                 final byCat = s.byCategory.map(
-                  (k, v) =>
-                      MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
+                  (k, v) => MapEntry(
+                    k,
+                    sr.CategoryStat(correct: v.correct, total: v.total),
+                  ),
                 );
                 final byType = s.byType.map(
-                  (k, v) =>
-                      MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
+                  (k, v) => MapEntry(
+                    k,
+                    sr.CategoryStat(correct: v.correct, total: v.total),
+                  ),
                 );
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => sr.StoryResultPage(
-                      score: s.score,
-                      total: s.total,
-                      byCategory: byCat,
-                      byType: byType,
-                      testedAt: s.testedAt ?? DateTime.now(),
-                      storyTitle: storyTitle,
-                      persist: false,
-                    ),
+                    builder:
+                        (_) => sr.StoryResultPage(
+                          score: s.score,
+                          total: s.total,
+                          byCategory: byCat,
+                          byType: byType,
+                          testedAt: s.testedAt ?? DateTime.now(),
+                          storyTitle: storyTitle,
+                          persist: false,
+                        ),
                   ),
                 );
                 if (!mounted) return;
@@ -823,28 +985,28 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
   // ====== 공통 스켈레톤 ======
   Widget _skeleton() => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(6, (i) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.h),
-              child: Container(
-                height: 18.h,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            );
-          }),
-        ),
-      );
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(6, (i) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Container(
+            height: 18.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
 
   // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
@@ -877,62 +1039,62 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF10B981),
-                        Color(0xFFF59E0B),
-                        Color(0xFFEF4444),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _statusChip(_EvalView ev) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: ev.badgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: ev.badgeBorder),
-        ),
-        child: Text(
-          ev.text,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 14.sp,
-            color: ev.textColor,
-            fontFamily: 'GmarketSans',
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: ev.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: ev.badgeBorder),
+    ),
+    child: Text(
+      ev.text,
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 14.sp,
+        color: ev.textColor,
+        fontFamily: 'GmarketSans',
+      ),
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -1060,8 +1222,10 @@ class AttemptSummary {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] =
-                ir.CategoryStat(correct: correct, total: total);
+            out[key.toString()] = ir.CategoryStat(
+              correct: correct,
+              total: total,
+            );
           }
         });
         return out;
@@ -1094,6 +1258,7 @@ class StorySummary {
   final Map<String, ir.CategoryStat> byType;
   final DateTime? testedAt;
   final String? kstLabel;
+  final int? attemptOrder; // ✅ 서버의 clientAttemptOrder
 
   StorySummary({
     required this.storyTitle,
@@ -1103,6 +1268,7 @@ class StorySummary {
     required this.byType,
     this.testedAt,
     this.kstLabel,
+    this.attemptOrder,
   });
 
   factory StorySummary.fromJson(Map<String, dynamic> j) {
@@ -1113,8 +1279,10 @@ class StorySummary {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] =
-                ir.CategoryStat(correct: correct, total: total);
+            out[key.toString()] = ir.CategoryStat(
+              correct: correct,
+              total: total,
+            );
           }
         });
         return out;
@@ -1126,6 +1294,10 @@ class StorySummary {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
+    // 서버 응답 키: clientAttemptOrder (없으면 attemptOrder 호환)
+    final ord = (j['clientAttemptOrder'] ?? j['attemptOrder']);
+    final ordInt = (ord is num) ? ord.toInt() : null;
+
     return StorySummary(
       storyTitle: j['storyTitle'] as String?,
       score: (j['score'] as num?)?.toInt() ?? 0,
@@ -1134,6 +1306,7 @@ class StorySummary {
       byType: _mapStats(j['byType']),
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
+      attemptOrder: ordInt,
     );
   }
 }
