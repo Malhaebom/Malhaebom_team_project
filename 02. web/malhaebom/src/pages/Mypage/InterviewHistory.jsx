@@ -5,7 +5,7 @@ import useQuery from "../../hooks/useQuery.js";
 import ScoreCircle from "../../components/ScoreCircle.jsx";
 
 const InterviewHistory = () => {
-  const { isMicrophoneActive } = useMicrophone();
+  const { isMicrophoneActive, stopMicrophone } = useMicrophone();
   const [expandedItems, setExpandedItems] = useState(new Set());
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [interviewData, setInterviewData] = useState([]);
@@ -24,10 +24,16 @@ const InterviewHistory = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 페이지 진입 시 마이크 상태 확인
+  // 페이지 진입 시 마이크 상태 확인 및 비활성화
   useEffect(() => {
     console.log("InterviewHistory 페이지 진입 - 마이크 상태:", isMicrophoneActive);
-  }, [isMicrophoneActive]);
+    
+    // 페이지 진입 시 마이크가 활성화되어 있다면 비활성화
+    if (isMicrophoneActive) {
+      console.log("InterviewHistory 페이지 진입 - 마이크 비활성화 실행");
+      stopMicrophone();
+    }
+  }, [isMicrophoneActive, stopMicrophone]);
 
   // URL 파라미터에서 더미 데이터 확인 및 처리
   useEffect(() => {

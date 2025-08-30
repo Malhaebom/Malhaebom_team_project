@@ -84,13 +84,20 @@ export const MicrophoneProvider = ({ children }) => {
     const currentPath = location.pathname;
     const isInterviewPage = currentPath.includes('/interview/interviewstart');
     const isPlayStartPage = currentPath.includes('/book/training/course/play/start');
+    const isInterviewHistoryPage = currentPath.includes('/InterviewHistory');
     
-    console.log("라우팅 변경 감지:", currentPath, "인터뷰 페이지:", isInterviewPage, "동화연극 페이지:", isPlayStartPage);
+    console.log("라우팅 변경 감지:", currentPath, "인터뷰 페이지:", isInterviewPage, "동화연극 페이지:", isPlayStartPage, "인터뷰 히스토리 페이지:", isInterviewHistoryPage);
     
     if (isInterviewPage || isPlayStartPage) {
       // 인터뷰 페이지 또는 동화연극 페이지 진입 시 마이크 on
       console.log("마이크 사용 페이지 진입 - 마이크 활성화");
       startMicrophone();
+    } else if (isInterviewHistoryPage) {
+      // 인터뷰 히스토리 페이지 진입 시 마이크 off
+      if (isMicrophoneActive) {
+        console.log("인터뷰 히스토리 페이지 진입 - 마이크 비활성화");
+        stopMicrophone();
+      }
     } else {
       // 마이크 사용 페이지 이탈 시 마이크 off
       if (isMicrophoneActive) {
