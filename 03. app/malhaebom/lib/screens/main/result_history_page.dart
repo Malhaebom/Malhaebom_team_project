@@ -13,6 +13,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'my_page.dart' show AttemptSummary; // byCategory 등 재사용
 import 'package:malhaebom/screens/main/interview_result_page.dart' as ir;
 import 'package:malhaebom/data/fairytale_assets.dart' as ft;
+import 'package:malhaebom/screens/story/story_test_result_page.dart' as sr;
 
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
@@ -54,6 +55,14 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
   // fast-fail 표시용 플래그
   bool _showOfflineHint = false;
   Timer? _ffTimer;
+
+  // ir → sr 타입 매핑(자세히 보기 버튼에서 사용)
+  Map<String, sr.CategoryStat> _toSr(Map<String, ir.CategoryStat> m) {
+    return m.map(
+      (k, v) =>
+          MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
+    );
+  }
 
   @override
   void initState() {
@@ -250,7 +259,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                       return Column(
                         children: List.generate(attempts.length, (idx) {
                           final a = attempts[idx];
-                          final attemptNo = (attempts.length - idx);
+                          final attemptNo = a.attemptOrder ?? (attempts.length - idx);
                           final dateStr = _dateLabel(a.kstLabel, a.testedAt);
                           final ratio = a.total == 0 ? 0.0 : a.score / a.total;
 
@@ -316,6 +325,58 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                             ),
                                           ),
                                         ),
+
+                                    // ===== 마이페이지와 동일한 '자세히 보기' 버튼 추가 =====
+                                    SizedBox(height: 6.h),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 48.h,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () async {
+                                          final byCat = _toSr(a.byCategory);
+                                          final byType = _toSr(a.byType);
+
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder:
+                                                  (_) => sr.StoryResultPage(
+                                                    score: a.score,
+                                                    total: a.total,
+                                                    byCategory: byCat,
+                                                    byType: byType,
+                                                    testedAt:
+                                                        a.testedAt ??
+                                                        DateTime.now(),
+                                                    storyTitle: title,
+                                                    persist: false,
+                                                    fixedAttemptOrder: a.attemptOrder,
+                                                  ),
+                                            ),
+                                          );
+                                        },
+                                        icon: Icon(
+                                          Icons.open_in_new,
+                                          size: 26.sp,
+                                        ),
+                                        label: Text(
+                                          '자세히 보기',
+                                          style: TextStyle(
+                                            fontSize: 23.sp,
+                                            fontWeight: FontWeight.w700,
+                                            fontFamily: 'GmarketSans',
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(
+                                            0xFFFFD43B,
+                                          ),
+                                          foregroundColor: Colors.black,
+                                          shape: const StadiumBorder(),
+                                          elevation: 0,
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -603,6 +664,7 @@ class StoryAttempt {
   final Map<String, ir.CategoryStat> byType;
   final DateTime? testedAt;
   final String? kstLabel;
+  final int? attemptOrder;
 
   StoryAttempt({
     required this.storyTitle,
@@ -612,6 +674,7 @@ class StoryAttempt {
     required this.byType,
     this.testedAt,
     this.kstLabel,
+    this.attemptOrder,
   });
 
   factory StoryAttempt.fromJson(Map<String, dynamic> j) {
@@ -637,6 +700,10 @@ class StoryAttempt {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
+    // 👇 서버 키 호환
+    final ord = j['clientAttemptOrder'] ?? j['attemptOrder'];
+    final ordInt = (ord is num) ? ord.toInt() : null;
+
     return StoryAttempt(
       storyTitle: j['storyTitle'] as String?,
       score: (j['score'] as num?)?.toInt() ?? 0,
@@ -645,6 +712,7 @@ class StoryAttempt {
       byType: _mapStats(j['byType']),
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
+      attemptOrder: ordInt,
     );
   }
 }

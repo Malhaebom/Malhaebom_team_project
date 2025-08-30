@@ -3,7 +3,7 @@ class BrainTrainingData {
 
   static Map<String, dynamic> spacetime = {
     "문제01": {
-      "title": "가을과 관련이 가장 적은 것을 선택하세요.",
+      "title": "가을과 관련이 가장\n적은 것을 선택하세요.",
       "question": [
         "assets/training/brain/spacetime/01_1.png",
         "assets/training/brain/spacetime/01_2.png",
@@ -43,7 +43,7 @@ class BrainTrainingData {
       "answer": 3,
     },
     "문제05": {
-      "title": "봄과 관련이 가장 적은 것을 선택하세요.",
+      "title": "봄과 관련이 가장\n적은 것을 선택하세요.",
       "question": [
         "assets/training/brain/spacetime/05_1.png",
         "assets/training/brain/spacetime/05_2.png",
@@ -56,62 +56,62 @@ class BrainTrainingData {
 
   static Map<String, dynamic> concentration = {
     "문제01": {
-      "title": "색깔과 단어가 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "색깔과 단어가 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/01.png",
       "answer": 0,
     },
     "문제02": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/02.png",
       "answer": 0,
     },
     "문제03": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/03.png",
       "answer": 1,
     },
     "문제04": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/04.png",
       "answer": 1,
     },
     "문제05": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/05.png",
       "answer": 1,
     },
     "문제06": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/06.png",
       "answer": 1,
     },
     "문제07": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/07.png",
       "answer": 0,
     },
     "문제08": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/08.png",
       "answer": 1,
     },
     "문제09": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/09.png",
       "answer": 1,
     },
     "문제10": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/10.png",
       "answer": 0,
     },
     "문제11": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/11.png",
       "answer": 1,
     },
     "문제12": {
-      "title": "보기의 두 도형이 일치하면 O, 틀리면 X를 누르세요.",
+      "title": "보기의 두 도형이 일치하면 O,\n틀리면 X를 누르세요.",
       "question": "assets/training/brain/concentration/12.png",
       "answer": 1,
     },
@@ -124,7 +124,7 @@ class BrainTrainingData {
       "question": [
         "출입문을 발로 찬다.",
         "문에 바짝 기대어 기다린다.",
-        "응급벨을 눌러 대화를 시도한다.",
+        "응급벨을 누르고 대화를 시도한다.",
         "문틈에 손을 끼워 억지로 연다.",
       ],
       "answer": 2,
@@ -141,25 +141,25 @@ class BrainTrainingData {
       "answer": 3,
     },
     "문제03": {
-      "title": "다음 표는 감전사고 예방법입니다. 아래와 관련있는 물건을 고르세요.",
+      "title": "다음 표는 감전사고 예방법입니다.\n아래와 관련있는 물건을 고르세요.",
       "image": "assets/training/brain/solving/03.png",
       "question": ["구두", "주전자", "의자", "전자레인지"],
       "answer": 3,
     },
     "문제04": {
-      "title": "사진에서 보이는 날씨 상황에서 가장 필요한 물건을 고르세요.",
+      "title": "사진에서 보이는 날씨 상황에서\n가장 필요한 물건을 고르세요.",
       "image": "assets/training/brain/solving/04.png",
       "question": ["축구공", "우산", "자전거", "돋보기"],
       "answer": 1,
     },
     "문제05": {
-      "title": "제시된 그림의 재료로 만들 수 있는 음식을 고르시오.",
+      "title": "제시된 그림의 재료로 만들 수 있는\n음식을 고르시오.",
       "image": "assets/training/brain/solving/05.png",
       "question": ["된장찌개", "불고기", "콩나물국", "배추김치"],
       "answer": 3,
     },
     "문제06": {
-      "title": "제시된 그림의 재료로 만들 수 있는 음식을 고르시오.",
+      "title": "제시된 그림의 재료로 만들 수 있는\n음식을 고르시오.",
       "image": "assets/training/brain/solving/06.png",
       "question": ["햄버거", "떡국", "통닭", "두부"],
       "answer": 3,
@@ -174,13 +174,13 @@ class BrainTrainingData {
 
   static Map<String, dynamic> calculation = {
     "문제01": {
-      "title": "상점에서 사과 4개, 축구공 1개, 구두 2켤레를 구매하려면 얼마를 지불해야 할까요?",
+      "title": "상점에서 사과 4개, 축구공 1개,\n구두 2켤레를 구매하려면 얼마를\n지불해야 할까요?",
       "image": "assets/training/brain/calculation/01.png",
       "question": ["20,000 원", "24,000 원", "28,000 원", "30,000 원"],
       "answer": 2,
     },
     "문제02": {
-      "title": "커피 1잔, 꿀떡 2kg, 아이스크림 3개의 가격을 모두 합하면 총 얼마인가요?",
+      "title": "커피 1잔, 꿀떡 2kg,\n아이스크림 3개의 가격을 모두 합하면\n총 얼마인가요?",
       "image": "assets/training/brain/calculation/02.png",
       "question": ["10,000 원", "20,000 원", "30,000 원", "40,000 원"],
       "answer": 3,
@@ -335,7 +335,7 @@ class BrainTrainingData {
 
   static Map<String, dynamic> music = {
     "문제01": {
-      "title": "나비야 동요 가사에서 '나비'는 총 몇 번 나올까요?",
+      "title": "나비야 동요 가사에서 '나비'는\n총 몇 번 나올까요?",
       "image": "assets/training/brain/music/images/01.png",
       "sound": "training/brain/music/sounds/naviya.mp3",
       "answer": 4,
@@ -347,7 +347,7 @@ class BrainTrainingData {
       "answer": 10,
     },
     "문제03": {
-      "title": "곰세마리 동요 가사에서 '곰'은 총 몇 번 나올까요?",
+      "title": "곰세마리 동요 가사에서 '곰'은\n총 몇 번 나올까요?",
       "image": "assets/training/brain/music/images/03.png",
       "sound": "training/brain/music/sounds/gom.mp3",
       "answer": 4,
@@ -359,7 +359,7 @@ class BrainTrainingData {
       "answer": 4,
     },
     "문제05": {
-      "title": "퐁당퐁당 동요 가사에서 '퐁당'과 '퍼져라' 글자가 총 몇 번 나올까요?",
+      "title": "퐁당퐁당 동요 가사에서 '퐁당'과\n'퍼져라' 글자가 총 몇 번 나올까요?",
       "image": "assets/training/brain/music/images/05.png",
       "sound": "training/brain/music/sounds/pingpong.mp3",
       "answer": 4,

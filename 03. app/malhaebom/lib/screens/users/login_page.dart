@@ -13,6 +13,7 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 // 추가된 import
 import 'package:malhaebom/screens/users/signup_page.dart';
 import 'package:malhaebom/screens/main/home_page.dart';
+import 'package:malhaebom/widgets/back_to_home.dart'; // ⬅️ BackToHome 적용
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -81,8 +82,8 @@ class _LoginPageState extends State<LoginPage> {
     final prefs = await SharedPreferences.getInstance();
     final norm = _normPhone(userId);
     await prefs.setString('user_key', norm); // 핵심
-    await prefs.setString('user_id', norm); // 호환용
-    await prefs.remove('sns_user_id'); // 혹시 남아있던 SNS 흔적 정리
+    await prefs.setString('user_id', norm);  // 호환용
+    await prefs.remove('sns_user_id');       // 혹시 남아있던 SNS 흔적 정리
     await prefs.remove('sns_login_type');
     if (nick != null) {
       final raw = prefs.getString('auth_user');
@@ -143,10 +144,7 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else if (uid.isNotEmpty) {
-        await _persistIdentityPlainLogin(
-          _normPhone(uid),
-          nick: j['nick'] as String?,
-        );
+        await _persistIdentityPlainLogin(_normPhone(uid), nick: j['nick'] as String?);
       }
     } catch (_) {
       // ignore
@@ -405,252 +403,253 @@ class _LoginPageState extends State<LoginPage> {
 
     return MediaQuery(
       data: fixedMedia,
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
+      // ⬇️ LoginPage 전체를 BackToHome으로 감싸서 하드웨어/제스처 뒤로가기를 Home으로 보냄
+      child: BackToHome(
+        child: Scaffold(
           backgroundColor: Colors.white,
-          elevation: 0.5,
-          centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: Colors.black87,
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0.5,
+            centerTitle: true,
+            leading: IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.black87,
+              ),
+              // ⬇️ pop → maybePop (WillPopScope가 가로채서 Home으로 이동)
+              onPressed: () => Navigator.maybePop(context),
+              tooltip: '뒤로가기',
             ),
-            onPressed: () => Navigator.pop(context),
-            tooltip: '뒤로가기',
-          ),
-          title: Text(
-            '로그인',
-            style: TextStyle(
-              fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w600,
-              fontSize: 16.sp,
-              color: Colors.black,
+            title: Text(
+              '로그인',
+              style: TextStyle(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w600,
+                fontSize: 16.sp,
+                color: Colors.black,
+              ),
             ),
           ),
-        ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: 420.w),
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 24.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 로고
-                    Padding(
-                      padding: EdgeInsets.only(top: 8.h, bottom: 16.h),
-                      child: Column(
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: 420.w),
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(20.w, 16.h, 20.w, 24.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 로고
+                      Padding(
+                        padding: EdgeInsets.only(top: 8.h, bottom: 16.h),
+                        child: Column(
+                          children: [
+                            Image.asset(
+                              'assets/logo/logo_top2.png',
+                              height: 64.w,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.image,
+                                size: 40.w,
+                                color: Colors.black26,
+                              ),
+                            ),
+                            SizedBox(height: 8.h),
+                          ],
+                        ),
+                      ),
+
+                      // SNS 로그인
+                      _googleSoftButton(
+                        label: '구글로 로그인',
+                        iconPath: 'assets/icons/google_icon.png',
+                        onPressed: _loginWithGoogle,
+                      ),
+                      SizedBox(height: 10.h),
+                      _snsFilledButton(
+                        label: '네이버로 로그인',
+                        iconPath: 'assets/icons/naver_icon.png',
+                        background: kNaver,
+                        foreground: Colors.white,
+                        onPressed: _loginWithNaver,
+                      ),
+                      SizedBox(height: 10.h),
+                      _snsFilledButton(
+                        label: '카카오로 로그인',
+                        iconPath: 'assets/icons/Kakao_icon.png',
+                        background: kKakao,
+                        foreground: Colors.black,
+                        onPressed: _loginWithKakao,
+                      ),
+
+                      SizedBox(height: 16.h),
+
+                      // 구분선
+                      Row(
                         children: [
-                          Image.asset(
-                            'assets/logo/logo_top2.png',
-                            height: 64.w,
-                            fit: BoxFit.contain,
-                            errorBuilder:
-                                (_, __, ___) => Icon(
-                                  Icons.image,
-                                  size: 40.w,
-                                  color: Colors.black26,
-                                ),
+                          Expanded(child: Container(height: 1, color: kDivider)),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8.w),
+                            child: Text(
+                              '또는',
+                              style: TextStyle(
+                                fontFamily: 'GmarketSans',
+                                fontWeight: FontWeight.w500,
+                                fontSize: 12.sp,
+                                color: kTextSub,
+                              ),
+                            ),
                           ),
-                          SizedBox(height: 8.h),
+                          Expanded(child: Container(height: 1, color: kDivider)),
                         ],
                       ),
-                    ),
 
-                    // SNS 로그인
-                    _googleSoftButton(
-                      label: '구글로 로그인',
-                      iconPath: 'assets/icons/google_icon.png',
-                      onPressed: _loginWithGoogle,
-                    ),
-                    SizedBox(height: 10.h),
-                    _snsFilledButton(
-                      label: '네이버로 로그인',
-                      iconPath: 'assets/icons/naver_icon.png',
-                      background: kNaver,
-                      foreground: Colors.white,
-                      onPressed: _loginWithNaver,
-                    ),
-                    SizedBox(height: 10.h),
-                    _snsFilledButton(
-                      label: '카카오로 로그인',
-                      iconPath: 'assets/icons/Kakao_icon.png',
-                      background: kKakao,
-                      foreground: Colors.black,
-                      onPressed: _loginWithKakao,
-                    ),
+                      SizedBox(height: 16.h),
 
-                    SizedBox(height: 16.h),
-
-                    // 구분선
-                    Row(
-                      children: [
-                        Expanded(child: Container(height: 1, color: kDivider)),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8.w),
-                          child: Text(
-                            '또는',
-                            style: TextStyle(
-                              fontFamily: 'GmarketSans',
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12.sp,
-                              color: kTextSub,
+                      // 휴대전화번호
+                      Text(
+                        '휴대전화번호',
+                        style: TextStyle(
+                          fontFamily: 'GmarketSans',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.sp,
+                          color: kTextDark,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      TextField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+                        ],
+                        decoration: InputDecoration(
+                          hintText: '휴대전화번호를 입력해 주세요.',
+                          hintStyle: TextStyle(
+                            fontFamily: 'GmarketSans',
+                            fontWeight: FontWeight.w400,
+                            fontSize: 13.sp,
+                            color: kTextSub,
+                          ),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14.w,
+                            vertical: 14.h,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(color: kDivider),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(color: kDivider),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(
+                              color: kPrimary,
+                              width: 1.2,
                             ),
                           ),
                         ),
-                        Expanded(child: Container(height: 1, color: kDivider)),
-                      ],
-                    ),
-
-                    SizedBox(height: 16.h),
-
-                    // 휴대전화번호
-                    Text(
-                      '휴대전화번호',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.sp,
-                        color: kTextDark,
                       ),
-                    ),
-                    SizedBox(height: 8.h),
-                    TextField(
-                      controller: _phoneCtrl,
-                      keyboardType: TextInputType.phone,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
-                      ],
-                      decoration: InputDecoration(
-                        hintText: '휴대전화번호를 입력해 주세요.',
-                        hintStyle: TextStyle(
+
+                      SizedBox(height: 12.h),
+
+                      // 비밀번호
+                      Text(
+                        '비밀번호',
+                        style: TextStyle(
                           fontFamily: 'GmarketSans',
-                          fontWeight: FontWeight.w400,
+                          fontWeight: FontWeight.w600,
                           fontSize: 13.sp,
-                          color: kTextSub,
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 14.w,
-                          vertical: 14.h,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(color: kDivider),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(color: kDivider),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(
-                            color: kPrimary,
-                            width: 1.2,
-                          ),
+                          color: kTextDark,
                         ),
                       ),
-                    ),
-
-                    SizedBox(height: 12.h),
-
-                    // 비밀번호
-                    Text(
-                      '비밀번호',
-                      style: TextStyle(
-                        fontFamily: 'GmarketSans',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.sp,
-                        color: kTextDark,
-                      ),
-                    ),
-                    SizedBox(height: 8.h),
-                    TextField(
-                      controller: _pwCtrl,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: '비밀번호를 입력해 주세요.',
-                        hintStyle: TextStyle(
-                          fontFamily: 'GmarketSans',
-                          fontWeight: FontWeight.w400,
-                          fontSize: 13.sp,
-                          color: kTextSub,
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 14.w,
-                          vertical: 14.h,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(color: kDivider),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(color: kDivider),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(
-                            color: kPrimary,
-                            width: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 8.h),
-
-                    // 자동로그인
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _autoLogin,
-                          onChanged: (v) async {
-                            final nv = v ?? false;
-                            setState(() => _autoLogin = nv);
-                            await _saveAutoLogin(nv); // ✅ 즉시 저장
-                          },
-                          activeColor: kPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        Text(
-                          '자동로그인',
-                          style: TextStyle(
+                      SizedBox(height: 8.h),
+                      TextField(
+                        controller: _pwCtrl,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: '비밀번호를 입력해 주세요.',
+                          hintStyle: TextStyle(
                             fontFamily: 'GmarketSans',
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w400,
                             fontSize: 13.sp,
-                            color: kTextDark,
+                            color: kTextSub,
                           ),
-                        ),
-                      ],
-                    ),
-
-                    SizedBox(height: 10.h),
-
-                    // 로그인 버튼
-                    SizedBox(
-                      height: 52.h,
-                      child: ElevatedButton(
-                        onPressed: _loggingIn ? null : _login,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kPrimary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 14.w,
+                            vertical: 14.h,
+                          ),
+                          border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(color: kDivider),
                           ),
-                          elevation: 0,
-                          textStyle: TextStyle(
-                            fontFamily: 'GmarketSans',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16.sp,
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(color: kDivider),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12.r),
+                            borderSide: const BorderSide(
+                              color: kPrimary,
+                              width: 1.2,
+                            ),
                           ),
                         ),
-                        child:
-                            _loggingIn
-                                ? SizedBox(
+                      ),
+
+                      SizedBox(height: 8.h),
+
+                      // 자동로그인
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _autoLogin,
+                            onChanged: (v) async {
+                              final nv = v ?? false;
+                              setState(() => _autoLogin = nv);
+                              await _saveAutoLogin(nv); // ✅ 즉시 저장
+                            },
+                            activeColor: kPrimary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          Text(
+                            '자동로그인',
+                            style: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13.sp,
+                              color: kTextDark,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      SizedBox(height: 10.h),
+
+                      // 로그인 버튼
+                      SizedBox(
+                        height: 52.h,
+                        child: ElevatedButton(
+                          onPressed: _loggingIn ? null : _login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            elevation: 0,
+                            textStyle: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16.sp,
+                            ),
+                          ),
+                          child: _loggingIn
+                              ? SizedBox(
                                   height: 18.w,
                                   width: 18.w,
                                   child: const CircularProgressIndicator(
@@ -658,40 +657,41 @@ class _LoginPageState extends State<LoginPage> {
                                     color: Colors.white,
                                   ),
                                 )
-                                : const Text('로그인'),
+                              : const Text('로그인'),
+                        ),
                       ),
-                    ),
 
-                    SizedBox(height: 14.h),
+                      SizedBox(height: 14.h),
 
-                    // 하단 문구 + 회원가입 링크
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          '아직 계정이 없으신가요?',
-                          style: TextStyle(
-                            fontFamily: 'GmarketSans',
-                            fontWeight: FontWeight.w500,
-                            fontSize: 13.sp,
-                            color: kTextSub,
+                      // 하단 문구 + 회원가입 링크
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '아직 계정이 없으신가요?',
+                            style: TextStyle(
+                              fontFamily: 'GmarketSans',
+                              fontWeight: FontWeight.w500,
+                              fontSize: 13.sp,
+                              color: kTextSub,
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 6.w),
-                        _linkButton(
-                          '회원가입',
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SignUpPage(),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
+                          SizedBox(width: 6.w),
+                          _linkButton(
+                            '회원가입',
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SignUpPage(),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -795,12 +795,11 @@ class _LoginPageState extends State<LoginPage> {
       fit: BoxFit.contain,
       cacheWidth: (size.w * 3).toInt(),
       cacheHeight: (size.w * 3).toInt(),
-      errorBuilder:
-          (_, __, ___) => Icon(
-            Icons.image_not_supported_rounded,
-            size: size.w,
-            color: Colors.black26,
-          ),
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.image_not_supported_rounded,
+        size: size.w,
+        color: Colors.black26,
+      ),
     );
   }
 

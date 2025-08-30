@@ -52,6 +52,7 @@ class StoryResultPage extends StatefulWidget {
   /// true: 실제 테스트 직후(저장+회차증가+옵션 서버전송)
   /// false: 조회용(증가/저장 안 함)
   final bool persist;
+  final int? fixedAttemptOrder; // 👈 추가: 읽기전용 모드에서 표시만 할 회차
 
   const StoryResultPage({
     super.key,
@@ -62,6 +63,7 @@ class StoryResultPage extends StatefulWidget {
     required this.testedAt,
     this.storyTitle,
     this.persist = true,
+    this.fixedAttemptOrder,
   });
 
   @override
@@ -79,7 +81,13 @@ class _StoryResultPageState extends State<StoryResultPage> {
       if (widget.persist) {
         await _persistOnce(); // 저장 + 회차증가 (+옵션 서버)
       } else {
-        await _loadCountOnly(); // 조회용: 현재 회차만 로드
+        // ✅ 읽기 전용: 전달된 fixedAttemptOrder가 있으면 그대로 사용
+        if (widget.fixedAttemptOrder != null) {
+          setState(() => _attemptOrder = widget.fixedAttemptOrder!);
+        } else {
+          // 백업: 회차 정보가 없을 때만 로컬 값을 보여주되, 절대 증가시키지 않음
+          await _loadCountOnly();
+        }
       }
     });
   }
