@@ -1,28 +1,23 @@
-// ==========================================
-// File: Server/router/str.js
-// 동화 결과 저장/조회 (MySQL) - JSON 응답 강제(safeJson)
-// 서버 기본값을 캠퍼스 DB/개발 환경에 맞춤
-// ==========================================
+// routes/STRServer.js
 require("dotenv").config();
+
 const express = require("express");
 const router = express.Router();
 const mysql = require("mysql2/promise");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
-// 캠퍼스 DB를 기본값으로 둡니다(배포/개발에 맞게 .env 로 오버라이드 가능)
 const {
-  DB_HOST = "project-db-campus.smhrd.com",
-  DB_PORT = "3307",
-  DB_USER = "campus_25SW_BD_p3_3",
-  DB_PASSWORD = "smhrd3",
-  DB_NAME = "campus_25SW_BD_p3_3",
-  // 개발 단계에서 게스트 허용 기본값 true (필요 시 .env에서 STR_ALLOW_GUEST=false)
-  STR_ALLOW_GUEST = "true",
+  DB_HOST = "127.0.0.1",
+  DB_PORT = "3306",
+  DB_USER = "root",
+  DB_PASSWORD = "",
+  DB_NAME = "appdb",
+  STR_ALLOW_GUEST = "false", // true면 user_key 없이도 저장(디버깅용)
 } = process.env;
 
 const ALLOW_GUEST = String(STR_ALLOW_GUEST).toLowerCase() === "true";
 
-// ── DB Pool (named placeholders 사용 안함) ────────────────────────────────────
+// ── DB Pool ──────────────────────────────────────────────────────────────────
 const pool = mysql.createPool({
   host: DB_HOST,
   port: Number(DB_PORT),
@@ -31,51 +26,56 @@ const pool = mysql.createPool({
   database: DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
+  namedPlaceholders: true,
 });
 
-// ── 공통 유틸 ─────────────────────────────────────────────────────────────────
+// ── 유틸 ──────────────────────────────────────────────────────────────────────
 function normalizeTitle(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
-}
-function stripQuotes(s) {
-  return String(s || "").trim().replace(/["'“”]/g, "");
 }
 function computeRiskBars(by) {
   if (!by || typeof by !== "object") return {};
   const out = {};
   for (const k of Object.keys(by)) {
     const v = by[k] || {};
-    const c = Number(v.correct || 0);
-    const t = Number(v.total || 0);
-    out[k] = t > 0 ? 1 - c / t : 0.5;
+    const correct = Number(v.correct || 0);
+    const total   = Number(v.total   || 0);
+    out[k] = total > 0 ? 1 - correct / total : 0.5;
   }
   return out;
 }
 function isoToMysqlDatetime(iso) {
+  // 'YYYY-MM-DD HH:MM:SS'
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
-// ✅ 항상 JSON으로 내려보내기 (어떤 상황에서도 문자열 "[object Object]" 방지)
-function safeJson(res, obj, status = 200) {
-  try {
-    const body = JSON.stringify(obj);
-    res.status(status).set("Content-Type", "application/json; charset=utf-8").send(body);
-  } catch (e) {
-    res
-      .status(500)
-      .set("Content-Type", "application/json; charset=utf-8")
-      .send(JSON.stringify({ ok: false, error: "json_stringify_error", detail: String(e?.message || e) }));
+// (참고용) user_key 생성기
+function buildUserKey({ userId, snsUserId, snsLoginType } = {}) {
+  if (userId && String(userId).trim()) return String(userId).trim();
+  if (snsUserId && snsLoginType) {
+    const t = String(snsLoginType).toLowerCase();
+    if (["kakao", "google", "naver"].includes(t)) {
+      return `${t}:${String(snsUserId).trim()}`;
+    }
   }
+  return null;
 }
 
-// ── 유저 식별 ────────────────────────────────────────────────────────────────
+/**
+ * 클라에서 보낼 수 있는 위치:
+ *  - body.userKey  또는 body.userId / body.snsUserId+snsLoginType
+ *  - headers['x-user-key'] 또는 x-user-id / x-sns-user-id + x-sns-login-type
+ *  - query 동일 키
+ */
 function resolveIdentity(req) {
-  const b = req.body || {};
+  const b = req.body  || {};
   const q = req.query || {};
-  const h = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [String(k).toLowerCase(), v]));
+  const h = Object.fromEntries(
+    Object.entries(req.headers || {}).map(([k, v]) => [String(k).toLowerCase(), v])
+  );
 
   const readAny = (obj, keys) => {
     for (const k of keys) {
@@ -86,42 +86,72 @@ function resolveIdentity(req) {
     return null;
   };
 
-  // 직접 키(userKey/x-user-key/쿼리/바디/헤더)
-  const directKey = readAny({ ...b, ...q, ...h }, ["userKey", "user_key", "x-user-key", "x-userkey"]);
+  // 0) userKey 직접
+  const directKey = readAny(
+    { ...b, ...q, ...h },
+    ["userKey","user_key","x-user-key","x-userkey"]
+  );
   if (directKey) return { ok: true, user_key: directKey, from: "userKey" };
 
-  // Authorization: UserKey <value>
+  // 0-1) Authorization: "UserKey <키값>" 허용
   const auth = h["authorization"];
   if (auth && /userkey\s+(.+)/i.test(String(auth))) {
     const m = String(auth).match(/userkey\s+(.+)/i);
     if (m && m[1]) return { ok: true, user_key: m[1].trim(), from: "authorization" };
   }
 
-  // 로컬 ID(phone 등)
+  // 공통 후보(스네이크/카멜 + 별칭 모두 지원)
   const localUserId =
-    readAny(b, ["userId", "user_id", "userid", "phone", "phoneNumber", "phone_number"]) ||
-    readAny(h, ["x-user-id", "x-userid", "x-phone", "x-phone-number"]) ||
-    readAny(q, ["userId", "user_id", "userid", "phone", "phoneNumber", "phone_number"]);
-  if (localUserId) return { ok: true, user_key: String(localUserId), from: "local" };
+    readAny(b, ["userId","user_id","userid","phone","phoneNumber","phone_number"]) ||
+    readAny(h, ["x-user-id","x-userid","x-phone","x-phone-number"]) ||
+    readAny(q, ["userId","user_id","userid","phone","phoneNumber","phone_number"]);
 
-  // SNS ID + 타입
   const snsId =
-    readAny(b, ["snsUserId", "sns_user_id", "oauth_id", "kakao_user_id", "google_user_id", "naver_user_id"]) ||
+    readAny(b, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]) ||
     readAny(h, ["x-sns-user-id"]) ||
-    readAny(q, ["snsUserId", "sns_user_id", "oauth_id", "kakao_user_id", "google_user_id", "naver_user_id"]);
+    readAny(q, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]);
+
   let snsType =
-    readAny(b, ["snsLoginType", "sns_login_type", "login_provider", "provider", "social_type", "loginType"]) ||
+    readAny(b, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]) ||
     readAny(h, ["x-sns-login-type"]) ||
-    readAny(q, ["snsLoginType", "sns_login_type", "login_provider", "provider", "social_type", "loginType"]);
+    readAny(q, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]);
   if (snsType) snsType = String(snsType).toLowerCase();
 
-  if (snsId && ["kakao", "google", "naver"].includes(snsType || "")) {
+  // 1) 로컬 유저
+  if (localUserId) {
+    return { ok: true, user_key: String(localUserId), from: "local" };
+  }
+  // 2) SNS 유저
+  if (snsId && ["kakao","google","naver"].includes(snsType || "")) {
     return { ok: true, user_key: `${snsType}:${String(snsId)}`, from: "sns" };
   }
+
   return { ok: false, error: "missing user identity (userKey OR userId OR snsUserId+snsLoginType)" };
 }
 
-// ── 테이블 보장 ───────────────────────────────────────────────────────────────
+// --- NEW: JSON 안전 파서 & risk_bars -> byCategory 복원 --- //
+function safeParseJSON(v, fallback = {}) {
+  try {
+    if (v && typeof v === "object") return v;
+    return JSON.parse(v ?? "{}") || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// risk = 1 - correct/total  →  correct = (1 - risk) * BASE
+function barsToCategoryStats(bars, baseTotal = 100) {
+  const out = {};
+  for (const k of Object.keys(bars || {})) {
+    const risk = Math.max(0, Math.min(1, Number(bars[k] ?? 0)));
+    const total = baseTotal;
+    const correct = Math.round((1 - risk) * total);
+    out[k] = { correct, total };
+  }
+  return out;
+}
+
+// ── 테이블 보장(최초 1회) ─────────────────────────────────────────────────────
 async function ensureTable() {
   const sql = `
   CREATE TABLE IF NOT EXISTS tb_story_result (
@@ -150,174 +180,281 @@ async function ensureTable() {
     conn.release();
   }
 }
-ensureTable().catch((e) => console.error("[STR] ensureTable error:", e?.message || e));
-
-// ── 라우트 ───────────────────────────────────────────────────────────────────
-router.get("/health", (_req, res) => safeJson(res, { ok: true, db: DB_HOST + "/" + DB_NAME }));
-router.get("/whoami", (req, res) => {
-  const idn = resolveIdentity(req);
-  safeJson(res, { identity: idn, headers: req.headers, query: req.query });
+ensureTable().catch((e) => {
+  console.error("[STR] ensureTable error:", e?.message || e);
 });
 
-// 저장: POST /str/attempt
-router.post("/attempt", async (req, res) => {
+// ── 헬스체크 ───────────────────────────────────────────────────────────────────
+router.get("/health", (_req, res) => res.json({ ok: true, db: DB_HOST + "/" + DB_NAME }));
+
+// 디버그용: 내가 인식한 아이덴티티 보기
+router.get("/whoami", (req, res) => {
   const idn = resolveIdentity(req);
-  if (!idn.ok && !ALLOW_GUEST) return safeJson(res, idn, 400);
+  res.json({ identity: idn, headers: req.headers, query: req.query });
+});
+
+// ── 저장: POST /str/attempt ──────────────────────────────────────────────────
+router.post("/attempt", async (req, res) => {
+  console.log("==== [/str/attempt] ====");
+  console.log("headers.x-user-key/x-user-id/x-sns-user-id:",
+    req.headers["x-user-key"], req.headers["x-user-id"], req.headers["x-sns-user-id"]);
+  console.log("query.userKey/userId/snsUserId:", req.query?.userKey, req.query?.userId, req.query?.snsUserId);
+
+  const idn = resolveIdentity(req);
+  console.log("identity ->", idn);
+  if (!idn.ok && !ALLOW_GUEST) {
+    return res.status(400).json(idn); // { ok:false, error: ... }
+  }
 
   try {
     const {
-      storyTitle, storyKey,
+      storyTitle, storyKey, attemptOrder,
       attemptTime, clientKst,
       score, total,
       byCategory, byType,
       riskBars, riskBarsByType,
     } = req.body || {};
 
-    if (!storyTitle && !storyKey) return safeJson(res, { ok:false, error:"missing storyTitle/storyKey" }, 400);
-    if (!attemptTime) return safeJson(res, { ok:false, error:"missing attemptTime" }, 400);
+    if (!attemptTime) {
+      return res.status(400).json({ ok:false, error:"missing attemptTime" });
+    }
+    const clientUtc = new Date(attemptTime);
+    if (isNaN(clientUtc.getTime())) {
+      return res.status(400).json({ ok:false, error:"invalid attemptTime" });
+    }
 
-    const dt = new Date(attemptTime);
-    if (isNaN(dt.getTime())) return safeJson(res, { ok:false, error:"invalid attemptTime" }, 400);
-
-    const key = normalizeTitle(storyKey || storyTitle);
-    const rbCat = riskBars || computeRiskBars(byCategory);
+    const key   = normalizeTitle(storyKey || storyTitle || "동화");
+    const rbCat = riskBars       || computeRiskBars(byCategory);
     const rbTyp = riskBarsByType || computeRiskBars(byType);
-    const mysqlClientUtc = isoToMysqlDatetime(dt.toISOString());
-    if (!mysqlClientUtc) return safeJson(res, { ok:false, error:"invalid attemptTime (to mysql)" }, 400);
+    const mysqlClientUtc = isoToMysqlDatetime(clientUtc.toISOString());
+    if (!mysqlClientUtc) {
+      return res.status(400).json({ ok:false, error:"invalid attemptTime (to mysql)" });
+    }
+
+    const sql = `
+      INSERT INTO tb_story_result
+      (user_key,
+       story_key, story_title, client_attempt_order, score, total,
+       client_utc, client_kst,
+       by_category, by_type, risk_bars, risk_bars_by_type)
+      VALUES
+      (:user_key,
+       :story_key, :story_title, :client_attempt_order, :score, :total,
+       :client_utc, :client_kst,
+       CAST(:by_category AS JSON), CAST(:by_type AS JSON),
+       CAST(:risk_bars AS JSON), CAST(:risk_bars_by_type AS JSON))
+    `;
+
+    const params = {
+      user_key: idn.ok ? idn.user_key : "guest", // ALLOW_GUEST일 때만 guest로
+      story_key: key,
+      story_title: storyTitle || null,
+      client_attempt_order: attemptOrder ?? null,
+      score: Number(score ?? 0),
+      total: Number(total ?? 0),
+      client_utc: mysqlClientUtc,
+      client_kst: clientKst || null,
+      by_category: JSON.stringify(byCategory || {}),
+      by_type: JSON.stringify(byType || {}),
+      risk_bars: JSON.stringify(rbCat || {}),
+      risk_bars_by_type: JSON.stringify(rbTyp || {}),
+    };
 
     const conn = await pool.getConnection();
     try {
-      // 직전 회차 계산: 이 유저-책으로 저장된 마지막 회차 + 1
-      const [prevRows] = await conn.execute(
-        `SELECT client_attempt_order AS ord
-           FROM tb_story_result
-          WHERE user_key = ? AND story_key = ?
-          ORDER BY client_utc DESC, id DESC
-          LIMIT 1`, [idn.ok ? idn.user_key : "guest", key]
-      );
-      const prevOrd = (prevRows[0] && Number(prevRows[0].ord)) || 0;
-      const nextOrd = prevOrd + 1;
-
-      // 저장
-      const [ret] = await conn.execute(
-        `INSERT INTO tb_story_result
-           (user_key, story_key, story_title, client_attempt_order, score, total,
-            client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type)
-         VALUES (?,?,?,?,?,?, ?,?, CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON), CAST(? AS JSON))`,
-        [
-          idn.ok ? idn.user_key : "guest",
-          key,
-          storyTitle || null,
-          nextOrd,
-          Number(score ?? 0),
-          Number(total ?? 0),
-          mysqlClientUtc,
-          clientKst || null,
-          JSON.stringify(byCategory || {}),
-          JSON.stringify(byType || {}),
-          JSON.stringify(rbCat || {}),
-          JSON.stringify(rbTyp || {}),
-        ]
-      );
+      const [ret] = await conn.execute(sql, params);
       const insertedId = ret.insertId;
 
       const [rows] = await conn.execute(
-        `SELECT story_title, score, total, story_key,
-                client_attempt_order, client_kst, client_utc,
-                by_category, by_type, risk_bars, risk_bars_by_type
+        `SELECT id, user_key,
+                story_key, story_title, client_attempt_order, score, total,
+                client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type, created_at
            FROM tb_story_result
-          WHERE id = ? LIMIT 1`, [insertedId]
+          WHERE id = ?
+          LIMIT 1`, [insertedId]
       );
-      const r = rows[0];
+      const row = rows[0];
+
       const saved = {
-        storyTitle: r.story_title,
-        score: r.score,
-        total: r.total,
-        byCategory: JSON.parse(r.by_category || "{}"),
-        byType: JSON.parse(r.by_type || "{}"),
-        attemptTime: new Date(r.client_utc).toISOString(),
-        clientKst: r.client_kst,
-        storyKey: r.story_key,
-        clientAttemptOrder: r.client_attempt_order,
-        riskBars: JSON.parse(r.risk_bars || "{}"),
-        riskBarsByType: JSON.parse(r.risk_bars_by_type || "{}"),
+        storyTitle: row.story_title,
+        score: row.score,
+        total: row.total,
+        byCategory: safeParseJSON(row.by_category, {}),
+        byType: safeParseJSON(row.by_type, {}),
+        attemptTime: new Date(row.client_utc).toISOString(),
+        clientKst: row.client_kst,
+        storyKey: row.story_key,
+        clientAttemptOrder: row.client_attempt_order,
+        riskBars: safeParseJSON(row.risk_bars, {}),
+        riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
       };
-      return safeJson(res, { ok: true, saved });
+
+      return res.json({ ok:true, saved });
     } catch (e) {
       console.error("[STR] INSERT error:", e?.message || e);
-      return safeJson(res, { ok:false, error:"db_insert_error", detail:String(e?.message || e) }, 500);
+      return res.status(500).json({ ok:false, error:"db_insert_error", detail: String(e?.message || e) });
     } finally {
       conn.release();
     }
   } catch (e) {
     console.error("[STR] server error:", e);
-    return safeJson(res, { ok:false, error:"server_error", detail:String(e?.message || e) }, 500);
+    return res.status(500).json({ ok:false, error:"server_error", detail: String(e?.message || e) });
   }
 });
 
-// 조회: GET /str/latest
+// ── 최신 1건 조회: GET /str/latest ───────────────────────────────────────────
 router.get("/latest", async (req, res) => {
   const idn = resolveIdentity(req);
-  if (!idn.ok) return safeJson(res, idn, 400);
+  if (!idn.ok) return res.status(400).json(idn);
 
   try {
-    const storyKeyRaw = normalizeTitle(req.query.storyKey || "");
-    const storyTitleRaw = normalizeTitle(req.query.storyTitle || "");
-    if (!storyKeyRaw && !storyTitleRaw) {
-      return safeJson(res, { ok:false, error:"missing storyKey or storyTitle" }, 400);
-    }
+    const storyKey = normalizeTitle(req.query.storyKey || "");
+    if (!storyKey) return res.status(400).json({ ok:false, error:"missing storyKey" });
 
-    const norm_key_param   = stripQuotes(storyKeyRaw);
-    const norm_title_param = stripQuotes(storyTitleRaw);
-
-    const normalizeSql = (col) => `
-      REPLACE(REPLACE(REPLACE(REPLACE(TRIM(${col}), '"', ''), '''', ''), '“',''), '”','')
+    const sql = `
+      SELECT id, user_key,
+             story_key, story_title, client_attempt_order, score, total,
+             client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type, created_at
+        FROM tb_story_result
+       WHERE user_key = :user_key
+         AND story_key = :story_key
+       ORDER BY client_utc DESC, id DESC
+       LIMIT 1
     `;
-
-    const conds = [];
-    const params = [idn.user_key];
-    if (storyKeyRaw)   { conds.push(`${normalizeSql("story_key")} = ?`);   params.push(norm_key_param); }
-    if (storyTitleRaw) { conds.push(`${normalizeSql("story_title")} = ?`); params.push(norm_title_param); }
-
-    const condSql = conds.length ? conds.join(" OR ") : "0";
+    const p = { user_key: idn.user_key, story_key: storyKey };
 
     const conn = await pool.getConnection();
     try {
-      const [rows] = await conn.execute(
-        `
-        SELECT story_title, score, total, story_key,
-               client_attempt_order, client_kst, client_utc,
-               by_category, by_type, risk_bars, risk_bars_by_type
-          FROM tb_story_result
-         WHERE user_key = ?
-           AND (${condSql})
-         ORDER BY client_utc DESC, id DESC
-         LIMIT 1
-        `, params
-      );
-      if (!rows.length) return safeJson(res, { ok:true, latest:null });
+      const [rows] = await conn.execute(sql, p);
+      if (!rows.length) return res.json({ ok:true, latest: null });
+      const row = rows[0];
 
-      const r = rows[0];
+      const riskBars = safeParseJSON(row.risk_bars, {});
+      // by_category가 비었으면 risk_bars로 복원
+      const parsedByCategory = safeParseJSON(row.by_category, {});
+      const byCategory =
+        (parsedByCategory && Object.keys(parsedByCategory).length)
+          ? parsedByCategory
+          : barsToCategoryStats(riskBars);
+
       const latest = {
-        storyTitle: r.story_title,
-        score: r.score,
-        total: r.total,
-        byCategory: JSON.parse(r.by_category || "{}"),
-        byType: JSON.parse(r.by_type || "{}"),
-        attemptTime: new Date(r.client_utc).toISOString(),
-        clientKst: r.client_kst,
-        storyKey: r.story_key,
-        clientAttemptOrder: r.client_attempt_order,
-        riskBars: JSON.parse(r.risk_bars || "{}"),
-        riskBarsByType: JSON.parse(r.risk_bars_by_type || "{}"),
+        storyTitle: row.story_title,
+        score: Number(row.score ?? 0),
+        total: Number(row.total ?? 0),
+        byCategory,
+        byType: safeParseJSON(row.by_type, {}),
+        attemptTime: new Date(row.client_utc).toISOString(),
+        clientKst: row.client_kst,
+        storyKey: row.story_key,
+        clientAttemptOrder: row.client_attempt_order,
+        riskBars,
+        riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
+
+        // 보조 필드
+        scoreText: `${row.score}/${row.total}`,
+        serverAttemptOrder: 1,
+        debugText:
+`=============== [STR Attempt] ===============
+동화 키      : ${row.story_key}
+표시 제목    : ${row.story_title ?? row.story_key}
+클라 회차    : ${row.client_attempt_order ?? ""}
+서버 회차    : 1
+점수/총점    : ${row.score}/${row.total}
+Client KST   : ${row.client_kst ?? ""}
+riskBars(cat): ${JSON.stringify(riskBars)}
+=============================================`,
       };
-      return safeJson(res, { ok:true, latest });
+      return res.json({ ok:true, latest });
     } finally {
       conn.release();
     }
   } catch (e) {
     console.error("[STR] latest error:", e?.message || e);
-    return safeJson(res, { ok:false, error:"server_error", detail:String(e?.message || e) }, 500);
+    return res.status(500).json({ ok:false, error:"server_error", detail: String(e?.message || e) });
+  }
+});
+
+// ── 전체 데이터 조회: GET /str/story/attempt/list ────────────────────────────
+router.get("/story/attempt/list", async (req, res) => {
+  try {
+    const idn = resolveIdentity(req);
+    if (!idn.ok && !ALLOW_GUEST) {
+      return res.status(400).json(idn); // userKey 필요
+    }
+
+    const storyKey = normalizeTitle(req.query.storyKey || req.query.title || "");
+    if (!storyKey) {
+      return res.status(400).json({ ok: false, error: "missing storyKey/title" });
+    }
+
+    const userKey = idn.ok ? idn.user_key : "guest";
+    const limit = Math.min(
+      Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1),
+      200
+    );
+
+    // 네가 지정한 7컬럼만 사용
+    const sql = `
+      SELECT user_key,
+             story_key, story_title, client_attempt_order, score, total,
+             client_kst, risk_bars
+        FROM tb_story_result
+       WHERE user_key = :user_key
+         AND story_key = :story_key
+       ORDER BY client_utc DESC, id DESC
+       LIMIT ${limit}
+    `;
+    const params = { user_key: userKey, story_key: storyKey };
+
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(sql, params);
+
+      const list = rows.map((row, idx) => {
+        const riskBars = safeParseJSON(row.risk_bars, {});
+        const byCategory = barsToCategoryStats(riskBars); // UI가 쓰는 형태로 복원
+
+        const score = Number(row.score ?? 0);
+        const total = Number(row.total ?? 0);
+        const scoreText = `${score}/${total}`;
+
+        return {
+          storyTitle: row.story_title,
+          score,
+          total,
+          byCategory,              // ← correct/total 포함
+          byType: {},              // SELECT에 없으니 빈 객체
+          clientKst: row.client_kst,
+          storyKey: row.story_key,
+          clientAttemptOrder: row.client_attempt_order,
+          riskBars,                // 원본 막대값도 그대로 포함
+          riskBarsByType: {},      // 없음
+
+          // 보조 필드
+          scoreText,               // "22/40"
+          serverAttemptOrder: idx + 1, // 최신이 1
+          debugText:
+`=============== [STR Attempt] ===============
+동화 키      : ${row.story_key}
+표시 제목    : ${row.story_title ?? row.story_key}
+클라 회차    : ${row.client_attempt_order ?? ""}
+서버 회차    : ${idx + 1}
+점수/총점    : ${scoreText}
+Client KST   : ${row.client_kst ?? ""}
+riskBars(cat): ${JSON.stringify(riskBars)}
+=============================================`,
+        };
+      });
+
+      return res.json({ ok: true, list });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error("[STR] list error:", e?.message || e);
+    return res
+      .status(500)
+      .json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   }
 });
 
