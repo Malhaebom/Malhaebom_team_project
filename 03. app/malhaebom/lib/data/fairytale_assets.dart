@@ -81,3 +81,11 @@ FairytaleAsset byTitle(String title) {
     },
   );
 }
+
+int indexByTitle(String title) {
+  final i = Fairytales.indexWhere((e) => e.title == title);
+  if (i == -1) {
+    throw FlutterError('Unknown fairytale title: $title');
+  }
+  return i;
+}
