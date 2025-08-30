@@ -91,7 +91,7 @@ router.post("/attempt", (req, res) => {
   console.log(`제목         : ${interviewTitle || "(없음)"}`);
   console.log(`점수/총점    : ${saved.score}/${saved.total}`);
   // console.log(`Client UTC   : ${saved.clientUtc}`);
-  console.log(`Client KST   : ${saved.clientKst} (클라 표기)`);
+  console.log(`Client KST   : ${saved.clientKst}`);
   // console.log(`Server UTC   : ${saved.serverUtc}`);
   // console.log(`Server KST   : ${saved.serverKst} (서버 기준)`);
   console.log(`riskBars     :`, computedRiskBars);
