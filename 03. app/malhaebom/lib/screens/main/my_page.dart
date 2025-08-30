@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:malhaebom/screens/main/interview_list_page.dart';
+import 'package:malhaebom/screens/story/story_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:malhaebom/theme/colors.dart';
@@ -16,7 +17,11 @@ import 'package:malhaebom/screens/main/interview_result_page.dart' as ir;
 // 동화 결과 상세
 import 'package:malhaebom/screens/story/story_test_result_page.dart' as sr;
 
-import 'result_history_page.dart';
+// ✅ ResultHistoryPage + HistoryMode 둘 다 가져오기
+import 'result_history_page.dart' show ResultHistoryPage, HistoryMode;
+
+// ✅ Fairytale data alias import
+import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
@@ -43,21 +48,16 @@ class MyPage extends StatefulWidget {
 }
 
 class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
-  // ===== 인지검사(기존) =====
+  // ===== 인지검사 =====
   AttemptSummary? _latest;
   int _attemptCount = 0;
   bool _loading = true;
-  bool _isReportExpanded = false;
 
-  // ===== 내 동화 기록(신규) =====
-  bool _isStoryExpanded = false;
+  // ===== 내 동화 기록 =====
   late TabController _storyTabController;
   bool _storyLoading = true;
   final Map<String, StorySummary?> _storyLatest = {};
   final Map<String, int> _storyAttemptCounts = {};
-
-  // AnimatedCrossFade가 열리고 TabBar가 레이아웃된 다음 보정할 딜레이
-  static const Duration _tabOpenFixDelay = Duration(milliseconds: 260);
 
   @override
   void initState() {
@@ -118,7 +118,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       StorySummary? latest;
       if (js != null && js.isNotEmpty) {
         try {
-          latest = StorySummary.fromJson(jsonDecode(js) as Map<String, dynamic>);
+          latest =
+              StorySummary.fromJson(jsonDecode(js) as Map<String, dynamic>);
         } catch (_) {}
       }
       _storyLatest[title] = latest;
@@ -137,6 +138,40 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     Clipboard.setData(ClipboardData(text: text));
   }
 
+  /// ✅ 제목으로 FairytaleAsset/Index를 찾아서 StoryDetailPage로 진입
+  void _goToStoryDetail(String storyTitle) {
+    final asset = ft.byTitle(storyTitle);
+    final idx = ft.indexByTitle(storyTitle);
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StoryDetailPage(
+          title: asset.title,
+          storyImg: asset.titleImg,
+        ),
+        settings: RouteSettings(
+          arguments: {
+            'storyIndex': idx,
+            'storyAsset': asset,
+          },
+        ),
+      ),
+    );
+  }
+
+  /// ✅ 공통: 이전 기록 페이지로 이동(모드에 따라 서로 다른 화면 구성)
+  Future<void> _openHistory(HistoryMode mode) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ResultHistoryPage(mode: mode)),
+    );
+    if (!mounted) return;
+    // 돌아오면 최신 데이터 리프레시
+    _loadLatest();
+    _loadStoryLatest();
+  }
+
   @override
   Widget build(BuildContext context) {
     final fixedMedia = MediaQuery.of(context).copyWith(textScaler: _fixedScale);
@@ -152,13 +187,12 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               onRefresh: _loadAll,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
+                padding:
+                    EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
                 child: Column(
                   children: [
-                    // ⬇️ 설정 섹션 대신 '로그아웃' 단독 버튼
                     _logoutButton(context),
                     SizedBox(height: 20.h),
-
                     _myCognitionReportCard(context),
                     SizedBox(height: 20.h),
                     _myStoryHistoryCard(context),
@@ -213,8 +247,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                     maxLines: 1,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 22.sp,           // 기존과 동일
-                      color: AppColors.text,      // 기존과 동일
+                      fontSize: 22.sp,
+                      color: AppColors.text,
                     ),
                   ),
                 ],
@@ -227,7 +261,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // == 나의 인지 리포트 ==
+  // == 나의 인지 검사 결과 (헤더 탭 누르면 -> 인지 기록 화면) ==
   Widget _myCognitionReportCard(BuildContext context) {
     return Material(
       color: AppColors.white,
@@ -237,70 +271,43 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         child: Column(
           children: [
             SizedBox(height: 5.h),
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => setState(() => _isReportExpanded = !_isReportExpanded),
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 10.w),
-                      child: Text(
-                        "나의 인지 검사 결과",
-                        style: TextStyle(
-                          color: AppColors.accent,
-                          fontSize: 26.sp,
-                          fontWeight: FontWeight.w800,
+            // 🔸 헤더 전체 탭 + 우측 꺾쇠
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openHistory(HistoryMode.cognition),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "나의 인지 검사 결과",
+                          style: TextStyle(
+                            color: AppColors.accent,
+                            fontSize: 26.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                    ),
-                    SizedBox(height: 6.h),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton.icon(
-                          onPressed: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const ResultHistoryPage(),
-                              ),
-                            );
-                            if (!mounted) return;
-                            _loadLatest();
-                          },
-                          icon: const Icon(Icons.history),
-                          label: const Text("이전 기록 보기"),
-                        ),
-                        SizedBox(width: 4.w),
-                        AnimatedRotation(
-                          duration: const Duration(milliseconds: 200),
-                          turns: _isReportExpanded ? 0.5 : 0.0,
-                          child: const Icon(Icons.expand_more),
-                        ),
-                        SizedBox(width: 6.w),
-                      ],
-                    ),
-                  ],
+                      Icon(Icons.navigate_next,
+                          size: 34.h, color: AppColors.text),
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 220),
-              firstChild: const SizedBox.shrink(),
-              secondChild: Padding(
-                padding: EdgeInsets.only(top: 8.h),
-                child: _loading
-                    ? _skeleton()
-                    : (_latest == null
-                        ? _emptyLatest(context)
-                        : _latestCard(context, _latest!, _attemptCount)),
-              ),
-              crossFadeState:
-                  _isReportExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            // 본문
+            Padding(
+              padding: EdgeInsets.only(top: 8.h),
+              child: _loading
+                  ? _skeleton()
+                  : (_latest == null
+                      ? _emptyLatest(context)
+                      : _latestCard(context, _latest!, _attemptCount)),
             ),
           ],
         ),
@@ -308,7 +315,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // == 내 동화 기록(탭) ==
+  // == 나의 동화 검사 결과 (헤더 탭 누르면 -> 동화 기록 화면) ==
   Widget _myStoryHistoryCard(BuildContext context) {
     return Material(
       color: AppColors.white,
@@ -318,109 +325,90 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         child: Column(
           children: [
             SizedBox(height: 5.h),
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                final willExpand = !_isStoryExpanded;
-                setState(() => _isStoryExpanded = willExpand);
-                // 펼친 뒤 TabBar가 레이아웃되면 현재 index로 스크롤만 보정
-                if (willExpand) {
-                  Future.delayed(_tabOpenFixDelay, () {
-                    if (!mounted) return;
-                    try {
-                      _storyTabController.animateTo(
-                        _storyTabController.index,
-                        duration: Duration.zero,
-                      );
-                    } catch (_) {}
-                  });
-                }
-              },
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.h),
-                child: Row(
-                  children: [
-                    SizedBox(width: 10.w),
-                    Expanded(
-                      child: Text(
-                        "나의 동화 검사 결과",
-                        style: TextStyle(
-                          color: AppColors.accent,
-                          fontSize: 26.sp,
-                          fontWeight: FontWeight.w800,
+            // 🔸 헤더 전체 탭 + 우측 꺾쇠
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _openHistory(HistoryMode.story),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      EdgeInsets.symmetric(vertical: 8.h, horizontal: 10.w),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          "나의 동화 검사 결과",
+                          style: TextStyle(
+                            color: AppColors.accent,
+                            fontSize: 26.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                    ),
-                    AnimatedRotation(
-                      duration: const Duration(milliseconds: 200),
-                      turns: _isStoryExpanded ? 0.5 : 0.0,
-                      child: const Icon(Icons.expand_more),
-                    ),
-                    SizedBox(width: 6.w),
-                  ],
+                      Icon(Icons.navigate_next,
+                          size: 34.h, color: AppColors.text),
+                    ],
+                  ),
                 ),
               ),
             ),
 
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 220),
-              firstChild: const SizedBox.shrink(),
-              secondChild: _storyLoading
-                  ? Padding(
-                      padding: EdgeInsets.only(top: 8.h),
-                      child: _skeleton(),
-                    )
-                  : Padding(
-                      padding: EdgeInsets.only(top: 8.h),
-                      child: Column(
-                        children: [
-                          TabBar(
+            // 본문
+            _storyLoading
+                ? Padding(
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: _skeleton(),
+                  )
+                : Padding(
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: Column(
+                      children: [
+                        TabBar(
+                          controller: _storyTabController,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          padding: EdgeInsets.zero,
+                          labelPadding:
+                              EdgeInsets.symmetric(horizontal: 14.w),
+                          labelColor: AppColors.btnColorDark,
+                          unselectedLabelColor: const Color(0xFF6B7280),
+                          indicatorColor: AppColors.btnColorDark,
+                          labelStyle: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'GmarketSans',
+                          ),
+                          unselectedLabelStyle: TextStyle(
+                            fontSize: 20.sp,
+                            fontWeight: FontWeight.w500,
+                            fontFamily: 'GmarketSans',
+                          ),
+                          tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                        ),
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          height: 520.h,
+                          child: TabBarView(
                             controller: _storyTabController,
-                            isScrollable: true,
-                            tabAlignment: TabAlignment.start,
-                            padding: EdgeInsets.zero,
-                            labelPadding: EdgeInsets.symmetric(horizontal: 14.w),
-                            labelColor: AppColors.btnColorDark,
-                            unselectedLabelColor: const Color(0xFF6B7280),
-                            indicatorColor: AppColors.btnColorDark,
-                            labelStyle: TextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'GmarketSans',
-                            ),
-                            unselectedLabelStyle: TextStyle(
-                              fontSize: 20.sp,
-                              fontWeight: FontWeight.w500,
-                              fontFamily: 'GmarketSans',
-                            ),
-                            tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                            children: [
+                              for (final t in kStoryTitles)
+                                SingleChildScrollView(
+                                  child: (_storyLatest[t] == null)
+                                      ? _emptyStory(t) // 첫 검사 전
+                                      : _storyCard(
+                                          context,
+                                          t,
+                                          _storyLatest[t]!,
+                                          _storyAttemptCounts[t] ?? 0,
+                                        ),
+                                ),
+                            ],
                           ),
-                          SizedBox(height: 12.h),
-                          SizedBox(
-                            height: 520.h,
-                            child: TabBarView(
-                              controller: _storyTabController,
-                              children: [
-                                for (final t in kStoryTitles)
-                                  SingleChildScrollView(
-                                    child: (_storyLatest[t] == null)
-                                        ? _emptyStory(t)
-                                        : _storyCard(
-                                            context,
-                                            t,
-                                            _storyLatest[t]!,
-                                            _storyAttemptCounts[t] ?? 0,
-                                          ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-              crossFadeState:
-                  _isStoryExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            ),
+                  ),
           ],
         ),
       ),
@@ -447,7 +435,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(Icons.psychology_alt_outlined, size: 40.sp, color: AppColors.text),
+          Icon(Icons.psychology_alt_outlined,
+              size: 40.sp, color: AppColors.text),
           SizedBox(height: 10.h),
           Text(
             '첫 검사를 아직 안 하셨어요',
@@ -479,7 +468,14 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 );
               },
               icon: const Icon(Icons.play_arrow_rounded),
-              label: const Text('검사 시작하기'),
+              label: Text(
+                '검사 시작하기',
+                style: TextStyle(
+                  fontSize: 23.sp,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'GmarketSans',
+                ),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFFFD43B),
                 foregroundColor: Colors.black,
@@ -493,7 +489,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 비어있을 때 (동화) ======
+  // ====== 비어있을 때 (동화) : 버튼에서만 디테일로 이동 ======
   Widget _emptyStory(String storyTitle) {
     return Container(
       width: double.infinity,
@@ -533,6 +529,29 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               color: const Color(0xFF6B7280),
             ),
           ),
+          SizedBox(height: 12.h),
+          SizedBox(
+            width: double.infinity,
+            height: 48.h,
+            child: ElevatedButton.icon(
+              onPressed: () => _goToStoryDetail(storyTitle),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(
+                '검사 시작하기',
+                style: TextStyle(
+                  fontSize: 23.sp,
+                  fontWeight: FontWeight.w700,
+                  fontFamily: 'GmarketSans',
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD43B),
+                foregroundColor: Colors.black,
+                shape: const StadiumBorder(),
+                elevation: 0,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -563,7 +582,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               children: [
                 if (attemptCount > 0)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 10.w, vertical: 6.h),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(999),
@@ -591,7 +611,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-
           SizedBox(height: 4.h),
           Text(
             a.kstLabel ?? '최근 검사 요약입니다.',
@@ -693,7 +712,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               children: [
                 if (attemptCount > 0)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 10.w, vertical: 6.h),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF3F4F6),
                       borderRadius: BorderRadius.circular(999),
@@ -728,7 +748,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-
           SizedBox(height: 4.h),
           Text(
             s.kstLabel ?? '',
@@ -740,18 +759,15 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               fontFamily: 'GmarketSans',
             ),
           ),
-
           SizedBox(height: 12.h),
           _scoreCircle(s.score, s.total),
           SizedBox(height: 12.h),
-
           ...order
               .where((k) => s.byCategory.containsKey(k))
               .map((k) => Padding(
                     padding: EdgeInsets.only(bottom: 10.h),
                     child: _riskBarRow(k, s.byCategory[k]),
                   )),
-
           SizedBox(height: 6.h),
           SizedBox(
             width: double.infinity,
@@ -759,10 +775,12 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             child: ElevatedButton.icon(
               onPressed: () async {
                 final byCat = s.byCategory.map(
-                  (k, v) => MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
+                  (k, v) =>
+                      MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
                 );
                 final byType = s.byType.map(
-                  (k, v) => MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
+                  (k, v) =>
+                      MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
                 );
                 await Navigator.push(
                   context,
@@ -1042,7 +1060,8 @@ class AttemptSummary {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] = ir.CategoryStat(correct: correct, total: total);
+            out[key.toString()] =
+                ir.CategoryStat(correct: correct, total: total);
           }
         });
         return out;
@@ -1094,7 +1113,8 @@ class StorySummary {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] = ir.CategoryStat(correct: correct, total: total);
+            out[key.toString()] =
+                ir.CategoryStat(correct: correct, total: total);
           }
         });
         return out;

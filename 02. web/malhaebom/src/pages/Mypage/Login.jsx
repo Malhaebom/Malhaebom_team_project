@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
+import Logo from "../../components/Logo.jsx";
 import axios from "axios";
 
 const API = axios.create({
@@ -133,7 +134,7 @@ const Login = () => {
         }}
       >
         {/* 로고 */}
-        <img
+        <Logo
           src="/img/logo.png"
           alt="말해봄 로고"
           style={{

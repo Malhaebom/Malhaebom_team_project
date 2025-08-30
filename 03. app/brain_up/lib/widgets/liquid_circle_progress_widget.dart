@@ -21,7 +21,7 @@ class LiquidCircleProgressWidget extends StatelessWidget {
         backgroundColor: const Color.fromARGB(255, 43, 63, 151),
         direction: Axis.vertical,
         center: Text(
-          "${(value * 100).round()}%",
+          "${value * 100.toInt()}%",
           style: TextStyle(
             fontFamily: 'GmarketSans',
             color: AppColors.white,

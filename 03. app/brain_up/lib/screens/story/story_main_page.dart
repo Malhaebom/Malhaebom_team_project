@@ -1,7 +1,14 @@
+// lib/screens/story/story_main_page.dart
+// 데이터(Fairytales)는 그대로 사용. 파란 AppBar(얇고 큼) + 큼직한 카드 UI
+// 세부 설명(소개 문구) 글자만 더 작게 + 최대 3줄로 보이게 조정.
+
 import 'package:brain_up/screens/story/story_detail_page.dart';
 import 'package:flutter/material.dart';
 import 'package:brain_up/theme/colors.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:brain_up/data/fairytale_assets.dart';
+
+const String _kFont = 'GmarketSans';
 
 class StoryMainPage extends StatefulWidget {
   const StoryMainPage({super.key});
@@ -11,96 +18,140 @@ class StoryMainPage extends StatefulWidget {
 }
 
 class _StoryMainPageState extends State<StoryMainPage> {
-  List<String> storyImg = [
-    "assets/fairytale/어머니의벙어리장갑_img.png",
-    "assets/fairytale/아버지와결혼식_img.png",
-  ];
-
-  List<Map<String, String>> storyContent = [
-    {"title": "어머니의 벙어리장갑", "content": "1960년도 추운 겨울,\n3남매 가족의 사랑을 그리는 이야기에요."},
-    {
-      "title": "아버지와 결혼식",
-      "content": "1980년대, 부산에 사는 딸과 아버지의\n가슴이 뭉클해지는 이야기에요.",
-    },
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        title: Text(
-          "회상 동화",
-          style: TextStyle(fontWeight: FontWeight.w500, fontSize: 20.sp),
+    final tales = Fairytales; // ✅ 데이터는 건드리지 않음
+
+    // 기종에 맞는 상단바 크기 설정
+    double _appBarH(BuildContext context) {
+      final shortest = MediaQuery.sizeOf(context).shortestSide;
+      if (shortest >= 840) return 88; // 큰 태블릿
+      if (shortest >= 600) return 72; // 일반 태블릿
+      return kToolbarHeight; // 폰(기본 56)
+    }
+
+    return ScreenUtilInit(
+      minTextAdapt: true,
+      builder: (_, __) => Scaffold(
+        // ===== 파란 AppBar (얇고 크게) =====
+        appBar: AppBar(
+          // 기본 뒤로가기 사용 (스택에 화면이 있을 때만 표시)
+          automaticallyImplyLeading: Navigator.of(context).canPop(),
+          leading: Navigator.of(context).canPop() ? const BackButton() : null,
+          foregroundColor: Colors.white, // 아이콘/타이틀 색상
+          centerTitle: true,
+          backgroundColor: AppColors.btnColorDark,
+          toolbarHeight: _appBarH(context),
+          title: Text(
+            '회상 동화',
+            textScaler: const TextScaler.linear(1.0),
+            style: TextStyle(
+              fontFamily: _kFont,
+              fontWeight: FontWeight.w700,
+              fontSize: 20.sp,
+              color: Colors.white,
+            ),
+          ),
         ),
-      ),
-      backgroundColor: AppColors.background,
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 30.w, vertical: 20.h),
-          child: Column(
-            children: List.generate(storyImg.length, (index) {
-              return Column(
-                children: [
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (context) => StoryDetailPage(
-                                title: storyContent[index]["title"]!,
-                              ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color.fromARGB(60, 0, 0, 0),
-                            spreadRadius: 5,
-                            blurRadius: 10,
-                            offset: Offset(0, 0),
+
+        backgroundColor: AppColors.background,
+
+        // ===== 본문: 큼직한 카드 리스트 =====
+        body: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(14.w, 16.h, 14.w, 24.h),
+            child: Column(
+              children: List.generate(tales.length, (index) {
+                final tale = tales[index];
+                return Column(
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => StoryDetailPage(
+                              title: tale.title,
+                              storyImg: tale.titleImg,
+                            ),
                           ),
-                        ],
-                      ),
-                      child: Padding(
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(22.r),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.white,
+                          borderRadius: BorderRadius.circular(22.r),
+                          border: Border.all(
+                            color: const Color(0xFFE5E7EB),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
                         padding: EdgeInsets.symmetric(
-                          vertical: 15.h,
-                          horizontal: 10.w,
+                          horizontal: 14.w,
+                          vertical: 12.h,
                         ),
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            Image.asset(
-                              storyImg[index],
-                              height: screenHeight * 0.07,
+                            // 좌측 썸네일 — 크게
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(18.r),
+                              child: Container(
+                                width: 92.w,
+                                height: 92.w,
+                                color: const Color(0xFFF3F4F6),
+                                child: Image.asset(
+                                  tale.titleImg,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
-                            SizedBox(width: 10.w),
+                            SizedBox(width: 12.w),
+
+                            // 우측 텍스트
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // 제목 — 크게/진하게
                                   Text(
-                                    storyContent[index]["title"]!,
-                                    softWrap: true,
-                                    overflow: TextOverflow.visible,
+                                    tale.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textScaler:
+                                        const TextScaler.linear(1.0),
                                     style: TextStyle(
-                                      fontFamily: 'GmarketSans',
-                                      fontSize: 16.sp,
-                                      fontWeight: FontWeight.w700,
+                                      fontFamily: _kFont,
+                                      fontSize: 19.sp,
+                                      fontWeight: FontWeight.w800,
+                                      color: const Color(0xFF111827),
+                                      height: 1.1,
                                     ),
                                   ),
+                                  SizedBox(height: 6.h),
+                                  // 소개 — 더 작게 + (현재 4줄 노출)
                                   Text(
-                                    storyContent[index]["content"]!,
+                                    tale.content ?? '소개 문구가 준비 중입니다.',
                                     softWrap: true,
-                                    overflow: TextOverflow.visible,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 4, // 필요시 3으로 줄여도 됩니다.
                                     textAlign: TextAlign.start,
-                                    style: TextStyle(fontSize: 12.sp),
+                                    textScaler:
+                                        const TextScaler.linear(1.0),
+                                    style: TextStyle(
+                                      fontFamily: _kFont,
+                                      fontSize: 13.sp,
+                                      fontWeight: FontWeight.w400,
+                                      color: const Color(0xFF6B7280),
+                                      height: 1.4,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -109,11 +160,11 @@ class _StoryMainPageState extends State<StoryMainPage> {
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(height: 20.h),
-                ],
-              );
-            }),
+                    SizedBox(height: 12.h),
+                  ],
+                );
+              }),
+            ),
           ),
         ),
       ),

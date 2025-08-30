@@ -79,6 +79,11 @@ body {
 .logo_bg img {
   max-width: 100%;
   height: auto;
+  transition: transform 0.2s ease;
+}
+
+.logo_bg img:hover {
+  transform: scale(1.05);
 }
 
 .logo_bg p {
