@@ -3,6 +3,7 @@ import Background from "../Background/Background";
 import { useMicrophone } from "../../MicrophoneContext.jsx";
 import useQuery from "../../hooks/useQuery.js";
 import ScoreCircle from "../../components/ScoreCircle.jsx";
+import Pagination from "../../components/Pagination.jsx";
 
 const InterviewHistory = () => {
   const { isMicrophoneActive, stopMicrophone } = useMicrophone();
@@ -320,117 +321,7 @@ const InterviewHistory = () => {
     setExpandedItems(new Set());
   };
 
-  const renderPagination = () => {
-    if (totalPages <= 1) return null;
 
-    return (
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        marginTop: "30px",
-        marginBottom: "20px",
-        gap: "12px"
-      }}>
-        {/* 이전 페이지 버튼 - 항상 표시하되 첫 페이지에서는 비활성화 */}
-        <button
-          onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          style={{
-            padding: "8px 12px",
-            border: "none",
-            backgroundColor: currentPage === 1 ? "#f5f5f5" : "#e0e0e0",
-            borderRadius: "5px",
-            cursor: currentPage === 1 ? "not-allowed" : "pointer",
-            fontSize: "16px",
-            fontWeight: "bold",
-            color: currentPage === 1 ? "#bdbdbd" : "#666",
-            transition: "all 0.2s ease",
-            minWidth: "44px",
-            height: "44px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.1)"
-          }}
-          onMouseEnter={(e) => {
-            if (currentPage > 1) {
-              e.target.style.backgroundColor = "#488eca";
-              e.target.style.color = "#fff";
-              e.target.style.boxShadow = "0px 0px 15px rgba(0, 0, 0, 0.2)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (currentPage > 1) {
-              e.target.style.backgroundColor = "#e0e0e0";
-              e.target.style.color = "#666";
-              e.target.style.boxShadow = "0px 0px 10px rgba(0, 0, 0, 0.1)";
-            }
-          }}
-        >
-          ‹
-        </button>
-
-        {/* 현재 페이지 번호 */}
-        <div style={{
-          padding: "8px 16px",
-          border: "1px solid #fff",
-          backgroundColor: "#fff",
-          borderRadius: "5px",
-          fontSize: "16px",
-          fontWeight: "bold",
-          color: "#333",
-          minWidth: "50px",
-          height: "44px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.1)"
-        }}>
-          {currentPage}
-        </div>
-
-        {/* 다음 페이지 버튼 - 항상 표시하되 마지막 페이지에서는 비활성화 */}
-        <button
-          onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          style={{
-            padding: "8px 12px",
-            border: "none",
-            backgroundColor: currentPage === totalPages ? "#f5f5f5" : "#e0e0e0",
-            borderRadius: "5px",
-            cursor: currentPage === totalPages ? "not-allowed" : "pointer",
-            fontSize: "16px",
-            fontWeight: "bold",
-            color: currentPage === totalPages ? "#bdbdbd" : "#666",
-            transition: "all 0.2s ease",
-            minWidth: "44px",
-            height: "44px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0px 0px 10px rgba(0, 0, 0, 0.1)"
-          }}
-          onMouseEnter={(e) => {
-            if (currentPage < totalPages) {
-              e.target.style.backgroundColor = "#488eca";
-              e.target.style.color = "#fff";
-              e.target.style.boxShadow = "0px 0px 15px rgba(0, 0, 0, 0.2)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (currentPage < totalPages) {
-              e.target.style.backgroundColor = "#e0e0e0";
-              e.target.style.color = "#666";
-              e.target.style.boxShadow = "0px 0px 10px rgba(0, 0, 0, 0.1)";
-            }
-          }}
-        >
-          ›
-        </button>
-      </div>
-    );
-  };
 
   return (
     <div className="content">
@@ -763,7 +654,12 @@ const InterviewHistory = () => {
         )}
 
         {/* 페이징 네비게이션 */}
-        {renderPagination()}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          itemsPerPage={itemsPerPage}
+        />
       </div>
     </div>
   );
