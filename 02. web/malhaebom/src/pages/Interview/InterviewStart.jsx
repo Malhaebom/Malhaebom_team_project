@@ -235,7 +235,7 @@ function InterviewStart() {
                 gap: '10px',
                 marginTop: '30px'
               }}>
-                                                  <button 
+                                                                   <button 
                    className="question_bt"
                    onClick={handleRecordClick}
                    disabled={globalIsRecording || recordingCompleted}
@@ -251,22 +251,23 @@ function InterviewStart() {
                      fontSize: '1em',
                      fontWeight: 'bold',
                      transition: 'all 0.2s',
-                     position: 'relative'
+                     display: 'flex',
+                     alignItems: 'center',
+                     justifyContent: 'center',
+                     gap: '8px'
                    }}
                  >
-                                         {globalIsRecording && (
-                       <div style={{
-                         display: 'inline-block',
-                         width: '12px',
-                         height: '12px',
-                         borderRadius: '50%',
-                         backgroundColor: '#ff4444',
-                         marginRight: '8px',
-                         animation: 'pulse 1.5s infinite'
-                       }}></div>
-                     )}
-                                         녹음 시작
-                   </button>
+                   {globalIsRecording && (
+                     <div style={{
+                       width: '12px',
+                       height: '12px',
+                       borderRadius: '50%',
+                       backgroundColor: '#ff0000',
+                       animation: 'pulse 1s ease-in-out infinite'
+                     }} />
+                   )}
+                   {globalIsRecording ? "녹음 중" : "녹음 시작"}
+                 </button>
                 <button 
                   className="question_bt" 
                   onClick={handleStopClick}
@@ -305,8 +306,8 @@ function InterviewStart() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  다음 지문으로
-                </button>
+                                     다음
+                 </button>
               </div>
             </div>
           </div>
@@ -314,26 +315,7 @@ function InterviewStart() {
         <ProgressBar current={questionId + 1} total={questions?.length || 0} />
       </div>
       
-             {/* 펄스 애니메이션 CSS */}
-       <style>{`
-         @keyframes pulse {
-           0% {
-             opacity: 1;
-             transform: scale(1);
-             box-shadow: 0 0 0 0 rgba(255, 68, 68, 0.7);
-           }
-           70% {
-             opacity: 0.7;
-             transform: scale(1.1);
-             box-shadow: 0 0 0 6px rgba(255, 68, 68, 0);
-           }
-           100% {
-             opacity: 1;
-             transform: scale(1);
-             box-shadow: 0 0 0 0 rgba(255, 68, 68, 0);
-           }
-         }
-       `}</style>
+             
     </div>
   );
 };
