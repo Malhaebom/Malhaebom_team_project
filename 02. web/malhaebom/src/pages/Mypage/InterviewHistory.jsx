@@ -607,37 +607,37 @@ const InterviewHistory = () => {
                               </div>
                             </div>
                             
-                                                         {/* 확장된 세부사항 */}
-                             {isExpanded && (
-                               <div style={{
-                                 padding: "12px",
-                                 borderTop: "1px solid #e0e0e0",
-                                 background: "#fafafa"
-                               }}>
-                                 <ColorSlider 
-                                   score={detail.score} 
-                                   total={detail.total} 
-                                   category={category} 
-                                 />
-                                 {/* 평가 기준 텍스트 */}
-                                 <div style={{
-                                   marginTop: "12px",
-                                   padding: "8px 0",
-                                   borderTop: "1px solid #e5e7eb"
-                                 }}>
-                                                                       <p style={{
-                                      fontSize: "12px",
-                                      color: "#6B7280",
-                                      lineHeight: "1.4",
-                                      margin: "0",
-                                      fontFamily: "GmarketSans",
-                                      whiteSpace: "pre-line"
-                                    }}>
-                                      {evaluationCriteria[category]}
-                                    </p>
-                                 </div>
-                               </div>
-                             )}
+                            {/* 확장된 세부사항 */}
+                            {isExpanded && (
+                              <div style={{
+                                padding: "12px",
+                                borderTop: "1px solid #e0e0e0",
+                                background: "#fafafa"
+                              }}>
+                                <ColorSlider 
+                                  score={detail.score} 
+                                  total={detail.total} 
+                                  category={category} 
+                                />
+                                {/* 평가 기준 텍스트 */}
+                                <div style={{
+                                  marginTop: "12px",
+                                  padding: "8px 0",
+                                  borderTop: "1px solid #e5e7eb"
+                                }}>
+                                  <p style={{
+                                    fontSize: "12px",
+                                    color: "#6B7280",
+                                    lineHeight: "1.4",
+                                    margin: "0",
+                                    fontFamily: "GmarketSans",
+                                    whiteSpace: "pre-line"
+                                  }}>
+                                    {evaluationCriteria[category]}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

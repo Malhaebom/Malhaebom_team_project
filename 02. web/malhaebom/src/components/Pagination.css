@@ -3,9 +3,21 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-top: 30px;
-  margin-bottom: 20px;
-  gap: 12px;
+  margin-top: 40px;
+  margin-bottom: 30px;
+  gap: 16px;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ct_theater 내부에서 페이징 컨테이너의 우선순위 강제 적용 */
+.ct_theater .pagination-container {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 40px 0 30px 0 !important;
 }
 
 .pagination-button {
@@ -25,7 +37,7 @@
 }
 
 .pagination-button:enabled {
-  background-color: #e0e0e0;
+  background-color: #f8f9fa;
   color: #666;
 }
 
@@ -57,5 +69,5 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0px 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
 }
