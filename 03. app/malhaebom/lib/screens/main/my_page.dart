@@ -1,12 +1,3 @@
-// ===============================
-// File: lib/screens/main/my_page.dart
-// (마이페이지 - 인지/동화 최신 결과 표시)
-// 🔧 변경점 요약
-// 1) _norm() 정규화에 따옴표/전각따옴표 제거 추가 (서버와 동일화)
-// 2) 서버 호출 시 userKey 없을 때/에러 시 debugPrint 로깅 강화
-// 3) storyKey와 storyTitle을 항상 같이 전송 (이미 되어있던 로직 유지)
-// ===============================
-
 import 'dart:convert';
 import 'dart:io' show Platform; // ✅
 import 'package:flutter/foundation.dart' show kIsWeb; // ✅
@@ -54,15 +45,8 @@ const String PREF_ATTEMPT_COUNT = 'attempt_count_v1';
 const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
 const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
 
-// ✅ 정규화 함수(공백 통일 + 따옴표/전각따옴표 제거 → 서버와 동일화)
-String _norm(String s) =>
-    s
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .replaceAll('"', '')
-        .replaceAll("'", '')
-        .replaceAll('“', '')
-        .replaceAll('”', '')
-        .trim();
+// ✅ 정규화 함수(공백 통일)
+String _norm(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 // 동화책 제목 목록(탭 라벨)
 const List<String> kStoryTitles = <String>[
@@ -214,7 +198,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       } catch (_) {}
     }
 
-    debugPrint('[MyPage] identityParams: NO USER KEY. You are guest?');
     return {};
   }
 
@@ -223,12 +206,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     if (!kUseServer) return null;
 
     final idParams = await _identityParams();
-    if (idParams.isEmpty) {
-      debugPrint(
-        '[MyPage] skip server fetch: no identity. story="$storyTitle"',
-      );
-      return null; // 게스트라면 서버 조회 스킵
-    }
+    if (idParams.isEmpty) return null; // 게스트라면 서버 조회 스킵
 
     final q = {
       ...idParams,
@@ -239,23 +217,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     final uri = Uri.parse('$API_BASE/str/latest').replace(queryParameters: q);
     try {
       final res = await http.get(uri);
-      if (res.statusCode != 200) {
-        debugPrint('[MyPage] /str/latest ${res.statusCode} body=${res.body}');
-        return null;
-      }
+      if (res.statusCode != 200) return null;
 
       final j = jsonDecode(res.body);
-      if (j is! Map || j['ok'] != true) {
-        debugPrint('[MyPage] /str/latest not ok body=$j');
-        return null;
-      }
+      if (j is! Map || j['ok'] != true) return null;
 
       final latest = j['latest'];
       if (latest == null) return null;
 
       return StorySummary.fromJson(latest as Map<String, dynamic>);
-    } catch (e) {
-      debugPrint('[MyPage] /str/latest error: $e');
+    } catch (_) {
       return null;
     }
   }

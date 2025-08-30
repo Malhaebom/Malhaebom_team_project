@@ -1,22 +1,26 @@
 // lib/screens/main/result_history_page.dart
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:malhaebom/theme/colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'my_page.dart' show AttemptSummary; // byCategory 등 재사용
 import 'package:malhaebom/screens/main/interview_result_page.dart' as ir;
 import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 
-const String API_BASE = 'http://10.0.2.2:4000/str';
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
 // 빠른 실패(화면 전환 후 이 시간 경과 시 스피너 대신 오류 메시지 우선 표시)
 const Duration kFastFailAfter = Duration(milliseconds: 700);
 // HTTP 자체 타임아웃 (요청을 오래 끌지 않도록)
-const Duration kHttpTimeout = Duration(seconds: 2);
+// 기존 2초 → 8초로 완화
+const Duration kHttpTimeout = Duration(seconds: 8);
 
 enum HistoryMode { cognition, story }
 
@@ -29,6 +33,21 @@ class ResultHistoryPage extends StatefulWidget {
 }
 
 class _ResultHistoryPageState extends State<ResultHistoryPage> {
+  // 로그인 페이지와 동일한 규칙으로 BASE 결정(+ /str)
+  static final String STR_BASE =
+      (() {
+        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+        final base =
+            defined.isNotEmpty
+                ? defined
+                : (kIsWeb
+                    ? 'http://localhost:4000'
+                    : (Platform.isAndroid
+                        ? 'http://10.0.2.2:4000'
+                        : 'http://localhost:4000'));
+        return '$base/str';
+      })();
+
   late Future<List<AttemptSummary>> _cogFuture;
   final Map<String, Future<List<StoryAttempt>>> _storyFutures = {};
 
@@ -64,16 +83,23 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
         backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text(
-            widget.mode == HistoryMode.cognition ? '인지 검사 기록' : '동화 화행검사 결과',
+            widget.mode == HistoryMode.cognition ? '인지 검사 기록' : '동화 화행검사 기록',
+            style: TextStyle(
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w700,
+              fontSize: 20.sp,
+              color: Colors.white,
+            ),
           ),
           backgroundColor: AppColors.btnColorDark,
           centerTitle: true,
         ),
         body: Padding(
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
-          child: widget.mode == HistoryMode.cognition
-              ? _buildCognitionBody()
-              : _buildStoryBody(),
+          child:
+              widget.mode == HistoryMode.cognition
+                  ? _buildCognitionBody()
+                  : _buildStoryBody(),
         ),
       ),
     );
@@ -109,9 +135,14 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
 
             return _Card(
               child: Theme(
-                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(
+                  context,
+                ).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  tilePadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 4.h),
+                  tilePadding: EdgeInsets.symmetric(
+                    horizontal: 14.w,
+                    vertical: 4.h,
+                  ),
                   childrenPadding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 14.h),
                   iconColor: AppColors.text,
                   collapsedIconColor: AppColors.text,
@@ -120,7 +151,10 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                       Expanded(
                         child: Text(
                           dateStr,
-                          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800),
+                          style: TextStyle(
+                            fontSize: 16.sp,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                       _AttemptChip('$attemptNo회차'),
@@ -174,11 +208,16 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              tilePadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
+              tilePadding: EdgeInsets.symmetric(
+                horizontal: 14.w,
+                vertical: 6.h,
+              ),
               iconColor: AppColors.text,
               collapsedIconColor: AppColors.text,
-              title: Text(title,
-                  style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900)),
+              title: Text(
+                title,
+                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
+              ),
               onExpansionChanged: (expanded) {
                 if (expanded && _storyFutures[title] == null) {
                   setState(() {
@@ -196,9 +235,9 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                         return _showOfflineHint
                             ? const _HistoryMessage('기록을 불러올 수 없습니다.')
                             : const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 20),
-                                child: Center(child: CircularProgressIndicator()),
-                              );
+                              padding: EdgeInsets.symmetric(vertical: 20),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
                       }
                       if (snap.hasError) {
                         return const _HistoryMessage('기록을 불러올 수 없습니다.');
@@ -219,13 +258,20 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                             padding: EdgeInsets.only(bottom: 10.h),
                             child: _InnerCard(
                               child: Theme(
-                                data: Theme.of(context)
-                                    .copyWith(dividerColor: Colors.transparent),
+                                data: Theme.of(
+                                  context,
+                                ).copyWith(dividerColor: Colors.transparent),
                                 child: ExpansionTile(
                                   tilePadding: EdgeInsets.symmetric(
-                                      horizontal: 12.w, vertical: 2.h),
-                                  childrenPadding:
-                                      EdgeInsets.fromLTRB(12.w, 0, 12.w, 12.h),
+                                    horizontal: 12.w,
+                                    vertical: 2.h,
+                                  ),
+                                  childrenPadding: EdgeInsets.fromLTRB(
+                                    12.w,
+                                    0,
+                                    12.w,
+                                    12.h,
+                                  ),
                                   iconColor: AppColors.text,
                                   collapsedIconColor: AppColors.text,
                                   title: Row(
@@ -256,13 +302,20 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                     _scoreCircle(a.score, a.total),
                                     SizedBox(height: 12.h),
                                     ...['요구', '질문', '단언', '의례화']
-                                        .where((k) => a.byCategory.containsKey(k))
-                                        .map((k) => Padding(
-                                              padding:
-                                                  EdgeInsets.only(bottom: 10.h),
-                                              child: _riskBarRow(
-                                                  k, a.byCategory[k]),
-                                            )),
+                                        .where(
+                                          (k) => a.byCategory.containsKey(k),
+                                        )
+                                        .map(
+                                          (k) => Padding(
+                                            padding: EdgeInsets.only(
+                                              bottom: 10.h,
+                                            ),
+                                            child: _riskBarRow(
+                                              k,
+                                              a.byCategory[k],
+                                            ),
+                                          ),
+                                        ),
                                   ],
                                 ),
                               ),
@@ -283,10 +336,10 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
 
   // ---------------- networking ----------------
   Future<List<AttemptSummary>> _fetchCognitionList() async {
-    final uri = Uri.parse('$API_BASE/attempt/list');
+    final uri = Uri.parse('$STR_BASE/attempt/list');
     final res = await http.get(uri).timeout(kHttpTimeout);
     if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode}');
+      throw Exception('HTTP ${res.statusCode} ${res.body}');
     }
     final arr = jsonDecode(res.body);
     if (arr is! List) return const <AttemptSummary>[];
@@ -295,16 +348,44 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
         .toList();
   }
 
+  // 유저키 로딩 (로그인 시 저장해 둔 값 사용; 없으면 guest로)
+  Future<String> _loadUserKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    // 예: 로그인 로직에서 prefs.setString('user_key', 'kakao:12345') 식으로 저장해 둠
+    return prefs.getString('user_key') ?? 'guest'; // 개발 중이면 guest 허용
+  }
+
   Future<List<StoryAttempt>> _fetchStoryList(String storyTitle) async {
+    final userKey = await _loadUserKey();
+
+    // 서버의 normalizeTitle과 동일한 효과(공백 정리)
+    final storyKey = storyTitle.replaceAll(RegExp(r'\s+'), ' ').trim();
+
     final uri = Uri.parse(
-      '$API_BASE/story/attempt/list?title=${Uri.encodeQueryComponent(storyTitle)}',
-    );
-    final res = await http.get(uri).timeout(kHttpTimeout);
+      '$STR_BASE/story/attempt/list',
+    ).replace(queryParameters: {'storyKey': storyKey});
+
+    final res = await http
+        .get(
+          uri,
+          headers: {
+            'x-user-key': userKey, // 👈 서버가 이걸로 사용자 식별
+            'accept': 'application/json',
+          },
+        )
+        .timeout(kHttpTimeout);
+
     if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode}');
+      throw Exception('HTTP ${res.statusCode} ${res.body}');
     }
-    final arr = jsonDecode(res.body);
-    if (arr is! List) return const <StoryAttempt>[];
+
+    final decoded = jsonDecode(res.body);
+    // 서버 응답: { ok:true, list:[ ... ] } 형태
+    final arr =
+        (decoded is Map && decoded['list'] is List)
+            ? decoded['list'] as List
+            : (decoded is List ? decoded : const <dynamic>[]);
+
     return arr
         .map((e) => StoryAttempt.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -358,58 +439,62 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444)],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _statusChip(_EvalView ev) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: ev.badgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: ev.badgeBorder),
-        ),
-        child: Text(
-          ev.text,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 14.sp,
-            color: ev.textColor,
-            fontFamily: 'GmarketSans',
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: ev.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: ev.badgeBorder),
+    ),
+    child: Text(
+      ev.text,
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 14.sp,
+        color: ev.textColor,
+        fontFamily: 'GmarketSans',
+      ),
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -537,7 +622,10 @@ class StoryAttempt {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] = ir.CategoryStat(correct: correct, total: total);
+            out[key.toString()] = ir.CategoryStat(
+              correct: correct,
+              total: total,
+            );
           }
         });
         return out;

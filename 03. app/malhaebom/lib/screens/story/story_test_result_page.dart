@@ -1,11 +1,4 @@
-// ==========================================
-// File: lib/screens/story/story_test_result_page.dart
-// 결과 페이지
-// - 저장(POST) 응답의 회차/시간을 즉시 칩에 반영
-// - 이어서 /str/latest 재조회로 검증/덮어쓰기
-// - 실패 시 1회차로 보정하지 않음(스피너 또는 기존값 유지)
-// ==========================================
-
+// lib/screens/story/story_test_result_page.dart
 import 'dart:convert';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -16,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
+// --- 서버 전송 스위치 & 베이스 URL(옵션) ---
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 final String API_BASE =
     (() {
@@ -27,28 +21,37 @@ final String API_BASE =
       return 'http://192.168.0.23:4000';
     })();
 
+// --- 로컬 저장 키(동화별) ---
 const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
+const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
+
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
-// 공백만 통일(서버는 따옴표 제거 비교까지 수행)
+// ✅ 역슬래시 1개가 맞음
 String normalizeTitle(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
+/// 카테고리 집계용
 class CategoryStat {
   final int correct;
   final int total;
   const CategoryStat({required this.correct, required this.total});
+
   double get correctRatio => total == 0 ? 0 : correct / total;
-  double get riskRatio => 1 - correctRatio;
+  double get riskRatio => 1 - correctRatio; // 0(좋음) ~ 1(위험)
 }
 
+/// 결과 페이지
 class StoryResultPage extends StatefulWidget {
   final int score;
   final int total;
   final Map<String, CategoryStat> byCategory; // 요구/질문/단언/의례화
-  final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화
-  final DateTime testedAt; // 클라 테스트 시간
+  final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화 ...
+  final DateTime testedAt;
   final String? storyTitle;
-  final bool persist; // true: 저장 모드, false: 조회 모드
+
+  /// true: 실제 테스트 직후(저장+회차증가+옵션 서버전송)
+  /// false: 조회용(증가/저장 안 함)
+  final bool persist;
 
   const StoryResultPage({
     super.key,
@@ -66,195 +69,20 @@ class StoryResultPage extends StatefulWidget {
 }
 
 class _StoryResultPageState extends State<StoryResultPage> {
-  /// null = 로딩중, 값 존재 시 = 확정/선반영된 회차
-  int? _attemptOrder;
-
-  /// null = 로딩중, 값 존재 시 = 서버 전달 KST 또는 attemptTime 포맷
-  String? _attemptKst;
-
-  bool _working = false;
+  bool _synced = false;
+  int _attemptOrder = 1; // 칩에 표기할 회차
 
   @override
   void initState() {
     super.initState();
-    // 시작 시 어느 것도 보정하지 않고 로딩 상태로 둔다.
-    _attemptOrder = null;
-    _attemptKst = null;
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _finalizeFromServer(); // persist면 저장→선반영→최신조회, 아니면 최신조회만
-      // 실패해도 1회차로 강제 표기하지 않음(사용자 혼란 방지)
+      if (widget.persist) {
+        await _persistOnce(); // 저장 + 회차증가 (+옵션 서버)
+      } else {
+        await _loadCountOnly(); // 조회용: 현재 회차만 로드
+      }
     });
   }
-
-  // -------------------- 네트워크 시퀀스 --------------------
-
-  /// 저장→선반영→최신조회(덮어쓰기)
-  Future<void> _finalizeFromServer() async {
-    if (!kUseServer || _working) return;
-    _working = true;
-    try {
-      final identity = await _identityForApi();
-      final originalTitle = widget.storyTitle ?? '동화';
-      final keyTitle = normalizeTitle(originalTitle);
-
-      // 1) persist면 저장하고 응답으로 즉시 칩을 선반영
-      if (widget.persist) {
-        await _postAttemptAndPrefill(
-          identity: identity,
-          originalTitle: originalTitle,
-          keyTitle: keyTitle,
-        );
-      }
-
-      // 2) 어떤 경우에도 최신을 다시 조회해서 확정 덮어쓰기
-      await _loadLatestAndBind(identity: identity, keyTitle: keyTitle);
-
-      // 3) 로컬 latest 캐시(선택)
-      if (_attemptOrder != null) {
-        try {
-          final latest = await _getLatestRaw(
-            identity: identity,
-            keyTitle: keyTitle,
-          );
-          if (latest != null) {
-            final prefs = await SharedPreferences.getInstance();
-            await prefs.setString(
-              '$PREF_STORY_LATEST_PREFIX$keyTitle',
-              jsonEncode(latest),
-            );
-          }
-        } catch (_) {}
-      }
-    } catch (e) {
-      debugPrint('[STR] finalize error: $e');
-    } finally {
-      _working = false;
-    }
-  }
-
-  /// POST /str/attempt → 응답(saved.clientAttemptOrder/clientKst)으로 즉시 칩 선반영
-  Future<void> _postAttemptAndPrefill({
-    required Map<String, String> identity,
-    required String originalTitle,
-    required String keyTitle,
-  }) async {
-    try {
-      final payload = _buildPayload(
-        titleOriginal: originalTitle,
-        titleKey: keyTitle,
-      );
-
-      final headers = <String, String>{
-        'Content-Type': 'application/json; charset=utf-8',
-        if (identity['userKey'] != null) 'x-user-key': identity['userKey']!,
-      };
-      final uri =
-          identity.isEmpty
-              ? Uri.parse('$API_BASE/str/attempt')
-              : Uri.parse(
-                '$API_BASE/str/attempt',
-              ).replace(queryParameters: {'userKey': identity['userKey']!});
-
-      final res = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode({...payload, ...identity}),
-      );
-      if (res.statusCode != 200) {
-        debugPrint(
-          '[STR] POST /str/attempt fail ${res.statusCode} ${res.body}',
-        );
-        return;
-      }
-      final j = jsonDecode(res.body);
-      if (j is! Map || j['ok'] != true) return;
-
-      final saved = j['saved'];
-      if (saved is Map) {
-        // 회차
-        int? ord;
-        final v = saved['clientAttemptOrder'] ?? saved['attemptOrder'];
-        if (v is num) ord = v.toInt();
-        if (v is String) ord = int.tryParse(v);
-
-        // 시간
-        String? kst = saved['clientKst'];
-        if (kst is! String || kst.trim().isEmpty) {
-          final at = saved['attemptTime'];
-          if (at is String) {
-            final t = DateTime.tryParse(at);
-            if (t != null) kst = _formatKst(t);
-          }
-        }
-
-        if (mounted && ord != null) {
-          setState(() {
-            _attemptOrder = ord; // ← 즉시 갱신
-            _attemptKst = kst ?? _formatKst(widget.testedAt); // ← 즉시 갱신
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('[STR] post attempt error: $e');
-    }
-  }
-
-  /// GET /str/latest → 화면 바인딩(선반영 값을 덮어씀)
-  Future<void> _loadLatestAndBind({
-    required Map<String, String> identity,
-    required String keyTitle,
-  }) async {
-    try {
-      final latest = await _getLatestRaw(
-        identity: identity,
-        keyTitle: keyTitle,
-      );
-      if (latest == null) return;
-
-      int? ord;
-      final v = latest['clientAttemptOrder'] ?? latest['attemptOrder'];
-      if (v is num) ord = v.toInt();
-      if (v is String) ord = int.tryParse(v);
-
-      String? kst = latest['clientKst'];
-      if (kst is! String || kst.trim().isEmpty) {
-        final at = latest['attemptTime'];
-        if (at is String) {
-          final t = DateTime.tryParse(at);
-          if (t != null) kst = _formatKst(t);
-        }
-      }
-
-      if (mounted && ord != null) {
-        setState(() {
-          _attemptOrder = ord; // 최신값으로 확정
-          _attemptKst = kst ?? _formatKst(widget.testedAt); // 최신값으로 확정
-        });
-      }
-    } catch (e) {
-      debugPrint('[STR] loadLatestAndBind error: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> _getLatestRaw({
-    required Map<String, String> identity,
-    required String keyTitle,
-  }) async {
-    if (!kUseServer || identity.isEmpty) return null;
-    final uri = Uri.parse(
-      '$API_BASE/str/latest',
-    ).replace(queryParameters: {...identity, 'storyKey': keyTitle});
-    final res = await http.get(uri);
-    if (res.statusCode != 200) return null;
-    final j = jsonDecode(res.body);
-    if (j is! Map || j['ok'] != true) return null;
-    final latest = j['latest'];
-    if (latest is Map<String, dynamic>) return latest;
-    return null;
-  }
-
-  // -------------------- 공용 빌더/유틸 --------------------
 
   Map<String, double> _riskMapFrom(Map<String, CategoryStat> m) {
     return m.map(
@@ -265,14 +93,16 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // ---- 저장 페이로드 생성 ----
   Map<String, dynamic> _buildPayload({
     required String titleOriginal,
     required String titleKey,
+    required int attemptOrder, // 동화별 클라 회차
   }) {
     return {
       'storyTitle': titleOriginal,
-      'storyKey': titleKey,
-      // attemptOrder는 보내지 않음(서버가 계산)
+      'storyKey': titleKey, // ← 책 구분용
+      'attemptOrder': attemptOrder, // ← 동화별 회차(클라)
       'attemptTime': widget.testedAt.toUtc().toIso8601String(),
       'clientKst': _formatKst(widget.testedAt),
       'score': widget.score,
@@ -283,13 +113,19 @@ class _StoryResultPageState extends State<StoryResultPage> {
       'byType': widget.byType.map(
         (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
       ),
+      // riskBar 수치 동봉
       'riskBars': _riskMapFrom(widget.byCategory),
       'riskBarsByType': _riskMapFrom(widget.byType),
     };
   }
 
+  /// ---- 유저 식별자 로드 (user_key 통일) ----
+  /// 로그인 시(예시):
+  ///  - 일반: prefs.setString('user_key', userId)
+  ///  - SNS : prefs.setString('user_key', '${type.toLowerCase()}:$snsUserId')
   Future<Map<String, String>> _identityForApi() async {
     final prefs = await SharedPreferences.getInstance();
+
     String? readAny(List<String> keys) {
       for (final k in keys) {
         final vs = prefs.getString(k);
@@ -304,9 +140,13 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return null;
     }
 
+    // 1) user_key가 이미 있으면 그대로 사용
     final direct = readAny(['user_key', 'userKey']);
-    if (direct != null && direct.isNotEmpty) return {'userKey': direct};
+    if (direct != null && direct.isNotEmpty) {
+      return {'userKey': direct};
+    }
 
+    // 2) 로컬 ID 시도
     final localId = readAny([
       'user_id',
       'userId',
@@ -320,6 +160,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return {'userKey': localId};
     }
 
+    // 3) SNS 시도 (type:id 형태로 userKey 생성)
     String? snsType =
         readAny([
           'sns_login_type',
@@ -337,6 +178,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       'google_user_id',
       'naver_user_id',
     ]);
+
     if (snsId != null &&
         snsId.isNotEmpty &&
         (snsType == 'kakao' || snsType == 'google' || snsType == 'naver')) {
@@ -345,6 +187,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return {'userKey': key};
     }
 
+    // 4) ★ 최후 fallback: auth_user(JSON)에서 복구
     final raw = prefs.getString('auth_user');
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -362,9 +205,177 @@ class _StoryResultPageState extends State<StoryResultPage> {
         }
       } catch (_) {}
     }
+
+    debugPrint('[STR] identity -> EMPTY (no user_key/userId/snsId)');
     return {};
   }
 
+  // ---- 서버 최신 회차 조회 → "다음 회차" 계산 (있으면 우선 사용) ----
+  Future<int?> _serverNextAttempt(
+    String titleKey,
+    Map<String, String> identity,
+  ) async {
+    if (!kUseServer || identity.isEmpty) return null;
+    try {
+      final uri = Uri.parse(
+        '$API_BASE/str/latest',
+      ).replace(queryParameters: {...identity, 'storyKey': titleKey});
+      final res = await http.get(uri);
+      if (res.statusCode != 200) return null;
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+      final latest = j['latest'];
+      if (latest is Map) {
+        final ord = latest['clientAttemptOrder'] ?? latest['attemptOrder'];
+        if (ord is num) {
+          final next = ord.toInt() + 1;
+          debugPrint(
+            '[STR] serverNextAttempt("$titleKey") -> ${ord.toInt()} + 1 = $next',
+          );
+          return next;
+        }
+        // 서버에 기록은 있으나 회차 필드 없으면 1로 시작
+        return 1;
+      }
+      // 서버 기록 아예 없으면 1회차
+      return 1;
+    } catch (e) {
+      debugPrint('[STR] serverNextAttempt error: $e');
+      return null;
+    }
+  }
+
+  // ---- 로컬 최신 저장 ----
+  Future<void> _cacheLatestLocally(
+    String title,
+    Map<String, dynamic> payload,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      '$PREF_STORY_LATEST_PREFIX$title',
+      jsonEncode(payload),
+    );
+  }
+
+  // ---- 회차 증가(동화별, 로컬) ----
+  Future<int> _bumpCount(String title) async {
+    final prefs = await SharedPreferences.getInstance();
+    final key = '$PREF_STORY_COUNT_PREFIX$title';
+    final prev = prefs.getInt(key) ?? 0;
+    final next = prev + 1;
+    await prefs.setInt(key, next);
+    debugPrint('[STR] _bumpCount("$title"): $prev -> $next');
+    return next;
+  }
+
+  // ---- 현재 회차 로드(동화별) ----
+  Future<void> _loadCountOnly() async {
+    final title = normalizeTitle(widget.storyTitle ?? '동화');
+    final prefs = await SharedPreferences.getInstance();
+    final cnt = prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ?? 1;
+    if (mounted) setState(() => _attemptOrder = cnt);
+  }
+
+  // ---- 저장 루틴 ----
+  Future<void> _persistOnce() async {
+    if (_synced) return;
+    _synced = true;
+
+    final originalTitle = widget.storyTitle ?? '동화';
+    final keyTitle = normalizeTitle(originalTitle);
+
+    // 0) 우선 identity 확보
+    final identity = await _identityForApi();
+
+    // 1) 서버 기준 "다음 회차"가 있으면 그것을 우선 사용, 없으면 로컬 +1
+    int next =
+        (await _serverNextAttempt(keyTitle, identity)) ??
+        (await _bumpCount(keyTitle));
+
+    // 서버에서 1회차라고 알려줬는데 로컬이 엉켜 있었다면 로컬도 덮어쓰기
+    if (kUseServer && identity.isNotEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('$PREF_STORY_COUNT_PREFIX$keyTitle', next);
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _attemptOrder = next);
+
+    // 2) payload 생성(회차/키 포함)
+    final payload = _buildPayload(
+      titleOriginal: originalTitle,
+      titleKey: keyTitle,
+      attemptOrder: next,
+    );
+
+    // 3) 로컬 최신 캐시 (키는 정규화 제목 사용)
+    await _cacheLatestLocally(keyTitle, payload);
+
+    // 4) 옵션: 서버 전송 (+ user_key)
+    if (kUseServer) {
+      try {
+        final merged = {...payload, ...identity};
+
+        // headers에도 같이 싣기
+        final headers = <String, String>{
+          'Content-Type': 'application/json; charset=utf-8',
+          if (identity['userKey'] != null) 'x-user-key': identity['userKey']!,
+        };
+
+        // querystring에도 같이 싣기 (프록시/커스텀헤더 차단 대비)
+        final base = Uri.parse('$API_BASE/str/attempt');
+        final uri =
+            identity.isEmpty
+                ? base
+                : base.replace(
+                  queryParameters: {'userKey': identity['userKey']!},
+                );
+
+        debugPrint('[STR] POST $uri');
+        debugPrint('[STR] headers: $headers');
+        debugPrint('[STR] body.identity.present = ${identity.isNotEmpty}');
+
+        // (선택) 사전 whoami 확인
+        try {
+          final who = Uri.parse(
+            '$API_BASE/str/whoami',
+          ).replace(queryParameters: identity);
+          final whoRes = await http.get(who);
+          debugPrint('[STR] whoami -> ${whoRes.statusCode} ${whoRes.body}');
+        } catch (_) {}
+
+        final res = await http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(merged),
+        );
+        debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
+
+        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화(선택적)
+        try {
+          final jr = jsonDecode(res.body);
+          if (jr is Map) {
+            final ord = jr['clientAttemptOrder'] ?? jr['attemptOrder'];
+            if (ord is num) {
+              final serverOrder = ord.toInt();
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setInt(
+                '$PREF_STORY_COUNT_PREFIX$keyTitle',
+                serverOrder,
+              );
+              if (mounted) setState(() => _attemptOrder = serverOrder);
+              debugPrint('[STR] sync local count to server -> $serverOrder');
+            }
+          }
+        } catch (_) {}
+      } catch (e) {
+        debugPrint('[STR] POST error: $e');
+      }
+    }
+  }
+
+  // ---- KST 포맷 ----
   String _formatKst(DateTime dt) {
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
@@ -374,8 +385,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
     final mm = kst.minute.toString().padLeft(2, '0');
     return '$y년 $m월 $d일 $hh:$mm';
   }
-
-  // -------------------- UI --------------------
 
   @override
   Widget build(BuildContext context) {
@@ -411,10 +420,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(
-                _attemptOrder,
-                _attemptKst ?? _formatKst(widget.testedAt),
-              ),
+              _attemptChip(_attemptOrder, _formatKst(widget.testedAt)),
               SizedBox(height: 12.h),
 
               _card(
@@ -440,7 +446,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
                       ),
                     ),
                     SizedBox(height: 14.h),
+
                     _scoreCircle(widget.score, widget.total),
+
                     SizedBox(height: 16.h),
                     _riskBarRow('요구', widget.byCategory['요구']),
                     SizedBox(height: 12.h),
@@ -490,6 +498,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // --- 위젯 유틸 ---
   Widget _card({required Widget child}) => Container(
     width: double.infinity,
     padding: EdgeInsets.all(16.w),
@@ -507,58 +516,47 @@ class _StoryResultPageState extends State<StoryResultPage> {
     child: child,
   );
 
-  /// 칩: null이면 스피너 + "불러오는 중…"
-  Widget _attemptChip(int? order, String formattedKst) {
-    final loading = order == null;
-    final display = loading ? '불러오는 중…' : '${order}회차';
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (loading) ...[
-            const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            SizedBox(width: 8.w),
-          ],
-          Text(
-            display,
-            textScaler: fixedScale,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 18.sp,
-              color: AppColors.btnColorDark,
-            ),
+  Widget _attemptChip(int order, String formattedKst) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${order}회차',
+          textScaler: fixedScale,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18.sp,
+            color: AppColors.btnColorDark,
           ),
-          SizedBox(width: 10.w),
-          Text(
-            formattedKst,
-            textScaler: fixedScale,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18.sp,
-              color: const Color(0xFF111827),
-            ),
+        ),
+        SizedBox(width: 10.w),
+        Text(
+          formattedKst,
+          textScaler: fixedScale,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            fontSize: 18.sp,
+            color: const Color(0xFF111827),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
-    final double d = 140.w, big = d * 0.40, small = d * 0.20;
+    final double d = 140.w;
+    final double big = d * 0.40;
+    final double small = d * 0.20;
     return SizedBox(
       width: d,
       height: d,
@@ -604,6 +602,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  // ✅ 윗줄 라벨/칩 + 아래 게이지
   Widget _riskBarRow(String label, CategoryStat? stat) {
     final eval = _evalFromStat(stat);
     return Column(
@@ -673,6 +672,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
     ),
   );
 
+  // 상태칩 공용 위젯
   Widget _statusChip(_EvalView eval) => Container(
     padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
     decoration: BoxDecoration(
@@ -723,7 +723,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
     void addIfLow(String key, String title, String body) {
       final s = t[key];
       if (s == null || s.total == 0) return;
-      if (s.correctRatio < 0.4) items.add(_evalBlock('[$title]이 부족합니다.', body));
+      if (s.correctRatio < 0.4) {
+        items.add(_evalBlock('[$title]이 부족합니다.', body));
+      }
     }
 
     addIfLow('직접화행', '직접화행', '기본 대화 의도 파악이 미흡합니다. 대화 응용 훈련으로 개선하세요.');
@@ -731,8 +733,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
     addIfLow('질문화행', '질문화행', '질문 의도 파악이 부족합니다. 정보 파악 활동을 권장합니다.');
     addIfLow('단언화행', '단언화행', '상황에 맞는 진술 이해가 부족합니다. 상황·정서 파악 활동을 권합니다.');
     addIfLow('의례화화행', '의례화화행', '예절적 표현 이해가 낮습니다. 일상 의례 표현 학습을 권장합니다.');
-    if (items.isEmpty)
+
+    if (items.isEmpty) {
       items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습으로 안정적 이해를 유지하세요.'));
+    }
     return items;
   }
 
@@ -771,8 +775,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
     ),
   );
 
+  // CTA
   Widget _brainCta() {
-    final double font = 22.sp, iconSize = font * 1.25;
+    final double font = 22.sp;
+    final double iconSize = font * 1.25;
     return ElevatedButton.icon(
       onPressed: () {
         Navigator.of(context).pushAndRemoveUntil(
@@ -847,7 +853,7 @@ class _EvalView {
   final Color textColor;
   final Color badgeBg;
   final Color badgeBorder;
-  final double position;
+  final double position; // 0~1
   _EvalView({
     required this.text,
     required this.textColor,

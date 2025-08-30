@@ -71,13 +71,17 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  // ✅ 전화번호/로컬ID 정규화: 숫자만 남김
+  String _normPhone(String s) => s.replaceAll(RegExp(r'\D'), '');
+
   // ================== IDENTITY 저장/마이그레이션 유틸 ==================
 
-  // ✅ 평문(전화번호) 로그인 → user_key = userId
+  // ✅ 평문(전화번호) 로그인 → user_key = 숫자만(userId)
   Future<void> _persistIdentityPlainLogin(String userId, {String? nick}) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_key', userId); // 핵심
-    await prefs.setString('user_id', userId); // 호환용
+    final norm = _normPhone(userId);
+    await prefs.setString('user_key', norm); // 핵심
+    await prefs.setString('user_id', norm); // 호환용
     await prefs.remove('sns_user_id'); // 혹시 남아있던 SNS 흔적 정리
     await prefs.remove('sns_login_type');
     if (nick != null) {
@@ -88,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
           j = (jsonDecode(raw) as Map).map((k, v) => MapEntry(k.toString(), v));
         } catch (_) {}
       }
-      j['user_id'] = userId;
+      j['user_id'] = norm;
       j['nick'] = nick;
       await prefs.setString('auth_user', jsonEncode(j));
     }
@@ -139,7 +143,10 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else if (uid.isNotEmpty) {
-        await _persistIdentityPlainLogin(uid, nick: j['nick'] as String?);
+        await _persistIdentityPlainLogin(
+          _normPhone(uid),
+          nick: j['nick'] as String?,
+        );
       }
     } catch (_) {
       // ignore
@@ -189,7 +196,8 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _login() async {
     if (_loggingIn) return;
 
-    final userId = _phoneCtrl.text.trim();
+    final userIdRaw = _phoneCtrl.text.trim();
+    final userId = _normPhone(userIdRaw); // ✅ 숫자만
     final pwd = _pwCtrl.text;
     if (userId.isEmpty || pwd.isEmpty) {
       _snack('전화번호/비밀번호를 입력해 주세요.');
@@ -203,7 +211,7 @@ class _LoginPageState extends State<LoginPage> {
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'user_id': userId, 'pwd': pwd}),
+        body: jsonEncode({'user_id': userId, 'pwd': pwd}), // ✅ 서버에도 숫자만
       );
 
       if (!mounted) return;
@@ -232,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
           await prefs.setString('auth_user', jsonEncode(user));
         }
 
-        // ✅ 핵심: identity 평평한 키 저장
+        // ✅ 핵심: identity 평평한 키(숫자만) 저장
         await _persistIdentityPlainLogin(
           userId,
           nick: user?['nick']?.toString(),
@@ -332,7 +340,7 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setBool('auto_login_last', false);
       }
 
-      // ✅ 핵심: identity 평평한 키 저장
+      // ✅ 핵심: identity 평평한 키 저장(SNS는 그대로)
       await _persistIdentitySns(
         snsUserId: snsUserId,
         snsLoginType: snsLoginType,
