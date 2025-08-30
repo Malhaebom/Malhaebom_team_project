@@ -144,8 +144,9 @@ export const MicrophoneProvider = ({ children }) => {
         };
 
         mediaRecorder.onstop = () => {
-          console.log("녹음 완료");
+          console.log("MediaRecorder onstop 이벤트 발생 - 녹음 완료");
           setIsRecording(false);
+          console.log("녹음 상태를 false로 설정");
         };
 
         mediaRecorder.onerror = (event) => {
@@ -178,9 +179,13 @@ export const MicrophoneProvider = ({ children }) => {
   // 녹음 정지 함수
   const stopRecording = () => {
     try {
+      console.log("stopRecording 호출됨, MediaRecorder 상태:", mediaRecorderRef.current?.state);
+      
       if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
         mediaRecorderRef.current.stop();
-        console.log("녹음 정지");
+        console.log("MediaRecorder.stop() 호출됨");
+      } else {
+        console.log("MediaRecorder가 녹음 중이 아닙니다. 현재 상태:", mediaRecorderRef.current?.state);
       }
     } catch (error) {
       console.error("녹음 정지 중 오류:", error);
