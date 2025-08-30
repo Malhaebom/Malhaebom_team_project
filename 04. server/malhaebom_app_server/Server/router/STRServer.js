@@ -52,7 +52,7 @@ function isoToMysqlDatetime(iso) {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
-// user_key 생성기: 로컬(userId) 또는 SNS(snsUserId+snsLoginType) → user_key
+// (참고용) user_key 생성기
 function buildUserKey({ userId, snsUserId, snsLoginType } = {}) {
   if (userId && String(userId).trim()) return String(userId).trim();
   if (snsUserId && snsLoginType) {
@@ -70,7 +70,6 @@ function buildUserKey({ userId, snsUserId, snsLoginType } = {}) {
  *  - headers['x-user-key'] 또는 x-user-id / x-sns-user-id + x-sns-login-type
  *  - query 동일 키
  */
-// routes/STRServer.js 안의 resolveIdentity() 함수만 이걸로 교체
 function resolveIdentity(req) {
   const b = req.body  || {};
   const q = req.query || {};
@@ -130,6 +129,27 @@ function resolveIdentity(req) {
   return { ok: false, error: "missing user identity (userKey OR userId OR snsUserId+snsLoginType)" };
 }
 
+// --- NEW: JSON 안전 파서 & risk_bars -> byCategory 복원 --- //
+function safeParseJSON(v, fallback = {}) {
+  try {
+    if (v && typeof v === "object") return v;
+    return JSON.parse(v ?? "{}") || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+// risk = 1 - correct/total  →  correct = (1 - risk) * BASE
+function barsToCategoryStats(bars, baseTotal = 100) {
+  const out = {};
+  for (const k of Object.keys(bars || {})) {
+    const risk = Math.max(0, Math.min(1, Number(bars[k] ?? 0)));
+    const total = baseTotal;
+    const correct = Math.round((1 - risk) * total);
+    out[k] = { correct, total };
+  }
+  return out;
+}
 
 // ── 테이블 보장(최초 1회) ─────────────────────────────────────────────────────
 async function ensureTable() {
@@ -259,14 +279,14 @@ router.post("/attempt", async (req, res) => {
         storyTitle: row.story_title,
         score: row.score,
         total: row.total,
-        byCategory: JSON.parse(row.by_category || "{}"),
-        byType: JSON.parse(row.by_type || "{}"),
+        byCategory: safeParseJSON(row.by_category, {}),
+        byType: safeParseJSON(row.by_type, {}),
         attemptTime: new Date(row.client_utc).toISOString(),
         clientKst: row.client_kst,
         storyKey: row.story_key,
         clientAttemptOrder: row.client_attempt_order,
-        riskBars: JSON.parse(row.risk_bars || "{}"),
-        riskBarsByType: JSON.parse(row.risk_bars_by_type || "{}"),
+        riskBars: safeParseJSON(row.risk_bars, {}),
+        riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
       };
 
       return res.json({ ok:true, saved });
@@ -308,18 +328,41 @@ router.get("/latest", async (req, res) => {
       const [rows] = await conn.execute(sql, p);
       if (!rows.length) return res.json({ ok:true, latest: null });
       const row = rows[0];
+
+      const riskBars = safeParseJSON(row.risk_bars, {});
+      // by_category가 비었으면 risk_bars로 복원
+      const parsedByCategory = safeParseJSON(row.by_category, {});
+      const byCategory =
+        (parsedByCategory && Object.keys(parsedByCategory).length)
+          ? parsedByCategory
+          : barsToCategoryStats(riskBars);
+
       const latest = {
         storyTitle: row.story_title,
-        score: row.score,
-        total: row.total,
-        byCategory: JSON.parse(row.by_category || "{}"),
-        byType: JSON.parse(row.by_type || "{}"),
+        score: Number(row.score ?? 0),
+        total: Number(row.total ?? 0),
+        byCategory,
+        byType: safeParseJSON(row.by_type, {}),
         attemptTime: new Date(row.client_utc).toISOString(),
         clientKst: row.client_kst,
         storyKey: row.story_key,
         clientAttemptOrder: row.client_attempt_order,
-        riskBars: JSON.parse(row.risk_bars || "{}"),
-        riskBarsByType: JSON.parse(row.risk_bars_by_type || "{}"),
+        riskBars,
+        riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
+
+        // 보조 필드
+        scoreText: `${row.score}/${row.total}`,
+        serverAttemptOrder: 1,
+        debugText:
+`=============== [STR Attempt] ===============
+동화 키      : ${row.story_key}
+표시 제목    : ${row.story_title ?? row.story_key}
+클라 회차    : ${row.client_attempt_order ?? ""}
+서버 회차    : 1
+점수/총점    : ${row.score}/${row.total}
+Client KST   : ${row.client_kst ?? ""}
+riskBars(cat): ${JSON.stringify(riskBars)}
+=============================================`,
       };
       return res.json({ ok:true, latest });
     } finally {
@@ -328,6 +371,90 @@ router.get("/latest", async (req, res) => {
   } catch (e) {
     console.error("[STR] latest error:", e?.message || e);
     return res.status(500).json({ ok:false, error:"server_error", detail: String(e?.message || e) });
+  }
+});
+
+// ── 전체 데이터 조회: GET /str/story/attempt/list ────────────────────────────
+router.get("/story/attempt/list", async (req, res) => {
+  try {
+    const idn = resolveIdentity(req);
+    if (!idn.ok && !ALLOW_GUEST) {
+      return res.status(400).json(idn); // userKey 필요
+    }
+
+    const storyKey = normalizeTitle(req.query.storyKey || req.query.title || "");
+    if (!storyKey) {
+      return res.status(400).json({ ok: false, error: "missing storyKey/title" });
+    }
+
+    const userKey = idn.ok ? idn.user_key : "guest";
+    const limit = Math.min(
+      Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1),
+      200
+    );
+
+    // 네가 지정한 7컬럼만 사용
+    const sql = `
+      SELECT user_key,
+             story_key, story_title, client_attempt_order, score, total,
+             client_kst, risk_bars
+        FROM tb_story_result
+       WHERE user_key = :user_key
+         AND story_key = :story_key
+       ORDER BY client_utc DESC, id DESC
+       LIMIT ${limit}
+    `;
+    const params = { user_key: userKey, story_key: storyKey };
+
+    const conn = await pool.getConnection();
+    try {
+      const [rows] = await conn.execute(sql, params);
+
+      const list = rows.map((row, idx) => {
+        const riskBars = safeParseJSON(row.risk_bars, {});
+        const byCategory = barsToCategoryStats(riskBars); // UI가 쓰는 형태로 복원
+
+        const score = Number(row.score ?? 0);
+        const total = Number(row.total ?? 0);
+        const scoreText = `${score}/${total}`;
+
+        return {
+          storyTitle: row.story_title,
+          score,
+          total,
+          byCategory,              // ← correct/total 포함
+          byType: {},              // SELECT에 없으니 빈 객체
+          clientKst: row.client_kst,
+          storyKey: row.story_key,
+          clientAttemptOrder: row.client_attempt_order,
+          riskBars,                // 원본 막대값도 그대로 포함
+          riskBarsByType: {},      // 없음
+
+          // 보조 필드
+          scoreText,               // "22/40"
+          serverAttemptOrder: idx + 1, // 최신이 1
+          debugText:
+`=============== [STR Attempt] ===============
+동화 키      : ${row.story_key}
+표시 제목    : ${row.story_title ?? row.story_key}
+클라 회차    : ${row.client_attempt_order ?? ""}
+서버 회차    : ${idx + 1}
+점수/총점    : ${scoreText}
+Client KST   : ${row.client_kst ?? ""}
+riskBars(cat): ${JSON.stringify(riskBars)}
+=============================================`,
+        };
+      });
+
+      return res.json({ ok: true, list });
+    } finally {
+      conn.release();
+    }
+  } catch (e) {
+    console.error("[STR] list error:", e?.message || e);
+    return res
+      .status(500)
+      .json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   }
 });
 
