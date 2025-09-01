@@ -93,6 +93,63 @@ export default function PlayStart() {
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
   }, []);
 
+  // 🎯 MediaRecorder 설정 함수 - 중복 제거
+  const setupMediaRecorder = (mediaRecorder) => {
+    mediaRecorder.ondataavailable = (e) => {
+      console.log("녹음 데이터 수신:", e.data.size, "bytes");
+      chunksRef.current.push(e.data);
+    };
+
+    mediaRecorder.onstop = () => {
+      console.log("녹음 완료, 파일 생성 중...");
+      
+      const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
+      console.log("녹음 파일 크기:", blob.size, "bytes");
+      chunksRef.current = [];
+      
+      // 내 녹음 재생용 오디오 요소에 설정
+      if (myRecordingAudioRef.current) {
+        myRecordingAudioRef.current.src = URL.createObjectURL(blob);
+      }
+      
+      // 파일명 생성: 영문동화이름_동화연극하기n 형식
+      const englishBookTitle = bookTitle.replace(/[^a-zA-Z0-9]/g, ''); // 영문/숫자만 추출
+      const fileName = `${englishBookTitle}_동화연극하기${speechId + 1}.mp3`;
+      
+      // 로컬 스토리지에 녹음 데이터 저장 (선택사항)
+      try {
+        const recordingData = {
+          fileName: fileName,
+          timestamp: new Date().toISOString(),
+          speechId: speechId,
+          bookTitle: bookTitle
+        };
+        localStorage.setItem(`recording_${speechId}`, JSON.stringify(recordingData));
+        console.log("녹음 정보가 로컬 스토리지에 저장되었습니다:", recordingData);
+      } catch (error) {
+        console.warn("로컬 스토리지 저장 실패:", error);
+      }
+      
+      // 자동 다운로드 (숨겨진 링크로)
+      const a = document.createElement("a");
+      a.href = myRecordingAudioRef.current.src;
+      a.download = fileName;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      console.log("녹음 파일 다운로드 완료");
+    };
+
+    mediaRecorder.onerror = (event) => {
+      console.error("MediaRecorder 오류:", event.error);
+    };
+
+    mediaRecorder.onstart = () => {
+      console.log("MediaRecorder 녹음 시작됨");
+    };
+  };
+
   // speech JSON 로드 및 녹음 상태 초기화
   useEffect(() => {
     const speechPath = localStorage.getItem("speechPath");
@@ -154,7 +211,7 @@ export default function PlayStart() {
   //   if (!audioRef.current || !audioSrc) return;
   //   audioRef.current.load();
   //   audioRef.current.play().catch(() => {
-  //     console.warn("자동재생 차단됨: 사용자 클릭 후 재생됩니다.");
+  //     console.log("자동재생 차단됨: 사용자 클릭 후 재생됩니다.");
   //   });
   // }, [audioSrc]);
 
@@ -169,7 +226,7 @@ export default function PlayStart() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-    // MediaRecorder 인스턴스 생성 및 초기화 (안정성 우선)
+    // 🎯 MediaRecorder 인스턴스 생성 및 초기화 (한 번만!)
   useEffect(() => {
     console.log("MediaRecorder 초기화 시도:", {
       hasStream: !!globalStreamRef.current,
@@ -194,59 +251,8 @@ export default function PlayStart() {
         globalMediaRecorderRef.current = mediaRecorder;
         console.log("MediaRecorder 새로 생성 완료, 상태:", mediaRecorder.state);
 
-        mediaRecorder.ondataavailable = (e) => {
-          console.log("녹음 데이터 수신:", e.data.size, "bytes");
-          chunksRef.current.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          console.log("녹음 완료, 파일 생성 중...");
-          
-          const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
-          console.log("녹음 파일 크기:", blob.size, "bytes");
-          chunksRef.current = [];
-          
-          // 내 녹음 재생용 오디오 요소에 설정
-          if (myRecordingAudioRef.current) {
-            myRecordingAudioRef.current.src = URL.createObjectURL(blob);
-          }
-          
-          // 파일명 생성: 영문동화이름_동화연극하기n 형식
-          const englishBookTitle = bookTitle.replace(/[^a-zA-Z0-9]/g, ''); // 영문/숫자만 추출
-          const fileName = `${englishBookTitle}_동화연극하기${speechId + 1}.mp3`;
-          
-          // 로컬 스토리지에 녹음 데이터 저장 (선택사항)
-          try {
-            const recordingData = {
-              fileName: fileName,
-              timestamp: new Date().toISOString(),
-              speechId: speechId,
-              bookTitle: bookTitle
-            };
-            localStorage.setItem(`recording_${speechId}`, JSON.stringify(recordingData));
-            console.log("녹음 정보가 로컬 스토리지에 저장되었습니다:", recordingData);
-          } catch (error) {
-            console.warn("로컬 스토리지 저장 실패:", error);
-          }
-          
-          // 자동 다운로드 (숨겨진 링크로)
-          const a = document.createElement("a");
-          a.href = myRecordingAudioRef.current.src;
-          a.download = fileName;
-          a.style.display = "none";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          console.log("녹음 파일 다운로드 완료");
-        };
-
-        mediaRecorder.onerror = (event) => {
-          console.error("MediaRecorder 오류:", event.error);
-        };
-
-        mediaRecorder.onstart = () => {
-          console.log("MediaRecorder 녹음 시작됨");
-        };
+        // 🎯 이벤트 핸들러 한 번만 설정
+        setupMediaRecorder(mediaRecorder);
 
       } catch (error) {
         console.error("MediaRecorder 생성 실패:", error);
@@ -279,7 +285,7 @@ export default function PlayStart() {
 
   const item = Array.isArray(speech) ? speech[speechId] : null;
 
-  // 녹음 시작/정지 핸들러 함수들 (안정성 강화)
+  // 🎯 녹음 시작/정지 핸들러 함수들 (중복 제거)
   const handleRecordClick = async () => {
     console.log("녹음 버튼 클릭됨, 현재 상태:", {
       hasMediaRecorder: !!globalMediaRecorderRef.current,
@@ -296,82 +302,21 @@ export default function PlayStart() {
       return;
     }
 
-    // MediaRecorder가 없거나 상태가 이상하면 재생성
-    if (!globalMediaRecorderRef.current || 
-        (globalMediaRecorderRef.current && globalMediaRecorderRef.current.state === "recording")) {
-      console.log("MediaRecorder 재생성 필요");
+    // 🎯 MediaRecorder가 없으면 재생성 (한 번만!)
+    if (!globalMediaRecorderRef.current) {
+      console.log("MediaRecorder가 없어 새로 생성");
       
-      // 기존 MediaRecorder 정리
-      if (globalMediaRecorderRef.current) {
-        if (globalMediaRecorderRef.current.state !== "inactive") {
-          globalMediaRecorderRef.current.stop();
-        }
-        globalMediaRecorderRef.current = null;
-      }
-
-      // 새로운 MediaRecorder 생성
       if (globalStreamRef.current) {
         try {
           const mediaRecorder = new MediaRecorder(globalStreamRef.current);
           globalMediaRecorderRef.current = mediaRecorder;
           
-          mediaRecorder.ondataavailable = (e) => {
-            console.log("녹음 데이터 수신:", e.data.size, "bytes");
-            chunksRef.current.push(e.data);
-          };
-
-          mediaRecorder.onstop = () => {
-            console.log("녹음 완료, 파일 생성 중...");
-            
-            const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
-            console.log("녹음 파일 크기:", blob.size, "bytes");
-            chunksRef.current = [];
-            
-            // 내 녹음 재생용 오디오 요소에 설정
-            if (myRecordingAudioRef.current) {
-              myRecordingAudioRef.current.src = URL.createObjectURL(blob);
-            }
-            
-            // 파일명 생성: 영문동화이름_동화연극하기n 형식
-            const englishBookTitle = bookTitle.replace(/[^a-zA-Z0-9]/g, '');
-            const fileName = `${englishBookTitle}_동화연극하기${speechId + 1}.mp3`;
-            
-            // 로컬 스토리지에 녹음 데이터 저장
-            try {
-              const recordingData = {
-                fileName: fileName,
-                timestamp: new Date().toISOString(),
-                speechId: speechId,
-                bookTitle: bookTitle
-              };
-              localStorage.setItem(`recording_${speechId}`, JSON.stringify(recordingData));
-              console.log("녹음 정보가 로컬 스토리지에 저장되었습니다:", recordingData);
-            } catch (error) {
-              console.warn("로컬 스토리지 저장 실패:", error);
-            }
-            
-            // 자동 다운로드
-            const a = document.createElement("a");
-            a.href = myRecordingAudioRef.current.src;
-            a.download = fileName;
-            a.style.display = "none";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            console.log("녹음 파일 다운로드 완료");
-          };
-
-          mediaRecorder.onerror = (event) => {
-            console.error("MediaRecorder 오류:", event.error);
-          };
-
-          mediaRecorder.onstart = () => {
-            console.log("MediaRecorder 녹음 시작됨");
-          };
-
-          console.log("MediaRecorder 재생성 완료");
+          // 🎯 이벤트 핸들러 설정
+          setupMediaRecorder(mediaRecorder);
+          
+          console.log("MediaRecorder 생성 완료");
         } catch (error) {
-          console.error("MediaRecorder 재생성 실패:", error);
+          console.error("MediaRecorder 생성 실패:", error);
           return;
         }
       } else {
