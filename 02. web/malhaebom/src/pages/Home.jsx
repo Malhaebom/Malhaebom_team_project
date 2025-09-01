@@ -146,7 +146,7 @@ export default function Home() {
                 />
               </div>
               {/* ✅ 라벨 그대로, 조건 분기 */}
-              <button type="button" onClick={goMyOrLogin}>
+              <button type="button" onClick={() => navigate("/mypage")}>
                 이동하기
               </button>
             </div>
