@@ -31,6 +31,9 @@ const corsOptions = {
     "x-user-id",
     "x-sns-user-id",
     "x-sns-login-type",
+    "x-login-id",
+    "x-login-type",
+    "x-user-key"
   ],
   // exposedHeaders: [],
 };
