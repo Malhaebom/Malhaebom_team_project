@@ -1,8 +1,11 @@
+// File: src/Server/router/IRServer.js
+require("dotenv").config();
+
 const express = require("express");
 const router = express.Router();
 
 // 간단 헬스체크
-router.get("/health", (req, res) => res.json({ ok: true }));
+router.get("/health", (_req, res) => res.json({ ok: true }));
 
 // 서버 살아있는 동안 증가하는 회차 인덱스(메모리 저장)
 let attemptIndex = 0;
@@ -57,6 +60,13 @@ router.post("/attempt", (req, res) => {
     return res.status(400).json({ ok: false, error: "invalid attemptTime format" });
   }
 
+  // 숫자 필드 보정
+  const nScore = Number(score ?? 0);
+  const nTotal = Number(total ?? 0);
+  if (!Number.isFinite(nScore) || !Number.isFinite(nTotal) || nScore < 0 || nTotal < 0) {
+    return res.status(400).json({ ok: false, error: "invalid score/total" });
+  }
+
   const serverRecvUtc = new Date();
   attemptIndex += 1;
 
@@ -68,8 +78,8 @@ router.post("/attempt", (req, res) => {
     id: attemptIndex,
     interviewTitle: interviewTitle || null,
     clientAttemptOrder: attemptOrder ?? null,
-    score: Number(score ?? 0),
-    total: Number(total ?? 0),
+    score: nScore,
+    total: nTotal,
 
     clientUtc: clientUtc.toISOString(),
     clientKst: clientKst || toKstString(clientUtc),
@@ -82,7 +92,9 @@ router.post("/attempt", (req, res) => {
     riskBarsByType: computedRiskBarsByType,
   };
 
-  attempts.push(saved);
+  attempts.unshift(saved);
+  // 최근 200개만 유지
+  if (attempts.length > 200) attempts.length = 200;
 
   // 로그
   console.log("=============== [IR Attempt] ===============");
@@ -90,14 +102,24 @@ router.post("/attempt", (req, res) => {
   console.log(`클라 회차    : ${attemptOrder ?? "(미전달)"}`);
   console.log(`제목         : ${interviewTitle || "(없음)"}`);
   console.log(`점수/총점    : ${saved.score}/${saved.total}`);
-  // console.log(`Client UTC   : ${saved.clientUtc}`);
   console.log(`Client KST   : ${saved.clientKst}`);
-  // console.log(`Server UTC   : ${saved.serverUtc}`);
-  // console.log(`Server KST   : ${saved.serverKst} (서버 기준)`);
   console.log(`riskBars     :`, computedRiskBars);
   console.log("============================================");
 
   return res.json({ ok: true, attemptIndex, saved });
+});
+
+/** 최근 시도 n개 조회 (메모리, 디버그용) */
+router.get("/attempts", (req, res) => {
+  const n = Math.min(Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1), 200);
+  res.json({ ok: true, list: attempts.slice(0, n) });
+});
+
+/** (주의) 메모리 기록 초기화 (디버그용) */
+router.post("/reset", (_req, res) => {
+  attempts.length = 0;
+  attemptIndex = 0;
+  res.json({ ok: true, message: "reset done" });
 });
 
 module.exports = router;
