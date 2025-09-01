@@ -1,19 +1,23 @@
-// src/Server/router/Auther.js
-require("dotenv").config();
+// File: Server/router/Auther.js
+// SNS OAuth → DB upsert → 앱(딥링크) 복귀
+// 기본은 302 리다이렉트(myapp://...)로 즉시 복귀
+// 필요시 ENV로 HTML 브릿지 사용 가능(AUTH_BRIDGE_MODE=html)
+
+"use strict";
+
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const express = require("express");
 const axios = require("axios");
 const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const pool = require("./db"); // 공용 풀 사용
+
+// ✅ 공용 DB 풀(경로: Server/router/db.js)
+const pool = require("./db");
 
 const router = express.Router();
-
-/* =========================
- * 고정 공개 ORIGIN (요청/ENV 무시)
- * ========================= */
-const FIXED_ORIGIN = "http://211.188.63.38:4000";
 
 /* =========================
  * JWT
@@ -31,7 +35,7 @@ function maskToken(t) {
 /* =========================
  * 앱 콜백 (딥링크)
  * ========================= */
-const APP_CALLBACK = process.env.APP_CALLBACK || "myapp://auth/callback";
+const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
 
 /* =========================
  * OAuth Redirect 경로
@@ -41,14 +45,27 @@ const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/ca
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Redirect Base (고정)
+ * Redirect Base 결정
  * ========================= */
-function getRedirectBase(_req) {
-  // 요청/환경을 보지 않고 항상 고정 IP 사용
-  return FIXED_ORIGIN;
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+function originFromReq(req) {
+  try {
+    const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
+    const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
+    if (xfProto && xfHost) return `${xfProto}://${xfHost}`;
+    const host = (req.headers.host || "").trim();
+    if (host) return `http://${host}`;
+  } catch (_) {}
+  return null;
 }
-function buildRedirectUri(req, path) {
-  return `${getRedirectBase(req)}${path}`;
+function getRedirectBase(req) {
+  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  const fromReq = originFromReq(req);
+  if (fromReq) return fromReq.replace(/\/$/, "");
+  return "http://localhost:4000"; // 최후 fallback
+}
+function buildRedirectUri(req, pathname) {
+  return `${getRedirectBase(req)}${pathname}`;
 }
 
 /* =========================
@@ -67,7 +84,6 @@ const NAVER = {
   client_secret: process.env.NAVER_CLIENT_SECRET,
 };
 
-// 필수 env 체크
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
@@ -93,8 +109,11 @@ function verifyAndDeleteState(store, state) {
 }
 
 /* =========================
- * 앱 리다이렉트 (302 + HTML 폴백)
+ * 앱 리다이렉트 방식 선택
+ *  - 기본: 302 (AUTH_BRIDGE_MODE != 'html')
+ *  - HTML 브릿지: AUTH_BRIDGE_MODE=html 또는 ?html=1
  * ========================= */
+const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
   return `<!doctype html>
 <html lang="ko">
@@ -112,9 +131,10 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
   <script>
     (function(){
       var target=${JSON.stringify(toUrl)};
-      try{window.location.replace(target);}catch(e){}
+      function go(){ try{window.location.replace(target);}catch(e){} }
+      go();
       setTimeout(function(){
-        try{var a=document.createElement('a');a.setAttribute('href',target);a.click();}catch(e){}
+        try{ var a=document.createElement('a');a.setAttribute('href',target);a.click(); }catch(e){}
         var hint=document.getElementById('hint'); if(hint) hint.style.display='block';
       },500);
     })();
@@ -131,34 +151,58 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
 </html>`;
 }
 
-function redirectToApp(res, { token, uid, login_id, login_type, nick }) {
-  const user_key = `${login_type}:${login_id}`;
-  const toUrl =
-    APP_CALLBACK +
-    `?token=${encodeURIComponent(token)}` +
-    `&uid=${encodeURIComponent(String(uid))}` +
-    `&login_id=${encodeURIComponent(login_id)}` +
-    `&login_type=${encodeURIComponent(login_type)}` +
-    `&nick=${encodeURIComponent(nick ?? "")}` +
-    `&user_key=${encodeURIComponent(user_key)}` +
-    `&sns_user_id=${encodeURIComponent(login_id)}` +
-    `&sns_login_type=${encodeURIComponent(login_type)}` +
-    `&sns_nick=${encodeURIComponent(nick ?? "")}`;
-
-  console.log("[AUTH] 302 -> app", {
-    uid, login_id, login_type, user_key, token: maskToken(token)
+function buildAppUrl(params) {
+  const q = new URLSearchParams({
+    token: params.token || "",
+    uid: String(params.uid || ""),
+    login_id: params.login_id || "",
+    login_type: params.login_type || "",
+    nick: params.nick || "",
+    user_key: `${params.login_type}:${params.login_id}`,
+    sns_user_id: params.login_id || "",
+    sns_login_type: params.login_type || "",
+    sns_nick: params.nick || "",
+    ok: "1",
+    ts: String(Date.now()),
   });
-
-  res.setHeader("Location", toUrl);
-  res.status(302);
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.send(htmlBridge(toUrl));
+  return `${APP_CALLBACK}?${q.toString()}`;
 }
 
-function redirectError(res, msg) {
-  const url = APP_CALLBACK + `?error=${encodeURIComponent(msg)}`;
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
+function redirectToApp(req, res, params) {
+  const toUrl = buildAppUrl(params);
+  const useHtml =
+    BRIDGE_MODE === "html" ||
+    String(req.query.html || "") === "1" ||
+    String(req.headers["x-use-html-bridge"] || "") === "1";
+
+  console.log("[AUTH] return to app", {
+    uid: params.uid,
+    login_id: params.login_id,
+    login_type: params.login_type,
+    token: maskToken(params.token),
+    mode: useHtml ? "html" : "302",
+  });
+
+  if (useHtml) {
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(htmlBridge(toUrl));
+  }
+  // ✅ 권장: 302로 직접 myapp://... 이동 → flutter_web_auth_2가 즉시 resolve
+  return res.redirect(toUrl);
+}
+
+function redirectError(req, res, msg) {
+  const url = `${APP_CALLBACK}?error=${encodeURIComponent(msg)}&ts=${Date.now()}`;
+  const useHtml =
+    BRIDGE_MODE === "html" ||
+    String(req.query.html || "") === "1" ||
+    String(req.headers["x-use-html-bridge"] || "") === "1";
+
+  if (useHtml) {
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
+  }
+  return res.redirect(url);
 }
 
 /* =========================
@@ -167,12 +211,13 @@ function redirectError(res, msg) {
 async function upsertAndGetUser({ login_id, login_type, nick }) {
   const conn = await pool.getConnection();
   try {
-    await conn.execute(`
-      INSERT INTO tb_user (login_id, login_type, nick, pwd)
-      VALUES (?, ?, ?, NULL)
-      ON DUPLICATE KEY UPDATE
-        nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)
-    `, [login_id, login_type, nick || ""]);
+    await conn.execute(
+      `INSERT INTO tb_user (login_id, login_type, nick, pwd)
+       VALUES (?, ?, ?, NULL)
+       ON DUPLICATE KEY UPDATE
+         nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)`,
+      [login_id, login_type, nick || ""]
+    );
 
     const [rows] = await conn.execute(
       "SELECT user_id AS uid, login_id, login_type, nick FROM tb_user WHERE login_id = ? AND login_type = ? LIMIT 1",
@@ -221,10 +266,10 @@ router.get("/google/callback", async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Google code 없음" })
-                             : redirectError(res, "Google code 없음");
+                             : redirectError(req, res, "Google code 없음");
     if (!state || !verifyAndDeleteState(GOOGLE_STATE, state)) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
-                   : redirectError(res, "잘못된 state");
+                   : redirectError(req, res, "잘못된 state");
     }
     const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
 
@@ -244,12 +289,12 @@ router.get("/google/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
-                   : redirectError(res, "Google 토큰 교환 실패");
+                   : redirectError(req, res, "Google 토큰 교환 실패");
     }
     const accessToken = tokenRes?.data?.access_token;
     if (!accessToken) {
       return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
-                   : redirectError(res, "Google access token 없음");
+                   : redirectError(req, res, "Google access token 없음");
     }
 
     let profileRes;
@@ -260,14 +305,14 @@ router.get("/google/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
-                   : redirectError(res, "Google 프로필 조회 실패");
+                   : redirectError(req, res, "Google 프로필 조회 실패");
     }
     const data = profileRes.data || {};
     const email = String(data.email ?? "");
     const name  = String(data.name  ?? "");
     if (!email) {
       return debug ? res.status(400).json({ step:"profile", error:"구글 이메일 없음", data })
-                   : redirectError(res, "구글 이메일 없음");
+                   : redirectError(req, res, "구글 이메일 없음");
     }
 
     let user;
@@ -275,7 +320,7 @@ router.get("/google/callback", async (req, res) => {
       user = await upsertAndGetUser({ login_id: email, login_type: "google", nick: name });
     } catch (e) {
       return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
-                   : redirectError(res, "DB 처리 실패");
+                   : redirectError(req, res, "DB 처리 실패");
     }
 
     const token = signJWT({
@@ -294,14 +339,14 @@ router.get("/google/callback", async (req, res) => {
       });
     }
 
-    return redirectToApp(res, {
+    return redirectToApp(req, res, {
       token, uid: user.uid, login_id: user.login_id, login_type: "google", nick: user.nick || name || ""
     });
   } catch (e) {
     console.error("Google error", e?.response?.data || e);
     return (String(req.query.debug || "") === "1")
       ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
-      : redirectError(res, "Google 로그인 실패");
+      : redirectError(req, res, "Google 로그인 실패");
   }
 });
 
@@ -333,10 +378,10 @@ router.get("/kakao/callback", async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Kakao code 없음" })
-                             : redirectError(res, "Kakao code 없음");
+                             : redirectError(req, res, "Kakao code 없음");
     if (!state || !verifyAndDeleteState(KAKAO_STATE, state)) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
-                   : redirectError(res, "잘못된 state");
+                   : redirectError(req, res, "잘못된 state");
     }
     const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
 
@@ -358,13 +403,13 @@ router.get("/kakao/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
-                   : redirectError(res, "Kakao 토큰 교환 실패");
+                   : redirectError(req, res, "Kakao 토큰 교환 실패");
     }
 
     const accessToken = tokenRes.data.access_token;
     if (!accessToken) {
       return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
-                   : redirectError(res, "Kakao access token 없음");
+                   : redirectError(req, res, "Kakao access token 없음");
     }
 
     let profileRes;
@@ -375,7 +420,7 @@ router.get("/kakao/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
-                   : redirectError(res, "Kakao 프로필 조회 실패");
+                   : redirectError(req, res, "Kakao 프로필 조회 실패");
     }
 
     const acct = profileRes.data?.kakao_account || {};
@@ -384,7 +429,7 @@ router.get("/kakao/callback", async (req, res) => {
     if (!email) email = String(profileRes.data?.id ?? "");
     if (!email) {
       return debug ? res.status(400).json({ step:"profile", error:"카카오 아이디 없음", data: profileRes?.data })
-                   : redirectError(res, "카카오 아이디 없음");
+                   : redirectError(req, res, "카카오 아이디 없음");
     }
 
     let user;
@@ -392,7 +437,7 @@ router.get("/kakao/callback", async (req, res) => {
       user = await upsertAndGetUser({ login_id: email, login_type: "kakao", nick: name });
     } catch (e) {
       return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
-                   : redirectError(res, "DB 처리 실패");
+                   : redirectError(req, res, "DB 처리 실패");
     }
 
     const token = signJWT({
@@ -411,14 +456,14 @@ router.get("/kakao/callback", async (req, res) => {
       });
     }
 
-    return redirectToApp(res, {
+    return redirectToApp(req, res, {
       token, uid: user.uid, login_id: user.login_id, login_type: "kakao", nick: user.nick || name || ""
     });
   } catch (e) {
     console.error("Kakao error", e?.response?.data || e);
     return (String(req.query.debug || "") === "1")
       ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
-      : redirectError(res, "카카오 로그인 실패");
+      : redirectError(req, res, "카카오 로그인 실패");
   }
 });
 
@@ -449,11 +494,13 @@ router.get("/naver/callback", async (req, res) => {
   try {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Naver code 없음" })
-                             : redirectError(res, "Naver code 없음");
+                             : redirectError(req, res, "Naver code 없음");
     if (!state || !verifyAndDeleteState(NAVER_STATE, state)) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
-                   : redirectError(res, "잘못된 state");
+                   : redirectError(req, res, "잘못된 state");
     }
+    // 네이버는 redirect_uri를 토큰 교환에 직접 쓰지 않으므로 여기서는 계산만 참고
+    // (보수적으로 유지)
     const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
     let tokenRes;
@@ -470,13 +517,13 @@ router.get("/naver/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
-                   : redirectError(res, "Naver 토큰 교환 실패");
+                   : redirectError(req, res, "Naver 토큰 교환 실패");
     }
 
     const accessToken = tokenRes.data.access_token;
     if (!accessToken) {
       return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
-                   : redirectError(res, "Naver access token 없음");
+                   : redirectError(req, res, "Naver access token 없음");
     }
 
     let profileRes;
@@ -487,7 +534,7 @@ router.get("/naver/callback", async (req, res) => {
     } catch (e) {
       const detail = e?.response?.data || e?.message;
       return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
-                   : redirectError(res, "Naver 프로필 조회 실패");
+                   : redirectError(req, res, "Naver 프로필 조회 실패");
     }
 
     const resp  = profileRes.data?.response || {};
@@ -495,7 +542,7 @@ router.get("/naver/callback", async (req, res) => {
     const name  = String(resp.name  ?? "");
     if (!email) {
       return debug ? res.status(400).json({ step:"profile", error:"네이버 이메일 없음", data: profileRes?.data })
-                   : redirectError(res, "네이버 이메일 없음");
+                   : redirectError(req, res, "네이버 이메일 없음");
     }
 
     let user;
@@ -503,7 +550,7 @@ router.get("/naver/callback", async (req, res) => {
       user = await upsertAndGetUser({ login_id: email, login_type: "naver", nick: name });
     } catch (e) {
       return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
-                   : redirectError(res, "DB 처리 실패");
+                   : redirectError(req, res, "DB 처리 실패");
     }
 
     const token = signJWT({
@@ -522,15 +569,33 @@ router.get("/naver/callback", async (req, res) => {
       });
     }
 
-    return redirectToApp(res, {
+    return redirectToApp(req, res, {
       token, uid: user.uid, login_id: user.login_id, login_type: "naver", nick: user.nick || name || ""
     });
   } catch (e) {
     console.error("Naver error", e?.response?.data || e);
     return (String(req.query.debug || "") === "1")
       ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
-      : redirectError(res, "네이버 로그인 실패");
+      : redirectError(req, res, "네이버 로그인 실패");
   }
+});
+
+/* =========================
+ * (테스트) 강제 콜백 페이지
+ * ========================= */
+router.get("/test/callback", (_req, res) => {
+  const q = new URLSearchParams({
+    token: "TEST",
+    login_id: "dev@example.com",
+    login_type: "kakao",
+    uid: "1",
+    nick: "Dev",
+    ok: "1",
+    ts: String(Date.now()),
+  });
+  const toUrl = `${APP_CALLBACK}?${q.toString()}`;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.status(200).send(htmlBridge(toUrl, "앱으로 돌아가는 중(테스트)…"));
 });
 
 module.exports = router;
