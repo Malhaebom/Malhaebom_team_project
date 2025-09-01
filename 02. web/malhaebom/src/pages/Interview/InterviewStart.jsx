@@ -172,6 +172,10 @@ function InterviewStart() {
           console.log("인터뷰 녹음 파일 다운로드 완료:", fileName);
         } else {
           console.warn("녹음 데이터를 가져올 수 없습니다.");
+          alert("녹음 데이터를 가져올 수 없습니다. 다시 녹음해주세요.");
+          // 녹음 완료 상태를 되돌려서 재녹음 가능하게 함
+          setRecordingCompleted(false);
+          setHasStartedRecording(false);
         }
       }, 200); // 200ms 지연으로 증가
     }
