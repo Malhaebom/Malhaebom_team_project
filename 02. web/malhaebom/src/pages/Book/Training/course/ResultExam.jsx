@@ -56,6 +56,55 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
+  // 검사 완료 시 BookHistory에 저장
+  const saveToBookHistory = () => {
+    const currentDate = new Date();
+    const dateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
+    const timeStr = currentDate.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
+    
+    const bookTitle = localStorage.getItem("bookTitle") || "동화";
+    
+    const examResult = {
+      id: Date.now(), // 고유 ID
+      date: dateStr,
+      time: timeStr,
+      fairyTale: bookTitle,
+      scoreAD: Number(scoreAD),
+      scoreAI: Number(scoreAI),
+      scoreB: Number(scoreB),
+      scoreC: Number(scoreC),
+      scoreD: Number(scoreD),
+      total: total,
+      timestamp: currentDate.getTime()
+    };
+
+    // localStorage에서 기존 BookHistory 데이터 가져오기
+    const existingHistory = JSON.parse(localStorage.getItem("bookHistory") || "[]");
+    
+    // 새로운 결과 추가
+    existingHistory.unshift(examResult); // 최신 결과를 맨 위에 추가
+    
+    // 최대 50개까지만 저장 (메모리 관리)
+    if (existingHistory.length > 50) {
+      existingHistory.splice(50);
+    }
+    
+    // localStorage에 저장
+    localStorage.setItem("bookHistory", JSON.stringify(existingHistory));
+  };
+
+  // 컴포넌트 마운트 시 자동으로 저장 (중복 저장 방지)
+  useEffect(() => {
+    if (total > 0) { // 점수가 있을 때만 저장
+      // 이미 저장된 검사인지 확인 (sessionStorage 사용)
+      const examCompleted = sessionStorage.getItem("examCompleted");
+      if (!examCompleted) {
+        saveToBookHistory();
+        sessionStorage.setItem("examCompleted", "true");
+      }
+    }
+  }, [total]);
+
   const goHome = () => {
     location.href = "/";
   };

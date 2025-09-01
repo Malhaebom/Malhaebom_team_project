@@ -14,6 +14,7 @@ import Login from "./pages/Mypage/Login.jsx"
 import Join from "./pages/Mypage/Join.jsx"
 import BookHistory from "./pages/Mypage/BookHistory.jsx"
 import InterviewHistory from "./pages/Mypage/InterviewHistory.jsx"
+import MypageInterviewHistory from "./pages/Mypage/MypageInterviewHistory.jsx"
 
 // Interview 추가
 import Interview from "./pages/Interview/InterviewStart.jsx";
@@ -317,6 +318,16 @@ export default function App() {
           element={
             <ErrorBoundary name="InterviewHistory">
               <InterviewHistory />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 마이페이지 인지능력검사 결과 */}
+        <Route
+          path="/mypage-interview-history"
+          element={
+            <ErrorBoundary name="MypageInterviewHistory">
+              <MypageInterviewHistory />
             </ErrorBoundary>
           }
         />

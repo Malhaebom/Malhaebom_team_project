@@ -96,9 +96,70 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  /// ✅ 핵심: login_id ↔ user_key 동기화
+  /// - login_id가 있으면 user_key를 동일 값으로 덮어씀
+  /// - login_id가 없고 user_key만 있으면 login_id를 user_key 값으로 채움(구버전 대비)
+  /// - 둘다 없을 때 auth_user JSON에서 login_id를 복구 시도
+  Future<void> _syncUserKeyWithLoginId() async {
+    final prefs = await SharedPreferences.getInstance();
+    String loginId = (prefs.getString('login_id') ?? '').trim();
+    String userKey = (prefs.getString('user_key') ?? '').trim();
+
+    // auth_user에서 보강
+    if (loginId.isEmpty) {
+      final raw = prefs.getString('auth_user');
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          final u = jsonDecode(raw) as Map<String, dynamic>;
+          final lid = (u['login_id'] ?? '').toString().trim();
+          if (lid.isNotEmpty) {
+            loginId = lid;
+            await prefs.setString('login_id', loginId);
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (loginId.isNotEmpty) {
+      if (userKey != loginId) {
+        await prefs.setString('user_key', loginId);
+      }
+    } else if (userKey.isNotEmpty) {
+      // 구버전 보존: login_id가 비어 있으면 user_key로 채워 동등성 유지
+      await prefs.setString('login_id', userKey);
+    }
+  }
+
   Future<void> _loadAll() async {
+    // ⬇️ 먼저 동기화로 user_key ≡ login_id 보장
+    await _syncUserKeyWithLoginId();
     await Future.wait([_loadLatest(), _loadStoryLatest()]);
     await _checkUserKey(); // ⬅️ 데이터 로드 후에도 상태 동기화
+  }
+
+  // ====== 인지검사 로컬 초기화 + 시작 헬퍼 ======
+  Future<void> _resetCognitionLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(PREF_LATEST_ATTEMPT);
+    await prefs.remove(PREF_ATTEMPT_COUNT);
+    if (!mounted) return;
+    setState(() {
+      _latest = null;
+      _attemptCount = 0;
+    });
+  }
+
+  Future<void> _startCognition({bool resetLocal = false}) async {
+    if (resetLocal) {
+      await _resetCognitionLocal();
+    }
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const InterviewListPage()),
+    );
+    if (!mounted) return;
+    await _loadLatest(); // 돌아오면 최신 데이터 리프레시
   }
 
   // ===== user_key 존재 여부 확인 =====
@@ -114,6 +175,25 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
 
+    // 1) 서버에서 최신 1건 시도
+    AttemptSummary? latestFromServer = await _fetchCognitionLatestFromServer();
+    if (latestFromServer != null) {
+      // 회차 표시는 서버의 clientAttemptOrder/clientRound 우선
+      final attemptNo = latestFromServer.attemptOrder ?? 1;
+
+      // (원하면) 로컬 캐시로 저장
+      // await prefs.setString(PREF_LATEST_ATTEMPT, jsonEncode({...}));
+
+      if (!mounted) return;
+      setState(() {
+        _latest = latestFromServer;
+        _attemptCount = attemptNo;
+        _loading = false;
+      });
+      return;
+    }
+
+    // 2) 서버 실패 시, 로컬 fallback
     AttemptSummary? latest;
     final s = prefs.getString(PREF_LATEST_ATTEMPT);
     if (s != null && s.isNotEmpty) {
@@ -121,9 +201,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         latest = AttemptSummary.fromJson(jsonDecode(s) as Map<String, dynamic>);
       } catch (_) {}
     }
-
     final cnt = prefs.getInt(PREF_ATTEMPT_COUNT) ?? (latest == null ? 0 : 1);
 
+    if (!mounted) return;
     setState(() {
       _latest = latest;
       _attemptCount = cnt;
@@ -131,84 +211,66 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     });
   }
 
-  // ===== 서버: 로그인 식별 파라미터 (user_key 통일) =====
+  // ===== 인증 헤더(Bearer 우선, 없으면 x-user-key) =====
+  Future<Map<String, String>> _authHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = (prefs.getString('auth_token') ?? '').trim();
+    final userKey = (prefs.getString('user_key') ?? '').trim(); // = login_id
+
+    final headers = <String, String>{'accept': 'application/json'};
+
+    // ✅ 항상 x-user-key 보내기 (있다면)
+    if (userKey.isNotEmpty) {
+      headers['x-user-key'] = userKey;
+      // headers['x-login-id'] = userKey; // (옵션) 이행기간 병행 전송
+    }
+
+    // 선택적으로 Bearer도 함께
+    if (token.isNotEmpty) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
+
+  // ===== 서버: 로그인 식별 파라미터 (user_key 통일) — 보조 복구용 =====
   Future<Map<String, String>> _identityParams() async {
     final prefs = await SharedPreferences.getInstance();
 
-    String? readAny(List<String> keys) {
-      for (final k in keys) {
-        final vs = prefs.getString(k);
-        if (vs != null && vs.isNotEmpty) return vs;
-        final vi = prefs.getInt(k);
-        if (vi != null) return vi.toString();
-        final vd = prefs.getDouble(k);
-        if (vd != null) return vd.toString();
-        final vb = prefs.getBool(k);
-        if (vb != null) return vb ? '1' : '0';
+    // 1) login_id 최우선 → userKey로 사용
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+    if (loginId.isNotEmpty) {
+      // 보장: user_key = login_id
+      final currentUserKey = (prefs.getString('user_key') ?? '').trim();
+      if (currentUserKey != loginId) {
+        await prefs.setString('user_key', loginId);
       }
-      return null;
+      return {'userKey': loginId};
     }
 
-    // 1) user_key 우선
-    final direct = readAny(['user_key', 'userKey']);
-    if (direct != null && direct.isNotEmpty) {
+    // 2) 기존 user_key가 있으면 그대로 사용(레거시 호환)
+    final direct =
+        ((prefs.getString('user_key') ?? prefs.getString('userKey')) ?? '')
+            .trim();
+    if (direct.isNotEmpty) {
+      // login_id도 맞춰서 동기화
+      final currentLoginId = (prefs.getString('login_id') ?? '').trim();
+      if (currentLoginId != direct) {
+        await prefs.setString('login_id', direct);
+      }
       return {'userKey': direct};
     }
 
-    // 2) 로컬/SNS로부터 유추 후 저장
-    final localId = readAny([
-      'user_id',
-      'userId',
-      'userid',
-      'phone',
-      'phoneNumber',
-      'phone_number',
-    ]);
-    String? snsType =
-        readAny([
-          'sns_login_type',
-          'snsLoginType',
-          'login_provider',
-          'provider',
-          'social_type',
-          'loginType',
-        ])?.toLowerCase();
-    final snsId = readAny([
-      'sns_user_id',
-      'snsUserId',
-      'oauth_id',
-      'kakao_user_id',
-      'google_user_id',
-      'naver_user_id',
-    ]);
-
-    if (localId != null && localId.isNotEmpty) {
-      await prefs.setString('user_key', localId);
-      return {'userKey': localId};
-    }
-    if (snsId != null &&
-        snsId.isNotEmpty &&
-        (snsType == 'kakao' || snsType == 'google' || snsType == 'naver')) {
-      final key = '$snsType:$snsId';
-      await prefs.setString('user_key', key);
-      return {'userKey': key};
-    }
-
-    // 4) ★ 최후 fallback: auth_user(JSON)에서 복구
+    // 3) auth_user(JSON)에서 복구
     final raw = prefs.getString('auth_user');
     if (raw != null && raw.isNotEmpty) {
       try {
         final u = jsonDecode(raw) as Map<String, dynamic>;
-        final uid = (u['user_id'] ?? '').toString();
-        final t = (u['sns_login_type'] ?? '').toString().toLowerCase();
-        if (t.isNotEmpty && uid.isNotEmpty) {
-          final key = '$t:$uid';
-          await prefs.setString('user_key', key);
-          return {'userKey': key};
-        }
-        if (uid.isNotEmpty) {
-          await prefs.setString('user_key', uid);
-          return {'userKey': uid};
+        final lid = (u['login_id'] ?? '').toString().trim();
+        if (lid.isNotEmpty) {
+          await prefs.setString('login_id', lid);
+          await prefs.setString('user_key', lid); // 동기화
+          return {'userKey': lid};
         }
       } catch (_) {}
     }
@@ -220,18 +282,20 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   Future<StorySummary?> _fetchStoryLatestFromServer(String storyTitle) async {
     if (!kUseServer) return null;
 
-    final idParams = await _identityParams();
-    if (idParams.isEmpty) return null; // 게스트라면 서버 조회 스킵
+    // 인증은 헤더로 전달 (Bearer 우선, 없으면 x-user-key)
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization') &&
+        !headers.containsKey('x-user-key')) {
+      // 게스트라면 서버 조회 스킵
+      return null;
+    }
 
-    final q = {
-      ...idParams,
-      'storyKey': _norm(storyTitle),
-      'storyTitle': _norm(storyTitle), // ⬅️ 서버 fallback용으로 같이 전송
-    };
+    final uri = Uri.parse(
+      '$API_BASE/str/latest',
+    ).replace(queryParameters: {'storyKey': _norm(storyTitle)});
 
-    final uri = Uri.parse('$API_BASE/str/latest').replace(queryParameters: q);
     try {
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: headers);
       if (res.statusCode != 200) return null;
 
       final j = jsonDecode(res.body);
@@ -241,6 +305,45 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       if (latest == null) return null;
 
       return StorySummary.fromJson(latest as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ===== 서버: 인지검사 최신 결과 가져오기 =====
+  Future<AttemptSummary?> _fetchCognitionLatestFromServer({
+    String? interviewTitle,
+  }) async {
+    if (!kUseServer) return null;
+
+    // 인증은 헤더로 전달 (Bearer 우선, 없으면 x-user-key)
+    final headers = await _authHeaders();
+    if (!headers.containsKey('Authorization') &&
+        !headers.containsKey('x-user-key')) {
+      // 게스트라면 서버 조회 스킵
+      return null;
+    }
+
+    final qp = <String, String>{};
+    if ((interviewTitle ?? '').trim().isNotEmpty) {
+      qp['title'] = _norm(interviewTitle!);
+    }
+
+    final uri = Uri.parse(
+      '$API_BASE/ir/latest',
+    ).replace(queryParameters: qp.isEmpty ? null : qp);
+
+    try {
+      final res = await http.get(uri, headers: headers);
+      if (res.statusCode != 200) return null;
+
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+
+      final latest = j['latest'];
+      if (latest == null) return null;
+
+      return AttemptSummary.fromJson(latest as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
@@ -377,9 +480,13 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             await prefs.remove('auth_token');
             await prefs.remove('auth_user');
             await prefs.remove('user_key');
+            await prefs.remove('login_id'); // ✅ 함께 제거
             await prefs.remove('sns_user_id');
             await prefs.remove('sns_login_type');
             await prefs.remove('user_id');
+            // ⬇️ 인지검사 로컬 캐시도 초기화(선택)
+            await prefs.remove(PREF_LATEST_ATTEMPT);
+            await prefs.remove(PREF_ATTEMPT_COUNT);
 
             if (!mounted) return;
             setState(() => _hasUserKey = false);
@@ -400,6 +507,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               MaterialPageRoute(builder: (_) => const LoginPage()),
             );
             if (!mounted) return;
+            // ⬇️ 로그인 후 동기화 + 상태 리프레시
+            await _syncUserKeyWithLoginId();
             await _checkUserKey();
             await _loadAll();
           }
@@ -651,12 +760,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             width: double.infinity,
             height: 48.h,
             child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const InterviewListPage()),
-                );
-              },
+              onPressed: () => _startCognition(), // ✅ 헬퍼 사용
               icon: const Icon(Icons.play_arrow_rounded),
               label: Text(
                 '검사 시작하기',
@@ -846,6 +950,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                           testedAt: a.testedAt ?? DateTime.now(),
                           interviewTitle: a.interviewTitle,
                           persist: false,
+                          fixedAttemptOrder: a.attemptOrder,
                         ),
                   ),
                 );
@@ -867,6 +972,29 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ),
             ),
           ),
+          // SizedBox(height: 10.h),
+          // // ✅ 다시 검사하기(로컬 초기화)
+          // SizedBox(
+          //   width: double.infinity,
+          //   height: 44.h,
+          //   child: OutlinedButton.icon(
+          //     onPressed: () => _startCognition(resetLocal: true),
+          //     icon: const Icon(Icons.restart_alt_rounded),
+          //     label: Text(
+          //       '다시 검사하기 (초기화)',
+          //       style: TextStyle(
+          //         fontSize: 18.sp,
+          //         fontWeight: FontWeight.w800,
+          //         fontFamily: 'GmarketSans',
+          //       ),
+          //     ),
+          //     style: OutlinedButton.styleFrom(
+          //       side: const BorderSide(color: Color(0xFFE5E7EB)),
+          //       foregroundColor: const Color(0xFF374151),
+          //       shape: const StadiumBorder(),
+          //     ),
+          //   ),
+          // ),
         ],
       ),
     );
@@ -996,6 +1124,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                           storyTitle: storyTitle,
                           persist: false,
                           fixedAttemptOrder: s.attemptOrder,
+                          riskBarsByType: s.riskBarsByType,
                         ),
                   ),
                 );
@@ -1244,6 +1373,7 @@ class AttemptSummary {
   final DateTime? testedAt;
   final String? kstLabel;
   final String? interviewTitle;
+  final int? attemptOrder;
 
   AttemptSummary({
     required this.score,
@@ -1253,6 +1383,7 @@ class AttemptSummary {
     this.testedAt,
     this.kstLabel,
     this.interviewTitle,
+    this.attemptOrder,
   });
 
   factory AttemptSummary.fromJson(Map<String, dynamic> j) {
@@ -1278,6 +1409,16 @@ class AttemptSummary {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
+    // ✅ 서버 키 호환: clientAttemptOrder > clientRound > attemptOrder
+    final ord =
+        j['clientAttemptOrder'] ?? j['clientRound'] ?? j['attemptOrder'];
+    int? ordInt;
+    if (ord is num) {
+      ordInt = ord.toInt();
+    } else if (ord is String) {
+      ordInt = int.tryParse(ord);
+    }
+
     return AttemptSummary(
       score: (j['score'] as num?)?.toInt() ?? 0,
       total: (j['total'] as num?)?.toInt() ?? 0,
@@ -1286,6 +1427,7 @@ class AttemptSummary {
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
       interviewTitle: j['interviewTitle'] as String?,
+      attemptOrder: ordInt, // ✅
     );
   }
 }
@@ -1300,6 +1442,7 @@ class StorySummary {
   final DateTime? testedAt;
   final String? kstLabel;
   final int? attemptOrder; // ✅ 서버의 clientAttemptOrder
+  final Map<String, double> riskBarsByType;
 
   StorySummary({
     required this.storyTitle,
@@ -1310,9 +1453,34 @@ class StorySummary {
     this.testedAt,
     this.kstLabel,
     this.attemptOrder,
+    this.riskBarsByType = const {},
   });
 
   factory StorySummary.fromJson(Map<String, dynamic> j) {
+    Map<String, double> _parseBars(dynamic x) {
+      if (x is Map) {
+        return x.map(
+          (k, v) => MapEntry(
+            '$k',
+            (v is num)
+                ? v.toDouble()
+                : double.tryParse('$v')?.clamp(0.0, 1.0) ?? 0.0,
+          ),
+        );
+      }
+      if (x is String && x.trim().isNotEmpty) {
+        try {
+          return (jsonDecode(x) as Map).map(
+            (k, v) => MapEntry(
+              '$k',
+              (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0.0,
+            ),
+          );
+        } catch (_) {}
+      }
+      return const {};
+    }
+
     Map<String, ir.CategoryStat> _mapStats(dynamic x) {
       if (x is Map) {
         final out = <String, ir.CategoryStat>{};
@@ -1348,6 +1516,7 @@ class StorySummary {
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
       attemptOrder: ordInt,
+      riskBarsByType: _parseBars(j['riskBarsByType']),
     );
   }
 }

@@ -40,7 +40,7 @@
 
 .ct_theater > div {position:relative; background:#fff; border:1px solid #e1e1e1; border-radius:10px; padding:20px; word-break:keep-all; margin-bottom:20px; transition:all .2s;}
 /* .ct_theater > div::before {position:absolute; top:0; right:0; display:block; content:''; width:50px; height:100%; background:#ededed; border-radius:0 10px 10px 0;} */
-.ct_theater > div:hover {background:#f0f0f0;}
+/* .ct_theater > div:hover {background:#f0f0f0;} */
 .ct_theater > div .tit {font-size:1.1em; font-weight:bold; margin-bottom:10px;}
 .ct_theater > div p {line-height:1.3; padding-right:40px;}
 .ct_theater > div .start {position:absolute; top:50%; right:13px; transform: translateY(-50%);}

@@ -146,7 +146,7 @@ class _HomePageState extends State<HomePage> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       Image.asset(
-                                        "assets/images/fire.png",
+                                        "assets/icons/mypage.png",
                                         height: screenHeight * 0.10,
                                       ),
                                     ],

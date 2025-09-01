@@ -204,19 +204,20 @@ function InterviewStart() {
               data-aos="fade-up"
               data-aos-duration="1000"
             >
-                             <p style={{
-                 background: 'linear-gradient(to bottom, #d7effc, #ffffff)',
-                 borderRadius: '10px',
-                 border: '1px solid #e1e1e1',
-                 padding: '20px',
-                 margin: '0',
-                 fontSize: "18px",
-                 lineHeight: "1.6",
-                 fontFamily: "GmarketSans",
-                 fontWeight: "500",
-                 textAlign: "left",
-                 color: "#333"
-               }}>
+                                           <p style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '10px',
+                border: '1px solid #e0e0e0',
+                padding: '20px',
+                margin: '0',
+                fontSize: "18px",
+                lineHeight: "1.6",
+                fontFamily: "GmarketSans",
+                fontWeight: "500",
+                textAlign: "left",
+                color: "#333",
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}>
                  {currentQuestion?.speechText ?? "로딩 중..."}
                </p>
               

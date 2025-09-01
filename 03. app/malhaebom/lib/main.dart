@@ -1,5 +1,6 @@
-import 'package:malhaebom/screens/main/home_page.dart';
 import 'package:malhaebom/screens/main/splash_page.dart';
+import 'package:malhaebom/theme/colors.dart';
+import 'package:malhaebom/screens/main/home_page.dart';
 import 'package:malhaebom/screens/story/story_main_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,8 +32,7 @@ class MyApp extends StatelessWidget {
       title: 'Malhaebom',
       theme: ThemeData(fontFamily: 'Pretendard'),
       debugShowCheckedModeBanner: false,
-      home: SplashPage(next: const LoginPage()),
-      //home: SplashPage(next: const HomePage()),
+      home: SplashPage(next: const HomePage()),
     );
   }
 }

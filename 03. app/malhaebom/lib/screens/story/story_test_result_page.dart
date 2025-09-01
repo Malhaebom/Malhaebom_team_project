@@ -40,6 +40,7 @@ class StoryResultPage extends StatefulWidget {
   final Map<String, CategoryStat> byType; // 직접/간접/질문/단언/의례화 ...
   final DateTime testedAt;
   final String? storyTitle;
+  final Map<String, double>? riskBarsByType;
 
   /// true: 실제 테스트 직후(저장+회차증가+옵션 서버전송)
   /// false: 조회용(증가/저장 안 함)
@@ -56,6 +57,7 @@ class StoryResultPage extends StatefulWidget {
     this.storyTitle,
     this.persist = true,
     this.fixedAttemptOrder,
+    this.riskBarsByType,
   });
 
   @override
@@ -390,6 +392,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
   Widget build(BuildContext context) {
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
     final showWarn = overall < 0.5;
+    final evalSource =
+        (widget.byType.isNotEmpty &&
+                widget.byType.values.any((s) => s.total > 0))
+            ? widget.byType
+            : widget.byCategory;
 
     double _appBarH(BuildContext context) {
       final shortest = MediaQuery.sizeOf(context).shortestSide;
@@ -478,7 +485,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
                     SizedBox(height: 12.h),
                     if (showWarn) _warnBanner(),
                     ..._buildEvalItems(
-                      widget.byType,
+                      evalSource,
                     ).expand((w) => [w, SizedBox(height: 10.h)]),
                   ],
                 ),
@@ -718,21 +725,51 @@ class _StoryResultPageState extends State<StoryResultPage> {
     ),
   );
 
-  List<Widget> _buildEvalItems(Map<String, CategoryStat> t) {
+  List<Widget> _buildEvalItems(Map<String, CategoryStat> _) {
+    final bars = widget.riskBarsByType ?? const {};
     final items = <Widget>[];
-    void addIfLow(String key, String title, String body) {
-      final s = t[key];
-      if (s == null || s.total == 0) return;
-      if (s.correctRatio < 0.4) {
-        items.add(_evalBlock('[$title]이 부족합니다.', body));
+    double? r(String k) =>
+        bars.containsKey(k) ? bars[k]!.clamp(0.0, 1.0) : null;
+    void add(String key, String title, String mild, String severe) {
+      final v = r(key);
+      if (v == null) return;
+      if (v > 0.75) {
+        items.add(_evalBlock('[$title]이 매우 부족합니다.', severe));
+      } else if (v > 0.5) {
+        items.add(_evalBlock('[$title]이 부족합니다.', mild));
       }
     }
 
-    addIfLow('직접화행', '직접화행', '기본 대화 의도 파악이 미흡합니다. 대화 응용 훈련으로 개선하세요.');
-    addIfLow('간접화행', '간접화행', '간접적 표현 해석이 약합니다. 맥락 추론 훈련이 필요합니다.');
-    addIfLow('질문화행', '질문화행', '질문 의도 파악이 부족합니다. 정보 파악 활동을 권장합니다.');
-    addIfLow('단언화행', '단언화행', '상황에 맞는 진술 이해가 부족합니다. 상황·정서 파악 활동을 권합니다.');
-    addIfLow('의례화화행', '의례화화행', '예절적 표현 이해가 낮습니다. 일상 의례 표현 학습을 권장합니다.');
+    add(
+      '직접화행',
+      '직접화행',
+      '기본 대화 의도 파악이 부족합니다. 대화 응용 훈련으로 개선하세요.',
+      '직접화행 이해가 크게 낮습니다. 실제 상황 역할놀이로 강화하세요.',
+    );
+    add(
+      '간접화행',
+      '간접화행',
+      '간접적 표현 해석이 약합니다. 맥락 추론 훈련이 필요합니다.',
+      '간접화행 이해가 크게 낮습니다. 은유·완곡표현 중심 반복 훈련을 권장합니다.',
+    );
+    add(
+      '질문화행',
+      '질문화행',
+      '질문 의도 파악이 부족합니다. 정보 파악 활동을 권장합니다.',
+      '질문화행 이해가 크게 낮습니다. WH-질문 중심 단계적 훈련이 필요합니다.',
+    );
+    add(
+      '단언화행',
+      '단언화행',
+      '상황에 맞는 진술 이해가 부족합니다. 상황·정서 파악 활동을 권합니다.',
+      '단언화행 이해가 크게 낮습니다. 원인–결과 설명 훈련을 권합니다.',
+    );
+    add(
+      '의례화화행',
+      '의례화화행',
+      '예절적 표현 이해가 낮습니다. 일상 의례 표현 학습을 권장합니다.',
+      '의례화화행 이해가 크게 낮습니다. 실제 사례 기반 반복 학습을 권합니다.',
+    );
 
     if (items.isEmpty) {
       items.add(_evalBlock('전반적으로 양호합니다.', '필요 시 추가 학습으로 안정적 이해를 유지하세요.'));

@@ -20,7 +20,6 @@ final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
-
       // ✅ 공인 IP를 기본 기본값으로 고정
       // 로컬 개발 시에는 --dart-define=API_BASE=http://localhost:4000 로 덮어쓰기
       return 'http://211.188.63.38:4000';
@@ -65,6 +64,7 @@ class InterviewResultPage extends StatefulWidget {
   final DateTime testedAt;
   final String? interviewTitle;
   final bool persist;
+  final int? fixedAttemptOrder;
 
   const InterviewResultPage({
     super.key,
@@ -75,6 +75,7 @@ class InterviewResultPage extends StatefulWidget {
     required this.testedAt,
     this.interviewTitle,
     this.persist = true,
+    this.fixedAttemptOrder,
   });
 
   @override
@@ -92,7 +93,12 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       InterviewSession.markCompleted();
       WidgetsBinding.instance.addPostFrameCallback((_) => _sendOnce());
     } else {
-      _loadAttemptCountOnly();
+      // ✅ 읽기 전용: 회차가 넘어오면 그대로, 없으면 로컬 캐시만 표시
+      if (widget.fixedAttemptOrder != null) {
+        _attemptOrder = widget.fixedAttemptOrder!;
+      } else {
+        _loadAttemptCountOnly();
+      }
     }
   }
 
@@ -209,12 +215,58 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     return next;
   }
 
+  // (1) 유저키 로드 유틸 추가
+  Future<String> _loadUserKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+    if (loginId.isNotEmpty) return loginId; // ✅ login_id 우선
+    final userKey = (prefs.getString('user_key') ?? '').trim();
+    return userKey.isNotEmpty ? userKey : 'guest';
+  }
+
+  // (2) 서버로 내 신원 전달용(헤더/쿼리 둘 다 안전망)
+  Future<Map<String, String>> _identityForApi() async {
+    final key = await _loadUserKey();
+    if (key == 'guest' || key.isEmpty) return {};
+    return {'userKey': key}; // 서버는 userKey로 통일 (값은 login_id)
+  }
+
+  String _normTitle(String? s) =>
+      (s ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  // (3) 서버 최신 회차 → 다음 회차 계산
+  Future<int?> _serverNextAttempt(Map<String, String> identity) async {
+    if (!kUseServer || identity.isEmpty) return null;
+    try {
+      final qp = {
+        ...identity,
+        if (_normTitle(widget.interviewTitle).isNotEmpty)
+          'title': _normTitle(widget.interviewTitle),
+      };
+      final uri = Uri.parse('$API_BASE/ir/latest').replace(queryParameters: qp);
+      final res = await http.get(uri);
+      if (res.statusCode != 200) return null;
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+      final latest = j['latest'];
+      if (latest is Map) {
+        final ord = latest['clientAttemptOrder'] ?? latest['clientRound'];
+        if (ord is num) return ord.toInt() + 1;
+        return 1;
+      }
+      return 1;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _postToServer(Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$API_BASE/ir/attempt');
+      final userKey = await _loadUserKey();
       await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'x-user-key': userKey},
         body: jsonEncode(payload),
       );
       // 디버그 프린트 제거 (사용자 요청)
@@ -227,14 +279,39 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     if (_posted) return;
     _posted = true;
 
-    final next = await _bumpAttemptCount();
+    // ✅ 서버 기준 다음 회차 우선, 실패 시 로컬 +1
+    final idn = await _identityForApi();
+    int next = (await _serverNextAttempt(idn)) ?? (await _bumpAttemptCount());
+    // 서버 기준을 따르도록 로컬 캐시도 동기화
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(PREF_ATTEMPT_COUNT, next);
+    } catch (_) {}
     if (mounted) setState(() => _attemptOrder = next);
 
     final payload = _buildAttemptPayload(attemptOrder: next);
     await _cacheLatestLocally(payload);
 
     if (kUseServer) {
-      await _postToServer(payload);
+      try {
+        final uriBase = Uri.parse('$API_BASE/ir/attempt');
+        final uri =
+            idn.isEmpty
+                ? uriBase
+                : uriBase.replace(
+                  queryParameters: {'userKey': idn['userKey']!},
+                );
+        await http.post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            if (idn.isNotEmpty) 'x-user-key': idn['userKey']!,
+            // (옵션) 호환용
+            if (idn.isNotEmpty) 'x-login-id': idn['userKey']!,
+          },
+          body: jsonEncode({...payload, ...idn}),
+        );
+      } catch (_) {}
     }
   }
 
