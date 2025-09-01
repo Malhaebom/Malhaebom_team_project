@@ -1,4 +1,3 @@
-// lib/screens/users/login_page.dart
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -10,10 +9,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
-// 추가된 import
 import 'package:malhaebom/screens/users/signup_page.dart';
 import 'package:malhaebom/screens/main/home_page.dart';
-import 'package:malhaebom/widgets/back_to_home.dart'; // ⬅️ BackToHome 적용
+import 'package:malhaebom/widgets/back_to_home.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -24,17 +22,9 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   // ================== 서버 주소 ==================
-  static final String API_BASE =
-      (() {
-        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-        if (defined.isNotEmpty) return defined;
+  static const String API_BASE = 'http://211.188.63.38:4000';
 
-        if (kIsWeb) return 'http://localhost:4000';
-        if (Platform.isAndroid) return 'http://10.0.2.2:4000'; // 에뮬레이터 기본
-        return 'http://localhost:4000'; // iOS 시뮬레이터/기타
-      })();
-
-  // SNS 콜백 스킴/호스트/경로 (Manifest의 data와 동일해야 함)
+  // SNS 콜백 스킴/호스트/경로
   static const String CALLBACK_SCHEME = 'myapp';
   static const String CALLBACK_HOST = 'auth';
   static const String CALLBACK_PATH = '/callback';
@@ -57,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _autoLogin = false;
   bool _loggingIn = false;
-  bool _bootChecked = false; // 앱 시작 시 자동로그인 검사 완료 여부
+  bool _bootChecked = false;
 
   @override
   void initState() {
@@ -72,22 +62,18 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  // ✅ 전화번호/로컬ID 정규화: 숫자만 남김
   String _normPhone(String s) => s.replaceAll(RegExp(r'\D'), '');
 
-  // ================== IDENTITY 저장/마이그레이션 유틸 ==================
-
-  // ✅ 평문(전화번호) 로그인 → user_key = 숫자만(userId)
   Future<void> _persistIdentityPlainLogin(String userId, {String? nick}) async {
     final prefs = await SharedPreferences.getInstance();
     final norm = _normPhone(userId);
-    await prefs.setString('user_key', norm); // 핵심
-    await prefs.setString('user_id', norm);  // 호환용
-    await prefs.remove('sns_user_id');       // 혹시 남아있던 SNS 흔적 정리
+    await prefs.setString('user_key', norm);
+    await prefs.setString('user_id', norm);
+    await prefs.remove('sns_user_id');
     await prefs.remove('sns_login_type');
     if (nick != null) {
-      final raw = prefs.getString('auth_user');
       Map<String, dynamic> j = {};
+      final raw = prefs.getString('auth_user');
       if (raw != null) {
         try {
           j = (jsonDecode(raw) as Map).map((k, v) => MapEntry(k.toString(), v));
@@ -99,7 +85,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ✅ SNS 로그인 → user_key = "<type>:<id>"
   Future<void> _persistIdentitySns({
     required String snsUserId,
     required String snsLoginType,
@@ -107,12 +92,10 @@ class _LoginPageState extends State<LoginPage> {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final key = '${snsLoginType.toLowerCase()}:$snsUserId';
-    await prefs.setString('user_key', key); // 핵심
-    await prefs.setString('sns_user_id', snsUserId); // 평평한 키
+    await prefs.setString('user_key', key);
+    await prefs.setString('sns_user_id', snsUserId);
     await prefs.setString('sns_login_type', snsLoginType.toLowerCase());
-    await prefs.setString('user_id', snsUserId); // 호환(있어도 무해)
-
-    // auth_user 업데이트(있으면)
+    await prefs.setString('user_id', snsUserId);
     final j = {
       'user_id': snsUserId,
       'nick': snsNick ?? '',
@@ -121,7 +104,6 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setString('auth_user', jsonEncode(j));
   }
 
-  // ✅ 예전 유저를 위한 one-time 마이그레이션 (토큰만 있고 user_key가 없는 경우)
   Future<void> _migrateIdentityIfMissing() async {
     final prefs = await SharedPreferences.getInstance();
     final hasKey = (prefs.getString('user_key') ?? '').isNotEmpty;
@@ -129,12 +111,10 @@ class _LoginPageState extends State<LoginPage> {
 
     final raw = prefs.getString('auth_user');
     if (raw == null || raw.isEmpty) return;
-
     try {
       final j = jsonDecode(raw) as Map<String, dynamic>;
       final snsType = (j['sns_login_type'] as String?)?.toLowerCase();
       final uid = (j['user_id'] as String?) ?? '';
-
       if (snsType == 'kakao' || snsType == 'google' || snsType == 'naver') {
         if (uid.isNotEmpty) {
           await _persistIdentitySns(
@@ -144,29 +124,23 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else if (uid.isNotEmpty) {
-        await _persistIdentityPlainLogin(_normPhone(uid), nick: j['nick'] as String?);
+        await _persistIdentityPlainLogin(
+          _normPhone(uid),
+          nick: j['nick'] as String?,
+        );
       }
-    } catch (_) {
-      // ignore
-    }
+    } catch (_) {}
   }
 
-  // ================== 부팅 시 자동로그인 ==================
   Future<void> _loadPrefsAndMaybeAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
     final savedAuto = prefs.getBool('auto_login') ?? false;
     final token = prefs.getString('auth_token');
 
-    if (mounted) {
-      setState(() {
-        _autoLogin = savedAuto;
-      });
-    }
+    if (mounted) setState(() => _autoLogin = savedAuto);
 
-    // ✅ 먼저 identity 마이그레이션 시도
     await _migrateIdentityIfMissing();
 
-    // 저장된 토큰 + auto_login=true → 토큰 검증
     if (savedAuto && token != null && token.isNotEmpty) {
       try {
         final me = await http.get(
@@ -190,12 +164,11 @@ class _LoginPageState extends State<LoginPage> {
     await prefs.setBool('auto_login', v);
   }
 
-  // ================== 아이디/비번 로그인 ==================
   Future<void> _login() async {
     if (_loggingIn) return;
 
     final userIdRaw = _phoneCtrl.text.trim();
-    final userId = _normPhone(userIdRaw); // ✅ 숫자만
+    final userId = _normPhone(userIdRaw);
     final pwd = _pwCtrl.text;
     if (userId.isEmpty || pwd.isEmpty) {
       _snack('전화번호/비밀번호를 입력해 주세요.');
@@ -205,13 +178,11 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _loggingIn = true);
     try {
       final uri = Uri.parse('$API_BASE/userLogin/login');
-
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'user_id': userId, 'pwd': pwd}), // ✅ 서버에도 숫자만
+        body: jsonEncode({'user_id': userId, 'pwd': pwd}),
       );
-
       if (!mounted) return;
 
       if (resp.statusCode == 200) {
@@ -234,11 +205,8 @@ class _LoginPageState extends State<LoginPage> {
           await _saveAutoLogin(false);
           await prefs.setBool('auto_login_last', false);
         }
-        if (user != null) {
-          await prefs.setString('auth_user', jsonEncode(user));
-        }
+        if (user != null) await prefs.setString('auth_user', jsonEncode(user));
 
-        // ✅ 핵심: identity 평평한 키(숫자만) 저장
         await _persistIdentityPlainLogin(
           userId,
           nick: user?['nick']?.toString(),
@@ -261,11 +229,10 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 ==================
+  /// ================== SNS 로그인 (딥링크 즉시 복귀) ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // ✅ 지금 화면의 체크박스 상태 즉시 저장
     final bool wantAuto = _autoLogin;
     await _saveAutoLogin(wantAuto);
 
@@ -306,8 +273,8 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
       final uri = Uri.parse(result);
-      if (uri.host != CALLBACK_HOST || !uri.path.startsWith(CALLBACK_PATH)) {
-        _snack('잘못된 콜백 URL입니다.');
+      if (uri.scheme != CALLBACK_SCHEME) {
+        _snack('콜백 스킴이 올바르지 않습니다: ${uri.scheme}');
         return;
       }
 
@@ -318,12 +285,17 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       final token = uri.queryParameters['token'];
-      final snsUserId = uri.queryParameters['sns_user_id'];
-      final snsNick = uri.queryParameters['sns_nick'];
-      final snsLoginType =
-          (uri.queryParameters['sns_login_type'] ?? provider).toLowerCase();
+      final loginId =
+          uri.queryParameters['login_id'] ?? uri.queryParameters['sns_user_id'];
+      final loginType =
+          (uri.queryParameters['login_type'] ??
+                  uri.queryParameters['sns_login_type'] ??
+                  provider)
+              .toLowerCase();
+      final nick =
+          uri.queryParameters['nick'] ?? uri.queryParameters['sns_nick'];
 
-      if (token == null || snsUserId == null) {
+      if (token == null || loginId == null) {
         _snack('SNS 로그인 응답이 올바르지 않습니다.');
         return;
       }
@@ -338,11 +310,10 @@ class _LoginPageState extends State<LoginPage> {
         await prefs.setBool('auto_login_last', false);
       }
 
-      // ✅ 핵심: identity 평평한 키 저장(SNS는 그대로)
       await _persistIdentitySns(
-        snsUserId: snsUserId,
-        snsLoginType: snsLoginType,
-        snsNick: snsNick,
+        snsUserId: loginId,
+        snsLoginType: loginType,
+        snsNick: nick,
       );
 
       if (!mounted) return;
@@ -363,14 +334,9 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // (참고) 이 페이지에서 직접 로그아웃 쓸 일은 거의 없음. HomePage에서 pushAndRemoveUntil로 처리 권장.
-  Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('auth_token');
-    await prefs.remove('auth_user');
-    // ⚠️ auto_login 값은 그대로 둠
-    _snack('로그아웃되었습니다.');
-  }
+  void _loginWithGoogle() => _startSnsLogin('google');
+  void _loginWithNaver() => _startSnsLogin('naver');
+  void _loginWithKakao() => _startSnsLogin('kakao');
 
   String? _extractMessage(String body) {
     try {
@@ -382,10 +348,6 @@ class _LoginPageState extends State<LoginPage> {
       return null;
     }
   }
-
-  void _loginWithGoogle() => _startSnsLogin('google');
-  void _loginWithNaver() => _startSnsLogin('naver');
-  void _loginWithKakao() => _startSnsLogin('kakao');
 
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -403,7 +365,6 @@ class _LoginPageState extends State<LoginPage> {
 
     return MediaQuery(
       data: fixedMedia,
-      // ⬇️ LoginPage 전체를 BackToHome으로 감싸서 하드웨어/제스처 뒤로가기를 Home으로 보냄
       child: BackToHome(
         child: Scaffold(
           backgroundColor: Colors.white,
@@ -416,7 +377,6 @@ class _LoginPageState extends State<LoginPage> {
                 Icons.arrow_back_ios_new_rounded,
                 color: Colors.black87,
               ),
-              // ⬇️ pop → maybePop (WillPopScope가 가로채서 Home으로 이동)
               onPressed: () => Navigator.maybePop(context),
               tooltip: '뒤로가기',
             ),
@@ -439,7 +399,6 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // 로고
                       Padding(
                         padding: EdgeInsets.only(top: 8.h, bottom: 16.h),
                         child: Column(
@@ -448,18 +407,19 @@ class _LoginPageState extends State<LoginPage> {
                               'assets/logo/logo_top2.png',
                               height: 64.w,
                               fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.image,
-                                size: 40.w,
-                                color: Colors.black26,
-                              ),
+                              errorBuilder:
+                                  (_, __, ___) => Icon(
+                                    Icons.image,
+                                    size: 40.w,
+                                    color: Colors.black26,
+                                  ),
                             ),
                             SizedBox(height: 8.h),
                           ],
                         ),
                       ),
 
-                      // SNS 로그인
+                      // ✅ SNS 아이콘 포함 UI 그대로
                       _googleSoftButton(
                         label: '구글로 로그인',
                         iconPath: 'assets/icons/google_icon.png',
@@ -484,10 +444,11 @@ class _LoginPageState extends State<LoginPage> {
 
                       SizedBox(height: 16.h),
 
-                      // 구분선
                       Row(
                         children: [
-                          Expanded(child: Container(height: 1, color: kDivider)),
+                          Expanded(
+                            child: Container(height: 1, color: kDivider),
+                          ),
                           Padding(
                             padding: EdgeInsets.symmetric(horizontal: 8.w),
                             child: Text(
@@ -500,13 +461,14 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ),
                           ),
-                          Expanded(child: Container(height: 1, color: kDivider)),
+                          Expanded(
+                            child: Container(height: 1, color: kDivider),
+                          ),
                         ],
                       ),
 
                       SizedBox(height: 16.h),
 
-                      // 휴대전화번호
                       Text(
                         '휴대전화번호',
                         style: TextStyle(
@@ -555,7 +517,6 @@ class _LoginPageState extends State<LoginPage> {
 
                       SizedBox(height: 12.h),
 
-                      // 비밀번호
                       Text(
                         '비밀번호',
                         style: TextStyle(
@@ -601,7 +562,6 @@ class _LoginPageState extends State<LoginPage> {
 
                       SizedBox(height: 8.h),
 
-                      // 자동로그인
                       Row(
                         children: [
                           Checkbox(
@@ -609,7 +569,7 @@ class _LoginPageState extends State<LoginPage> {
                             onChanged: (v) async {
                               final nv = v ?? false;
                               setState(() => _autoLogin = nv);
-                              await _saveAutoLogin(nv); // ✅ 즉시 저장
+                              await _saveAutoLogin(nv);
                             },
                             activeColor: kPrimary,
                             shape: RoundedRectangleBorder(
@@ -630,7 +590,6 @@ class _LoginPageState extends State<LoginPage> {
 
                       SizedBox(height: 10.h),
 
-                      // 로그인 버튼
                       SizedBox(
                         height: 52.h,
                         child: ElevatedButton(
@@ -648,22 +607,22 @@ class _LoginPageState extends State<LoginPage> {
                               fontSize: 16.sp,
                             ),
                           ),
-                          child: _loggingIn
-                              ? SizedBox(
-                                  height: 18.w,
-                                  width: 18.w,
-                                  child: const CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('로그인'),
+                          child:
+                              _loggingIn
+                                  ? SizedBox(
+                                    height: 18.w,
+                                    width: 18.w,
+                                    child: const CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                  : const Text('로그인'),
                         ),
                       ),
 
                       SizedBox(height: 14.h),
 
-                      // 하단 문구 + 회원가입 링크
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -795,11 +754,12 @@ class _LoginPageState extends State<LoginPage> {
       fit: BoxFit.contain,
       cacheWidth: (size.w * 3).toInt(),
       cacheHeight: (size.w * 3).toInt(),
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.image_not_supported_rounded,
-        size: size.w,
-        color: Colors.black26,
-      ),
+      errorBuilder:
+          (_, __, ___) => Icon(
+            Icons.image_not_supported_rounded,
+            size: size.w,
+            color: Colors.black26,
+          ),
     );
   }
 

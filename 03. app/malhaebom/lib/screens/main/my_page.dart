@@ -28,15 +28,17 @@ import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
 // ===== 서버 설정(StoryResultPage와 동일 규칙) =====
+// - 배포 기본값: 공인 IP 사용 (http://211.188.63.38:4000)
+// - 필요 시: --dart-define=API_BASE=http://<도메인또는IP>:<포트>
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
-      if (kIsWeb) return 'http://localhost:4000';
-      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-      if (Platform.isIOS) return 'http://localhost:4000';
-      return 'http://192.168.0.23:4000';
+
+      // ✅ 공인 IP를 기본값으로 고정
+      // (로컬 개발 시에는 --dart-define=API_BASE=http://localhost:4000 로 덮어쓰기)
+      return 'http://211.188.63.38:4000';
     })();
 
 // ===== 로컬 저장 키 =====
@@ -381,8 +383,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
             if (!mounted) return;
             setState(() => _hasUserKey = false);
-            ScaffoldMessenger.of(context)
-                .showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
 
             // 로그인 페이지로 스택 리셋
             Navigator.pushAndRemoveUntil(
@@ -481,11 +484,12 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             Padding(
               padding: EdgeInsets.only(top: 8.h),
-              child: _loading
-                  ? _skeleton()
-                  : (_latest == null
-                      ? _emptyLatest(context)
-                      : _latestCard(context, _latest!, _attemptCount)),
+              child:
+                  _loading
+                      ? _skeleton()
+                      : (_latest == null
+                          ? _emptyLatest(context)
+                          : _latestCard(context, _latest!, _attemptCount)),
             ),
           ],
         ),
@@ -540,58 +544,58 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             _storyLoading
                 ? Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: _skeleton(),
-                  )
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: _skeleton(),
+                )
                 : Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: Column(
-                      children: [
-                        TabBar(
-                          controller: _storyTabController,
-                          isScrollable: true,
-                          tabAlignment: TabAlignment.start,
-                          padding: EdgeInsets.zero,
-                          labelPadding:
-                              EdgeInsets.symmetric(horizontal: 14.w),
-                          labelColor: AppColors.btnColorDark,
-                          unselectedLabelColor: const Color(0xFF6B7280),
-                          indicatorColor: AppColors.btnColorDark,
-                          labelStyle: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'GmarketSans',
-                          ),
-                          unselectedLabelStyle: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.w500,
-                            fontFamily: 'GmarketSans',
-                          ),
-                          tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: Column(
+                    children: [
+                      TabBar(
+                        controller: _storyTabController,
+                        isScrollable: true,
+                        tabAlignment: TabAlignment.start,
+                        padding: EdgeInsets.zero,
+                        labelPadding: EdgeInsets.symmetric(horizontal: 14.w),
+                        labelColor: AppColors.btnColorDark,
+                        unselectedLabelColor: const Color(0xFF6B7280),
+                        indicatorColor: AppColors.btnColorDark,
+                        labelStyle: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w700,
+                          fontFamily: 'GmarketSans',
                         ),
-                        SizedBox(height: 12.h),
-                        SizedBox(
-                          height: 520.h,
-                          child: TabBarView(
-                            controller: _storyTabController,
-                            children: [
-                              for (final t in kStoryTitles)
-                                SingleChildScrollView(
-                                  child: (_storyLatest[t] == null)
-                                      ? _emptyStory(t) // 첫 검사 전
-                                      : _storyCard(
+                        unselectedLabelStyle: TextStyle(
+                          fontSize: 20.sp,
+                          fontWeight: FontWeight.w500,
+                          fontFamily: 'GmarketSans',
+                        ),
+                        tabs: [for (final t in kStoryTitles) Tab(text: t)],
+                      ),
+                      SizedBox(height: 12.h),
+                      SizedBox(
+                        height: 520.h,
+                        child: TabBarView(
+                          controller: _storyTabController,
+                          children: [
+                            for (final t in kStoryTitles)
+                              SingleChildScrollView(
+                                child:
+                                    (_storyLatest[t] == null)
+                                        ? _emptyStory(t) // 첫 검사 전
+                                        : _storyCard(
                                           context,
                                           t,
                                           _storyLatest[t]!,
                                           _storyAttemptCounts[t] ?? 0,
                                         ),
-                                ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
           ],
         ),
       ),
@@ -833,15 +837,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ir.InterviewResultPage(
-                      score: a.score,
-                      total: a.total,
-                      byCategory: a.byCategory,
-                      byType: a.byType ?? <String, ir.CategoryStat>{},
-                      testedAt: a.testedAt ?? DateTime.now(),
-                      interviewTitle: a.interviewTitle,
-                      persist: false,
-                    ),
+                    builder:
+                        (_) => ir.InterviewResultPage(
+                          score: a.score,
+                          total: a.total,
+                          byCategory: a.byCategory,
+                          byType: a.byType ?? <String, ir.CategoryStat>{},
+                          testedAt: a.testedAt ?? DateTime.now(),
+                          interviewTitle: a.interviewTitle,
+                          persist: false,
+                        ),
                   ),
                 );
               },
@@ -981,16 +986,17 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => sr.StoryResultPage(
-                      score: s.score,
-                      total: s.total,
-                      byCategory: byCat,
-                      byType: byType,
-                      testedAt: s.testedAt ?? DateTime.now(),
-                      storyTitle: storyTitle,
-                      persist: false,
-                      fixedAttemptOrder: s.attemptOrder,
-                    ),
+                    builder:
+                        (_) => sr.StoryResultPage(
+                          score: s.score,
+                          total: s.total,
+                          byCategory: byCat,
+                          byType: byType,
+                          testedAt: s.testedAt ?? DateTime.now(),
+                          storyTitle: storyTitle,
+                          persist: false,
+                          fixedAttemptOrder: s.attemptOrder,
+                        ),
                   ),
                 );
                 if (!mounted) return;
@@ -1020,28 +1026,28 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
   // ====== 공통 스켈레톤 ======
   Widget _skeleton() => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(6, (i) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.h),
-              child: Container(
-                height: 18.h,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            );
-          }),
-        ),
-      );
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(6, (i) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Container(
+            height: 18.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
 
   // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
@@ -1074,62 +1080,62 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF10B981),
-                        Color(0xFFF59E0B),
-                        Color(0xFFEF4444),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _statusChip(_EvalView ev) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: ev.badgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: ev.badgeBorder),
-        ),
-        child: Text(
-          ev.text,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 14.sp,
-            color: ev.textColor,
-            fontFamily: 'GmarketSans',
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: ev.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: ev.badgeBorder),
+    ),
+    child: Text(
+      ev.text,
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 14.sp,
+        color: ev.textColor,
+        fontFamily: 'GmarketSans',
+      ),
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;

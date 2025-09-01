@@ -17,17 +17,7 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   // ================== 서버 주소 ==================
-  static final String API_BASE =
-      (() {
-        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-        if (defined.isNotEmpty) return defined;
-
-        if (kIsWeb) return 'http://localhost:4000';
-        if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-        if (Platform.isIOS) return 'http://localhost:4000';
-
-        return 'http://192.168.0.23:4000';
-      })();
+  static const String API_BASE = 'http://211.188.63.38:4000';
 
   // Colors (로그인 페이지와 동일 계열)
   static const Color kPrimary = Color(0xFF344CB7);

@@ -1,7 +1,5 @@
 // lib/screens/story/story_test_result_page.dart
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:http/http.dart' as http;
@@ -10,16 +8,10 @@ import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
 
 // --- 서버 전송 스위치 & 베이스 URL(옵션) ---
-const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
-final String API_BASE =
-    (() {
-      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-      if (defined.isNotEmpty) return defined;
-      if (kIsWeb) return 'http://localhost:4000';
-      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-      if (Platform.isIOS) return 'http://localhost:4000';
-      return 'http://192.168.0.23:4000';
-    })();
+const bool kUseServer = true;
+const String API_BASE = 'http://211.188.63.38:4000';
+
+const Duration _httpTimeout = Duration(seconds: 12);
 
 // --- 로컬 저장 키(동화별) ---
 const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
