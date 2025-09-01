@@ -1,0 +1,106 @@
+/* PlayStart 컴포넌트 전용 스타일 */
+
+.playstart-container {
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px; /* 최소 높이 설정 */
+}
+
+.playstart-text {
+    height: 200px; /* 고정 높이 설정 */
+    padding: 15px;
+    word-break: break-all;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    font-size: 18px;
+    line-height: 1.6;
+    text-align: left;
+    margin-bottom: 0;
+    white-space: pre-wrap;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    overflow-y: auto; /* 세로 스크롤 추가 */
+    flex: 1; /* 남은 공간 차지 */
+}
+
+.playstart-controls {
+    display: flex;
+    justify-content: space-around;
+    margin: 20px 0;
+    flex-shrink: 0; /* 크기 고정 */
+}
+
+.playstart-controls button {
+    width: 47%;
+}
+
+.playstart-controls button:last-child {
+    background: #f71d1d;
+}
+
+/* 진행률 표시 스타일 */
+.progress-container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 20px;
+    flex-shrink: 0; /* 크기 고정 */
+}
+
+.progress-circle {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 2px solid #3f51b5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3f51b5;
+    font-weight: bold;
+}
+
+.progress-circle.inactive {
+    border-color: #ccc;
+    color: #999;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: #ccc;
+    margin: 0 10px;
+    border-radius: 4px;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #3f51b5;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+/* 녹음 중에도 텍스트와 원본 듣기 영역이 사라지지 않도록 보장 - 제거됨 */
+
+/* 녹음 중 깜빡이는 애니메이션 */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

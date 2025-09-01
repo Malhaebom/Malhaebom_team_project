@@ -12,6 +12,7 @@ export default function ProgressBar({ current, total }) {
         alignItems: "center",
         justifyContent: "space-between",
         marginTop: 20,        // 위쪽 여백
+        padding: "0 20px",    // 좌우 여백 통일
       }}
     >
       {/* 현재 질문 번호 */}
