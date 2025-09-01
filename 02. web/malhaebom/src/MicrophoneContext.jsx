@@ -124,50 +124,52 @@ export const MicrophoneProvider = ({ children }) => {
         return true;
       }
 
-      // MediaRecorder 생성 또는 재생성
-      if (!mediaRecorderRef.current) {
-        if (!streamRef.current) {
-          console.log("스트림이 없습니다. 마이크 재활성화 필요");
-          const success = await startMicrophone();
-          if (!success) {
-            return false;
-          }
+      // 스트림이 없으면 마이크 재활성화
+      if (!streamRef.current || !streamRef.current.active) {
+        console.log("스트림이 없습니다. 마이크 재활성화 필요");
+        const success = await startMicrophone();
+        if (!success) {
+          return false;
         }
-        
-        console.log("MediaRecorder 새로 생성");
-        const mediaRecorder = new MediaRecorder(streamRef.current);
-        mediaRecorderRef.current = mediaRecorder;
-        
-        mediaRecorder.ondataavailable = (e) => {
-          console.log("녹음 데이터 수신:", e.data.size, "bytes");
-          chunksRef.current.push(e.data);
-        };
-
-        mediaRecorder.onstop = () => {
-          console.log("MediaRecorder onstop 이벤트 발생 - 녹음 완료");
-          setIsRecording(false);
-          console.log("녹음 상태를 false로 설정");
-        };
-
-        mediaRecorder.onerror = (event) => {
-          console.error("녹음 중 오류:", event.error);
-          setRecordingError("녹음 중 오류가 발생했습니다.");
-          setIsRecording(false);
-        };
       }
+      
+      // 기존 MediaRecorder 정리
+      if (mediaRecorderRef.current) {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+        mediaRecorderRef.current = null;
+      }
+      
+      // MediaRecorder 새로 생성
+      console.log("MediaRecorder 새로 생성");
+      const mediaRecorder = new MediaRecorder(streamRef.current);
+      mediaRecorderRef.current = mediaRecorder;
+      
+      mediaRecorder.ondataavailable = (e) => {
+        console.log("녹음 데이터 수신:", e.data.size, "bytes");
+        chunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        console.log("MediaRecorder onstop 이벤트 발생 - 녹음 완료");
+        setIsRecording(false);
+        console.log("녹음 상태를 false로 설정");
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error("녹음 중 오류:", event.error);
+        setRecordingError("녹음 중 오류가 발생했습니다.");
+        setIsRecording(false);
+      };
 
       // 녹음 시작
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
-        chunksRef.current = [];
-        mediaRecorderRef.current.start();
-        setIsRecording(true);
-        setRecordingError(null);
-        console.log("녹음 시작");
-        return true;
-      } else {
-        console.log("MediaRecorder 상태 문제:", mediaRecorderRef.current?.state);
-        return false;
-      }
+      chunksRef.current = [];
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingError(null);
+      console.log("녹음 시작");
+      return true;
 
     } catch (error) {
       console.error("녹음 시작 실패:", error);
@@ -187,6 +189,15 @@ export const MicrophoneProvider = ({ children }) => {
       } else {
         console.log("MediaRecorder가 녹음 중이 아닙니다. 현재 상태:", mediaRecorderRef.current?.state);
       }
+      
+      // MediaRecorder 정리 (다음 녹음을 위해)
+      setTimeout(() => {
+        if (mediaRecorderRef.current) {
+          mediaRecorderRef.current = null;
+          console.log("MediaRecorder 참조 정리 완료");
+        }
+      }, 100);
+      
     } catch (error) {
       console.error("녹음 정지 중 오류:", error);
     }

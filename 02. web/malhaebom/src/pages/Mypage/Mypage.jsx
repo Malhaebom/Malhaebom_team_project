@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
+import MypageInterviewHistory from "./MypageInterviewHistory.jsx";
 
 const API = axios.create({
   baseURL: "http://localhost:3001",
@@ -15,6 +16,8 @@ const Mypage = () => {
 
   // 로그인 닉네임 (세션 복구로 채움)
   const [nick, setNick] = useState("");
+  
+
 
   // 로그인 상태 복구
   useEffect(() => {
@@ -60,7 +63,7 @@ const Mypage = () => {
   // 이동 핸들러
   const goLogin = () => navigate("/login");
   const goBookHistory = () => navigate("/bookHistory");
-  const goInterviewHistory = () => navigate("/InterviewHistory");
+  const goInterviewHistory = () => navigate("/mypage-interview-history");
 
   // 로그아웃
   const logout = async () => {
@@ -96,7 +99,8 @@ const Mypage = () => {
           마이페이지
         </h2>
 
-        {nick && (
+        {/* 로그인 상태에 따른 설명 텍스트 */}
+        {nick ? (
           <p
             style={{
               textAlign: "center",
@@ -107,6 +111,17 @@ const Mypage = () => {
             }}
           >
             {nick}님 환영합니다!
+          </p>
+        ) : (
+          <p
+            style={{
+              textAlign: "center",
+              marginBottom: "30px",
+              fontSize: "18px",
+              color: "#666",
+            }}
+          >
+            로그인 후 이용해 주세요.
           </p>
         )}
 

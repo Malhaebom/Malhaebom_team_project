@@ -15,11 +15,10 @@ export default function PlayList() {
   const [title, setTitle] = useState("");
   const [speech, setSpeech] = useState(null);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [recordingTimes, setRecordingTimes] = useState({});
   
   // 페이징 관련 상태
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8);
+  const [itemsPerPage] = useState(5);
 
   // AOS
   useEffect(() => {
@@ -59,11 +58,6 @@ export default function PlayList() {
       localStorage.setItem("speechPath", value.speech);
       localStorage.setItem("bookTitle", bookTitle);
 
-      // 녹음 완료 시간 불러오기
-      const recordingTimesKey = `recordingTimes_${value.speech}`;
-      const savedTimes = JSON.parse(localStorage.getItem(recordingTimesKey) || '{}');
-      setRecordingTimes(savedTimes);
-
       fetch(`/autobiography/${value.speech}`)
         .then((r) => {
           if (!r.ok) throw new Error("speech JSON 로드 실패");
@@ -91,11 +85,11 @@ export default function PlayList() {
   const endIndex = startIndex + itemsPerPage;
   const currentData = speech?.slice(startIndex, endIndex) || [];
 
-  // 현재 페이지의 데이터를 8개로 맞추기 (빈 항목 추가)
+  // 현재 페이지의 데이터를 5개로 맞추기 (빈 항목 추가)
   const getCurrentPageData = () => {
     const data = [...currentData];
     
-    // 8개 미만이면 빈 항목들을 추가
+    // 5개 미만이면 빈 항목들을 추가
     while (data.length < itemsPerPage) {
       data.push(null);
     }
@@ -107,27 +101,6 @@ export default function PlayList() {
     setCurrentPage(page);
   };
 
-  // 녹음 완료 시간 포맷팅 함수
-  const formatRecordingTime = (speechId) => {
-    const completionTime = recordingTimes[speechId];
-    if (!completionTime) {
-      return "미완료";
-    }
-    
-    try {
-      const date = new Date(completionTime);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    } catch (error) {
-      return "미완료";
-    }
-  };
-
   return (
     <div className="content">
       {/* 브라우저 1100px 이상일 때만 Background 렌더링 */}
@@ -135,98 +108,117 @@ export default function PlayList() {
       <div className="wrap">
         <Header title={title} />
         <div className="inner">
-          <div
-            className="ct_theater ct_inner"
-            data-aos="fade-up"
-            data-aos-duration="1000"
-          >
+                     <div
+             className="ct_theater ct_inner"
+             data-aos="fade-up"
+             data-aos-duration="1000"
+             style={{
+               display: "flex",
+               flexDirection: "column",
+               minHeight: "calc(100vh - 200px)" // 최소 높이 설정
+             }}
+           >
             {Array.isArray(speech) && speech.length > 0 ? (
               getCurrentPageData().map((item, index) => (
-                                                  <div
-                   key={index}
-                   style={{
-                     cursor: item ? "pointer" : "default",
-                     padding: "16px 20px",
-                     backgroundColor: "#ffffff",
-                     borderRadius: "8px",
-                     marginBottom: "12px",
-                     boxShadow: item ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-                     transition: "all 0.2s ease",
-                     border: "1px solid #ffffff",
-                     minHeight: "65px",
-                     display: "flex",
-                     alignItems: "center",
-                     opacity: item ? 1 : 0
-                   }}
-                   onClick={() => item && goToStartPlay(startIndex + index)}
-                                                            onMouseEnter={(e) => {
-                       if (item) {
-                         e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.15)";
-                       }
-                     }}
-                     onMouseLeave={(e) => {
-                       if (item) {
-                         e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
-                       }
-                     }}
-                 >
-                   <div
-                     style={{
-                       display: "flex",
-                       justifyContent: "space-between",
-                       alignItems: "center",
-                       width: "100%"
-                     }}
-                   >
-                     <div style={{ 
-                       display: "flex", 
-                       alignItems: "center", 
-                       justifyContent: "flex-start",
-                       flex: 1
+                <div
+                  key={index}
+                  style={{
+                    cursor: item ? "pointer" : "default",
+                    padding: "20px",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "10px",
+                    marginBottom: "20px",
+                    boxShadow: item ? "0 2px 8px rgba(0,0,0,0.1)" : "none",
+                    transition: "all 0.2s ease",
+                    border: "1px solid #e1e1e1",
+                    minHeight: "auto",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    opacity: item ? 1 : 0,
+                    wordBreak: "keep-all",
+                    lineHeight: "1.3"
+                  }}
+                  onClick={() => item && goToStartPlay(startIndex + index)}
+                  onMouseEnter={(e) => {
+                    if (item) {
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                      e.currentTarget.style.transform = "translateY(-2px)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (item) {
+                      e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.1)";
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-start",
+                      alignItems: "flex-start",
+                      width: "100%",
+                      flexDirection: "column",
+                      gap: "8px"
+                    }}
+                  >
+                                         <span style={{ 
+                       color: "#333333", 
+                       fontWeight: "bold", 
+                       fontSize: "18px",
+                       fontFamily: "GmarketSans"
                      }}>
-                                               <span style={{ 
-                          color: "#488eca", 
-                          fontWeight: "bold", 
-                          fontSize: "16px",
-                          fontFamily: "GmarketSans"
-                        }}>
-                          동화연극하기{startIndex + index + 1}
-                        </span>
-                     </div>
-                                           <div style={{ 
-                        display: "flex", 
-                        alignItems: "center", 
-                        justifyContent: "flex-end",
-                        color: recordingTimes[startIndex + index] ? "#ff6b35" : "#999999",
-                        fontSize: "14px",
-                        fontWeight: "bold",
-                        fontFamily: "GmarketSans"
+                       문항 {startIndex + index + 1}
+                     </span>
+                    {item && (
+                      <p style={{
+                        color: "#7d7d7d",
+                        fontSize: "16px",
+                        fontFamily: "GmarketSans",
+                        margin: "0",
+                        lineHeight: "1.4",
+                        textAlign: "left"
                       }}>
-                        <span>{formatRecordingTime(startIndex + index)}</span>
-                      </div>
-                   </div>
-                 </div>
+                        {item.speechText || "대화 내용을 불러올 수 없습니다."}
+                      </p>
+                    )}
+                  </div>
+                </div>
               ))
-                         ) : (
-               <div style={{
-                 textAlign: "center",
-                 padding: "40px 20px",
-                 color: "#888",
-                 fontSize: "16px",
-                 fontFamily: "GmarketSans"
-               }}>
-                 {Array.isArray(speech) ? "동화연극하기 항목이 없습니다." : "로딩 중..."}
-               </div>
-             )}
+            ) : (
+              <div style={{
+                textAlign: "center",
+                padding: "40px 20px",
+                color: "#7d7d7d",
+                fontSize: "16px",
+                fontFamily: "GmarketSans",
+                backgroundColor: "#ffffff",
+                borderRadius: "10px",
+                border: "1px solid #e1e1e1",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.1)"
+              }}>
+                {Array.isArray(speech) ? "동화연극하기 항목이 없습니다." : "로딩 중..."}
+              </div>
+                         )}
 
              {/* 페이징 네비게이션 */}
-             <Pagination
-               currentPage={currentPage}
-               totalPages={totalPages}
-               onPageChange={handlePageChange}
-               itemsPerPage={itemsPerPage}
-             />
-          </div>
+             <div style={{ 
+               marginTop: "auto", 
+               paddingTop: "20px",
+               border: "1px solid #ffffff",
+               borderRadius: "8px",
+               padding: "20px",
+               backgroundColor: "transparent"
+             }}>
+               <Pagination
+                 currentPage={currentPage}
+                 totalPages={totalPages}
+                 onPageChange={handlePageChange}
+                 itemsPerPage={itemsPerPage}
+               />
+             </div>
+           </div>
         </div>
       </div>
     </div>

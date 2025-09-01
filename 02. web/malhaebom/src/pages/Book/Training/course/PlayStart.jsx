@@ -538,8 +538,8 @@ export default function PlayStart() {
     if (speechId + 1 < speech.length) {
       navigate(`/book/training/course/play/start?speechId=${speechId + 1}`);
     } else {
-      alert("동화연극이 완료되었습니다! 화행검사 결과 페이지로 이동합니다.");
-      navigate("/bookHistory");
+      alert(`${bookTitle} 동화 연극하기가 종료되었습니다. 다른 동화 연극도 해볼까요?`);
+      navigate("/book/library");
     }
   };
 
@@ -619,7 +619,7 @@ export default function PlayStart() {
                data-aos="fade-up" 
                data-aos-duration="1000" 
                style={{
-                 background: "linear-gradient(135deg, #E8F4FD 0%, #F5F9FF 50%, #FFFFFF 100%)",
+                 background: "#FFFFFF",
                  borderRadius: "12px",
                  padding: "20px",
                  marginBottom: "20px",

@@ -53,10 +53,9 @@ export default function Home() {
     flexDirection: "column",
   };
 
-  // ✅ “이동하기” 라벨 유지, 동작만 조건 분기
+  // ✅ "이동하기" 라벨 유지, 동작만 조건 분기
   const goMyOrLogin = () => {
-    if (nick) navigate("/Mypage");
-    else navigate("/login");
+    navigate("/Mypage");
   };
 
   return (
