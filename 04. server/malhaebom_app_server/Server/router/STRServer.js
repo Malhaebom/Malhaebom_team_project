@@ -383,7 +383,7 @@ router.get("/story/attempt/list", async (req, res) => {
     const sql = `
       SELECT user_key,
              story_key, story_title, client_attempt_order, score, total,
-             client_kst, risk_bars
+             client_kst, risk_bars, risk_bars_by_type
         FROM tb_story_result
        WHERE user_key = :user_key
          AND story_key = :story_key
@@ -398,6 +398,7 @@ router.get("/story/attempt/list", async (req, res) => {
 
       const list = rows.map((row, idx) => {
         const riskBars = safeParseJSON(row.risk_bars, {});
+        const riskBarsByType = safeParseJSON(row.risk_bars_by_type, {});
         const byCategory = barsToCategoryStats(riskBars);
 
         const score = Number(row.score ?? 0);
@@ -414,7 +415,7 @@ router.get("/story/attempt/list", async (req, res) => {
           storyKey: row.story_key,
           clientAttemptOrder: row.client_attempt_order,
           riskBars,
-          riskBarsByType: {},
+          riskBarsByType,
 
           scoreText,
           serverAttemptOrder: idx + 1,
