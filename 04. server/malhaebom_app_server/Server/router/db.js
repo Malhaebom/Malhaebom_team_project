@@ -1,4 +1,4 @@
-// src/Server/lib/db.js
+// Server/router/db.js
 require("dotenv").config();
 const mysql = require("mysql2/promise");
 
@@ -28,11 +28,18 @@ pool.on?.("connection", (conn) => {
 // 주기적 keepalive
 const PING_INTERVAL_MS = 30 * 1000;
 setInterval(async () => {
-  try { await pool.query("SELECT 1"); }
-  catch (e) { console.warn("[DB] keepalive ping failed:", e?.code || e?.message); }
+  try {
+    await pool.query("SELECT 1");
+  } catch (e) {
+    console.warn("[DB] keepalive ping failed:", e?.code || e?.message);
+  }
 }, PING_INTERVAL_MS);
 
-// 시작 시 현재 설정 로그(클라우드 IP와 무관하지만 상태 확인용)
-console.log("[DB] host:", process.env.DB_HOST, "port:", process.env.DB_PORT || 3307, "db:", process.env.DB_NAME);
+console.log(
+  "[DB] ready:",
+  process.env.DB_HOST,
+  process.env.DB_PORT || 3307,
+  process.env.DB_NAME
+);
 
 module.exports = pool;

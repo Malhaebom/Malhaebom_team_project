@@ -5,7 +5,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 // ✅ 공용 DB 풀만 사용
-const pool = require("../lib/db");
+const pool = require("./db");
 
 const router = express.Router();
 

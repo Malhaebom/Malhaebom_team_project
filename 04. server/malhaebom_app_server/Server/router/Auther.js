@@ -6,7 +6,7 @@ const axios = require("axios");
 const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const pool = require("../lib/db"); // 공용 풀 사용
+const pool = require("./db"); // 공용 풀 사용
 
 const router = express.Router();
 

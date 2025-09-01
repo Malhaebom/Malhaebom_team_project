@@ -4,7 +4,7 @@ require("dotenv").config();
 const express = require("express");
 const router = express.Router();
 // ✅ 공용 DB 풀만 사용 (개별 풀 생성 금지)
-const pool = require("../lib/db");
+const pool = require("./db");
 const jwt = require("jsonwebtoken");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
