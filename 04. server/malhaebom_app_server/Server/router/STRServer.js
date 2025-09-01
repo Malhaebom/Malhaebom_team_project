@@ -3,17 +3,12 @@ require("dotenv").config();
 
 const express = require("express");
 const router = express.Router();
-const mysql = require("mysql2/promise");
+// ✅ 공용 DB 풀만 사용 (개별 풀 생성 금지)
+const pool = require("../lib/db");
 const jwt = require("jsonwebtoken");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
-// 배포 기본값을 캠퍼스 DB로 통일, JWT도 Auther/Login 과 동일 키를 사용
 const {
-  DB_HOST = "project-db-campus.smhrd.com",
-  DB_PORT = "3307",
-  DB_USER = "campus_25SW_BD_p3_3",
-  DB_PASSWORD = "smhrd3",
-  DB_NAME = "campus_25SW_BD_p3_3",
   STR_ALLOW_GUEST = "false",                // true면 user_key 없이도 저장(디버깅용)
   JWT_SECRET = "malhaebom_sns",             // ★ Auther/Login과 통일
   JWT_ISS,                                  // 선택: 토큰 발급자
@@ -21,37 +16,6 @@ const {
 } = process.env;
 
 const ALLOW_GUEST = String(STR_ALLOW_GUEST).toLowerCase() === "true";
-
-// ── DB Pool ──────────────────────────────────────────────────────────────────
-const pool = mysql.createPool({
-  host: DB_HOST,
-  port: Number(DB_PORT),
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  namedPlaceholders: true,
-  timezone: "Z",
-});
-
-pool.on?.("connection", (conn) => {
-  // 세션 타임아웃(8h) 연장
-  conn
-    .promise()
-    .query("SET SESSION wait_timeout=28800, interactive_timeout=28800")
-    .catch(() => {});
-});
-
-// DB keepalive ping
-const PING_INTERVAL_MS = 30 * 1000;
-setInterval(async () => {
-  try {
-    await pool.query("SELECT 1");
-  } catch (e) {
-    console.warn("[STR][DB] keepalive ping failed:", e?.code || e?.message);
-  }
-}, PING_INTERVAL_MS);
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function normalizeTitle(s) {
@@ -213,9 +177,14 @@ async function ensureTable() {
 ensureTable().catch((e) => console.error("[STR] ensureTable error:", e?.message || e));
 
 // ── 헬스체크 ───────────────────────────────────────────────────────────────────
-router.get("/health", (_req, res) =>
-  res.json({ ok: true, db: `${DB_HOST}:${DB_PORT}/${DB_NAME}` })
-);
+router.get("/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: "db_unreachable", detail: String(e?.message || e) });
+  }
+});
 
 // 디버그용: 내가 인식한 아이덴티티 보기
 router.get("/whoami", (req, res) => {

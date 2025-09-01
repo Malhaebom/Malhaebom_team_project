@@ -1,31 +1,19 @@
-// File: src/Server/router/Auther.js
+// src/Server/router/Auther.js
 require("dotenv").config();
 
 const express = require("express");
 const axios = require("axios");
 const qs = require("querystring");
-const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const pool = require("../lib/db"); // 공용 풀 사용
 
 const router = express.Router();
 
 /* =========================
- * DB 설정
+ * 고정 공개 ORIGIN (요청/ENV 무시)
  * ========================= */
-const DB_CONFIG = {
-  host: process.env.DB_HOST || "project-db-campus.smhrd.com",
-  port: Number(process.env.DB_PORT || 3307),
-  user: process.env.DB_USER || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME || "campus_25SW_BD_p3_3",
-};
-
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit: 10,
-});
+const FIXED_ORIGIN = "http://211.188.63.38:4000";
 
 /* =========================
  * JWT
@@ -53,32 +41,12 @@ const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/ca
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Redirect Base 결정
- * 우선순위:
- *  1) PUBLIC_BASE_URL (.env)
- *  2) X-Forwarded-Proto/Host
- *  3) Host 헤더 (req.protocol은 프록시 환경에서 부정확할 수 있어 보조로 사용)
+ * Redirect Base (고정)
  * ========================= */
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
-
-function originFromReq(req) {
-  try {
-    const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
-    const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
-    if (xfProto && xfHost) return `${xfProto}://${xfHost}`;
-    const host = (req.headers.host || "").trim();
-    if (host) return `http://${host}`;
-  } catch (_) {}
-  return null;
+function getRedirectBase(_req) {
+  // 요청/환경을 보지 않고 항상 고정 IP 사용
+  return FIXED_ORIGIN;
 }
-
-function getRedirectBase(req) {
-  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
-  const fromReq = originFromReq(req);
-  if (fromReq) return fromReq.replace(/\/$/, "");
-  return "http://localhost:4000"; // 최후 fallback
-}
-
 function buildRedirectUri(req, path) {
   return `${getRedirectBase(req)}${path}`;
 }
@@ -99,6 +67,7 @@ const NAVER = {
   client_secret: process.env.NAVER_CLIENT_SECRET,
 };
 
+// 필수 env 체크
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,

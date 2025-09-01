@@ -2,70 +2,12 @@
 require("dotenv").config();
 
 const express = require("express");
-const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+// ✅ 공용 DB 풀만 사용
+const pool = require("../lib/db");
 
 const router = express.Router();
-
-/* =========================
- * DB 설정
- * ========================= */
-const DB_CONFIG = {
-  host: process.env.DB_HOST || "project-db-campus.smhrd.com",
-  port: Number(process.env.DB_PORT || 3307),
-  user: process.env.DB_USER || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME || "campus_25SW_BD_p3_3",
-  connectTimeout: 10000,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000,
-  multipleStatements: false,
-  timezone: "Z",
-};
-
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
-
-pool.on?.("connection", (conn) => {
-  // 세션 타임아웃(8h) 연장
-  conn.promise().query("SET SESSION wait_timeout=28800, interactive_timeout=28800").catch(() => {});
-});
-
-// DB keepalive ping
-const PING_INTERVAL_MS = 30 * 1000;
-setInterval(async () => {
-  try { await pool.query("SELECT 1"); }
-  catch (e) { console.warn("[DB] keepalive ping failed:", e?.code || e?.message); }
-}, PING_INTERVAL_MS);
-
-// 재시도 래퍼
-async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
-  let lastErr;
-  for (let i = 1; i <= tries; i++) {
-    try {
-      const [rows] = await pool.execute(sql, params);
-      return rows;
-    } catch (err) {
-      lastErr = err;
-      const transient =
-        err?.code === "ECONNRESET" ||
-        err?.code === "PROTOCOL_CONNECTION_LOST" ||
-        err?.code === "ETIMEDOUT";
-      console.warn(
-        `[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`,
-        err?.code || err?.message
-      );
-      if (!transient || i === tries) break;
-      await new Promise((r) => setTimeout(r, 300 * i));
-    }
-  }
-  throw lastErr;
-}
 
 /* =========================
  * JWT (Auther/STR와 통일)
@@ -95,6 +37,32 @@ function auth(req, res, next) {
   } catch (e) {
     return res.status(401).json({ message: "유효하지 않은 토큰", code: e?.name || "" });
   }
+}
+
+/* =========================
+ * 재시도 래퍼 (공용 풀 사용)
+ * ========================= */
+async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
+  let lastErr;
+  for (let i = 1; i <= tries; i++) {
+    try {
+      const [rows] = await pool.execute(sql, params);
+      return rows;
+    } catch (err) {
+      lastErr = err;
+      const transient =
+        err?.code === "ECONNRESET" ||
+        err?.code === "PROTOCOL_CONNECTION_LOST" ||
+        err?.code === "ETIMEDOUT";
+      console.warn(
+        `[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`,
+        err?.code || err?.message
+      );
+      if (!transient || i === tries) break;
+      await new Promise((r) => setTimeout(r, 300 * i));
+    }
+  }
+  throw lastErr;
 }
 
 /* =========================
@@ -171,11 +139,14 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
-/* 헬스체크 */
+/* 헬스체크 (공용 풀) */
 router.get("/healthz", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ ok: true, db: `${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}` });
+    res.json({
+      ok: true,
+      db: `${process.env.DB_HOST || "project-db-campus.smhrd.com"}:${process.env.DB_PORT || 3307}/${process.env.DB_NAME || "campus_25SW_BD_p3_3"}`
+    });
   } catch (e) {
     res.status(500).json({ ok: false, code: e?.code || e?.message });
   }
