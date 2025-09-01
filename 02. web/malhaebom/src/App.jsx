@@ -103,7 +103,8 @@ class ErrorBoundary extends React.Component {
 export default function App() {
   return (
     <ScoreProvider>
-      <Routes>
+      <MicrophoneProvider>
+        <Routes>
         {/* 홈 */}
         <Route
           path="/"
@@ -114,7 +115,27 @@ export default function App() {
           }
         />
 
-        {/* 동화 도서관 */}
+        {/* 로그인 */}
+        <Route
+          path="/login"
+          element={
+            <ErrorBoundary name="login">
+              <Login />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 인터뷰 */}
+        <Route
+          path="/interview/interviewstart"
+          element={
+            <ErrorBoundary name="interview">
+              <Interview />
+            </ErrorBoundary>
+          }
+        />
+
+        {/* 회상동화 진입 */}
         <Route
           path="/book/library"
           element={
@@ -123,8 +144,6 @@ export default function App() {
             </ErrorBoundary>
           }
         />
-
-        {/* 동화 훈련 */}
         <Route
           path="/book/training"
           element={
@@ -218,16 +237,6 @@ export default function App() {
           element={
             <ErrorBoundary name="ExerciseDo">
               <ExerciseDo />
-            </ErrorBoundary>
-          }
-        />
-
-        {/* 인터뷰 */}
-        <Route
-          path="/interview/interviewstart"
-          element={
-            <ErrorBoundary name="InterviewStart">
-              <Interview />
             </ErrorBoundary>
           }
         />
@@ -327,6 +336,7 @@ export default function App() {
         {/* fallback */}
         <Route path="*" element={<Navigate to="/book/library" replace />} />
         </Routes>
+      </MicrophoneProvider>
     </ScoreProvider>
   );
 }

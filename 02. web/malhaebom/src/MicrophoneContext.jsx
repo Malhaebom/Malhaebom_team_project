@@ -217,23 +217,6 @@ export const MicrophoneProvider = ({ children }) => {
     chunksRef.current = [];
   };
 
-  // MediaRecorder 정리 함수
-  const cleanupMediaRecorder = () => {
-    if (mediaRecorderRef.current) {
-      console.log("MediaRecorder 정리 시작");
-      if (mediaRecorderRef.current.state !== "inactive") {
-        try {
-          mediaRecorderRef.current.stop();
-          console.log("MediaRecorder 정지 완료");
-        } catch (error) {
-          console.log("MediaRecorder 정지 중 오류 (이미 정지됨):", error);
-        }
-      }
-      mediaRecorderRef.current = null;
-      console.log("MediaRecorder 참조 정리 완료");
-    }
-  };
-
   // 마이크 상태 지속성 보장 함수
   const ensureMicrophoneActive = async () => {
     console.log("마이크 상태 지속성 확인:", {
