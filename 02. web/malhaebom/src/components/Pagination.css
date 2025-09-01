@@ -6,18 +6,50 @@
   margin-top: 40px;
   margin-bottom: 30px;
   gap: 16px;
-  border: none;
+  border: 1px solid #ffffff;
   box-shadow: none;
-  background: transparent;
+  background: #ffffff;
 }
 
 /* ct_theater 내부에서 페이징 컨테이너의 우선순위 강제 적용 */
 .ct_theater .pagination-container {
-  border: none !important;
+  border: 1px solid #ffffff !important;
   box-shadow: none !important;
   background: transparent !important;
   padding: 0 !important;
   margin: 40px 0 30px 0 !important;
+  outline: none !important;
+}
+
+/* style.css의 .ct_theater > div 규칙을 완전히 무력화하고 하얀색 외곽선 적용 */
+.ct_theater > div.pagination-container {
+  border: 1px solid #ffffff !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  position: static !important;
+  padding: 0 !important;
+  margin: 40px 0 30px 0 !important;
+  border-radius: 0 !important;
+  word-break: normal !important;
+  transition: none !important;
+}
+
+/* 극도로 구체적인 선택자로 최우선 적용 */
+div.ct_theater > div.pagination-container,
+div.ct_theater div.pagination-container,
+.ct_theater div.pagination-container,
+div.pagination-container.ct_theater {
+  border: 1px solid #ffffff !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  position: static !important;
+  padding: 0 !important;
+  margin: 40px 0 30px 0 !important;
+  border-radius: 0 !important;
+  word-break: normal !important;
+  transition: none !important;
 }
 
 .pagination-button {
@@ -48,9 +80,9 @@
 }
 
 .pagination-button:enabled:hover {
-  background-color: #488eca;
-  color: #fff;
-  box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.2);
+  background-color: #f8f9fa;
+  color: #666;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
 }
 
 .pagination-button:enabled:active {
@@ -71,3 +103,4 @@
   justify-content: center;
   box-shadow: 0px 1px 3px rgba(0,0,0,0.1);
 }
+

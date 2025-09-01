@@ -16,11 +16,10 @@ export default function Workbook() {
   const [title, setTitle] = useState("동화");
   const [work, setWork] = useState(null);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 감지
-  const [completionTimes, setCompletionTimes] = useState({});
   
   // 페이징 관련 상태
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(5);
 
   const BASE = import.meta.env.BASE_URL || "/";
 
@@ -67,11 +66,6 @@ export default function Workbook() {
         }
         localStorage.setItem("workbookPath", v.workbook);
 
-        // 워크북 완료 시간 불러오기
-        const completionTimesKey = `workbookCompletionTimes_${v.workbook}`;
-        const savedTimes = JSON.parse(localStorage.getItem(completionTimesKey) || '{}');
-        setCompletionTimes(savedTimes);
-
         return fetch(`${BASE}autobiography/${v.workbook}`);
       })
       .then((r) => (r ? r.json() : null))
@@ -98,7 +92,7 @@ export default function Workbook() {
   const endIndex = startIndex + itemsPerPage;
   const currentData = work?.slice(startIndex, endIndex) || [];
 
-  // 현재 페이지의 데이터를 10개로 맞추기 (빈 항목 추가)
+  // 현재 페이지의 데이터를 5개로 맞추기 (빈 항목 추가)
   const getCurrentPageData = () => {
     const data = [...currentData];
     
@@ -114,26 +108,7 @@ export default function Workbook() {
     setCurrentPage(page);
   };
 
-  // 완료 시간 포맷팅 함수
-  const formatCompletionTime = (workId) => {
-    const completionTime = completionTimes[workId];
-    if (!completionTime) {
-      return "미완료";
-    }
-    
-    try {
-      const date = new Date(completionTime);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      
-      return `${year}-${month}-${day} ${hours}:${minutes}`;
-    } catch (error) {
-      return "미완료";
-    }
-  };
+
 
   return (
     <div className="content">
@@ -156,6 +131,13 @@ export default function Workbook() {
             className="ct_theater ct_inner"
             data-aos="fade-up"
             data-aos-duration="1000"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              minHeight: "calc(100vh - 200px)",
+              border: "none !important",
+              outline: "none !important"
+            }}
           >
             {Array.isArray(work) && work.length > 0 ? (
               getCurrentPageData().map((item, index) => (
@@ -163,17 +145,16 @@ export default function Workbook() {
                   key={index}
                                      style={{
                      cursor: item ? "pointer" : "default",
-                     padding: "16px 20px",
+                     padding: "20px",
                      backgroundColor: item ? "#ffffff" : "transparent",
                      borderRadius: "8px",
                      marginBottom: "12px",
                      boxShadow: item ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
                      transition: "all 0.2s ease",
                      border: item ? "1px solid #ffffff" : "1px solid transparent",
-                     minHeight: "65px",
-                     height: "65px",
+                     minHeight: "auto",
                      display: "flex",
-                     alignItems: "center",
+                     alignItems: "flex-start",
                      opacity: item ? 1 : 0
                    }}
                   onClick={() => item && goToStartWork(startIndex + index)}
@@ -188,40 +169,36 @@ export default function Workbook() {
                     }
                   }}
                 >
-                  <div
+                                    <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      width: "100%"
+                      justifyContent: "flex-start",
+                      alignItems: "flex-start",
+                      width: "100%",
+                      flexDirection: "column",
+                      gap: "8px"
                     }}
                   >
-                                         <div style={{ 
-                       display: "flex", 
-                       alignItems: "center",
-                       justifyContent: "flex-start",
-                       flex: 1
-                     }}>
-                       <span style={{ 
-                         color: item ? "#488eca" : "#cccccc", 
-                         fontWeight: "bold", 
-                         fontSize: "16px",
-                         fontFamily: "GmarketSans"
-                       }}>
-                         문항 {startIndex + index + 1}
-                       </span>
-                     </div>
-                    <div style={{ 
-                      display: "flex", 
-                      alignItems: "center", 
-                      justifyContent: "flex-end",
-                      color: item ? (completionTimes[startIndex + index] ? "#ff6b35" : "#999999") : "#cccccc",
-                      fontSize: "14px",
-                      fontWeight: "bold",
+                    <span style={{ 
+                      color: "#333333", 
+                      fontWeight: "bold", 
+                      fontSize: "16px",
                       fontFamily: "GmarketSans"
                     }}>
-                      <span>{item ? formatCompletionTime(startIndex + index) : ""}</span>
-                    </div>
+                      문항 {startIndex + index + 1}
+                    </span>
+                    {item && (
+                      <p style={{
+                        color: "#7d7d7d",
+                        fontSize: "14px",
+                        fontFamily: "GmarketSans",
+                        margin: "0",
+                        lineHeight: "1.4",
+                        textAlign: "left"
+                      }}>
+                        {item.title || "질문 내용을 불러올 수 없습니다."}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))
@@ -238,12 +215,21 @@ export default function Workbook() {
             )}
 
             {/* 페이징 네비게이션 */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-              itemsPerPage={itemsPerPage}
-            />
+            <div style={{ 
+              marginTop: "auto", 
+              paddingTop: "20px",
+              border: "1px solid #ffffff",
+              borderRadius: "8px",
+              padding: "20px",
+              backgroundColor: "transparent"
+            }}>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                itemsPerPage={itemsPerPage}
+              />
+            </div>
           </div>
         </div>
       </div>
