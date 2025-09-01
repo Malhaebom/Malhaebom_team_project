@@ -49,6 +49,21 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
         return '$base/str';
       })();
 
+  // ✅ 새로 추가: IR 서버 베이스 (인지 히스토리 용)
+  static final String IR_BASE =
+      (() {
+        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+        final base =
+            defined.isNotEmpty
+                ? defined
+                : (kIsWeb
+                    ? 'http://localhost:4000'
+                    : (Platform.isAndroid
+                        ? 'http://10.0.2.2:4000'
+                        : 'http://localhost:4000'));
+        return '$base/ir';
+      })();
+
   late Future<List<AttemptSummary>> _cogFuture;
   final Map<String, Future<List<StoryAttempt>>> _storyFutures = {};
 
@@ -193,6 +208,49 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                     _riskBarRow('회상어 점수', a.byCategory['회상어 점수']),
                     SizedBox(height: 10.h),
                     _riskBarRow('문법 완성도', a.byCategory['문법 완성도']),
+                    SizedBox(height: 6.h),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48.h,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => ir.InterviewResultPage(
+                                    score: a.score,
+                                    total: a.total,
+                                    byCategory: a.byCategory,
+                                    byType:
+                                        a.byType ??
+                                        const <String, ir.CategoryStat>{},
+                                    testedAt: a.testedAt ?? DateTime.now(),
+                                    interviewTitle: a.interviewTitle,
+                                    persist: false,
+                                    fixedAttemptOrder:
+                                        a.attemptOrder ?? attemptNo, // ✅ 회차 고정
+                                  ),
+                            ),
+                          );
+                        },
+                        icon: Icon(Icons.open_in_new, size: 26.sp),
+                        label: Text(
+                          '자세히 보기',
+                          style: TextStyle(
+                            fontSize: 23.sp,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'GmarketSans',
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFD43B),
+                          foregroundColor: Colors.black,
+                          shape: const StadiumBorder(),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -259,7 +317,8 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                       return Column(
                         children: List.generate(attempts.length, (idx) {
                           final a = attempts[idx];
-                          final attemptNo = a.attemptOrder ?? (attempts.length - idx);
+                          final attemptNo =
+                              a.attemptOrder ?? (attempts.length - idx);
                           final dateStr = _dateLabel(a.kstLabel, a.testedAt);
                           final ratio = a.total == 0 ? 0.0 : a.score / a.total;
 
@@ -350,7 +409,10 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                                         DateTime.now(),
                                                     storyTitle: title,
                                                     persist: false,
-                                                    fixedAttemptOrder: a.attemptOrder,
+                                                    fixedAttemptOrder:
+                                                        a.attemptOrder,
+                                                    riskBarsByType:
+                                                        a.riskBarsByType,
                                                   ),
                                             ),
                                           );
@@ -395,53 +457,83 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
     );
   }
 
+  // 유저키 로딩 (로그인 시 저장해 둔 값 사용; 없으면 guest로)
+  Future<Map<String, String>> _authHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = (prefs.getString('auth_token') ?? '').trim();
+
+    // ✅ user_key가 비어있으면 login_id로 대체
+    String userKey = (prefs.getString('user_key') ?? '').trim();
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+    if (userKey.isEmpty && loginId.isNotEmpty) {
+      userKey = loginId;
+      // (선택) 로컬 동기화
+      await prefs.setString('user_key', userKey);
+    }
+
+    final headers = <String, String>{'accept': 'application/json'};
+    if (userKey.isNotEmpty) headers['x-user-key'] = userKey; // ✅ 항상 넣기
+    if (token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+    return headers;
+  }
+
   // ---------------- networking ----------------
   Future<List<AttemptSummary>> _fetchCognitionList() async {
-    final uri = Uri.parse('$STR_BASE/attempt/list');
-    final res = await http.get(uri).timeout(kHttpTimeout);
-    if (res.statusCode != 200) {
-      throw Exception('HTTP ${res.statusCode} ${res.body}');
-    }
-    final arr = jsonDecode(res.body);
-    if (arr is! List) return const <AttemptSummary>[];
-    return arr
-        .map((e) => AttemptSummary.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
+    final headers = await _authHeaders();
 
-  // 유저키 로딩 (로그인 시 저장해 둔 값 사용; 없으면 guest로)
-  Future<String> _loadUserKey() async {
+    // ✅ 쿼리에 userKey도 같이 실어주기(세이프가드)
     final prefs = await SharedPreferences.getInstance();
-    // 예: 로그인 로직에서 prefs.setString('user_key', 'kakao:12345') 식으로 저장해 둠
-    return prefs.getString('user_key') ?? 'guest'; // 개발 중이면 guest 허용
-  }
+    final userKey =
+        ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
+            ? (prefs.getString('user_key') ?? '').trim()
+            : (prefs.getString('login_id') ?? '').trim();
 
-  Future<List<StoryAttempt>> _fetchStoryList(String storyTitle) async {
-    final userKey = await _loadUserKey();
+    final qp = <String, String>{'limit': '30'};
+    if (userKey.isNotEmpty) qp['userKey'] = userKey; // ✅
 
-    // 서버의 normalizeTitle과 동일한 효과(공백 정리)
-    final storyKey = storyTitle.replaceAll(RegExp(r'\s+'), ' ').trim();
-
-    final uri = Uri.parse(
-      '$STR_BASE/story/attempt/list',
-    ).replace(queryParameters: {'storyKey': storyKey});
-
-    final res = await http
-        .get(
-          uri,
-          headers: {
-            'x-user-key': userKey, // 👈 서버가 이걸로 사용자 식별
-            'accept': 'application/json',
-          },
-        )
-        .timeout(kHttpTimeout);
+    final uri = Uri.parse('$IR_BASE/attempt/list').replace(queryParameters: qp);
+    final res = await http.get(uri, headers: headers).timeout(kHttpTimeout);
 
     if (res.statusCode != 200) {
       throw Exception('HTTP ${res.statusCode} ${res.body}');
     }
 
     final decoded = jsonDecode(res.body);
-    // 서버 응답: { ok:true, list:[ ... ] } 형태
+    final arr =
+        (decoded is Map && decoded['list'] is List)
+            ? decoded['list'] as List
+            : (decoded is List ? decoded : const <dynamic>[]);
+
+    return arr
+        .map((e) => AttemptSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<StoryAttempt>> _fetchStoryList(String storyTitle) async {
+    final headers = await _authHeaders();
+
+    final prefs = await SharedPreferences.getInstance();
+    final userKey =
+        ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
+            ? (prefs.getString('user_key') ?? '').trim()
+            : (prefs.getString('login_id') ?? '').trim();
+
+    final storyKey = storyTitle.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    final qp = <String, String>{'storyKey': storyKey};
+    if (userKey.isNotEmpty) qp['userKey'] = userKey; // ✅
+
+    final uri = Uri.parse(
+      '$STR_BASE/story/attempt/list',
+    ).replace(queryParameters: qp);
+
+    final res = await http.get(uri, headers: headers).timeout(kHttpTimeout);
+
+    if (res.statusCode != 200) {
+      throw Exception('HTTP ${res.statusCode} ${res.body}');
+    }
+
+    final decoded = jsonDecode(res.body);
     final arr =
         (decoded is Map && decoded['list'] is List)
             ? decoded['list'] as List
@@ -665,6 +757,7 @@ class StoryAttempt {
   final DateTime? testedAt;
   final String? kstLabel;
   final int? attemptOrder;
+  final Map<String, double> riskBarsByType;
 
   StoryAttempt({
     required this.storyTitle,
@@ -675,9 +768,28 @@ class StoryAttempt {
     this.testedAt,
     this.kstLabel,
     this.attemptOrder,
+    this.riskBarsByType = const {},
   });
 
   factory StoryAttempt.fromJson(Map<String, dynamic> j) {
+    Map<String, double> _parseBars(dynamic x) {
+      if (x is Map) {
+        final out = <String, double>{};
+        x.forEach((k, v) {
+          final d = (v is num) ? v.toDouble() : double.tryParse('$v') ?? 0.0;
+          out['$k'] = d.clamp(0.0, 1.0);
+        });
+        return out;
+      }
+      // 문자열이면 JSON 파싱 시도
+      if (x is String && x.trim().isNotEmpty) {
+        try {
+          return _parseBars(jsonDecode(x));
+        } catch (_) {}
+      }
+      return const {};
+    }
+
     Map<String, ir.CategoryStat> _mapStats(dynamic x) {
       if (x is Map) {
         final out = <String, ir.CategoryStat>{};
@@ -713,6 +825,7 @@ class StoryAttempt {
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
       attemptOrder: ordInt,
+      riskBarsByType: _parseBars(j['riskBarsByType']),
     );
   }
 }

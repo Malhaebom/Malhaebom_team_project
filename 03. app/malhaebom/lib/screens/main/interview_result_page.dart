@@ -14,14 +14,15 @@ import 'interview_session.dart';
 // --- 서버 전송 스위치 & 베이스 URL ---
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 
-final String API_BASE = (() {
-  const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-  if (defined.isNotEmpty) return defined;
-  if (kIsWeb) return 'http://localhost:4000';
-  if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-  if (Platform.isIOS) return 'http://localhost:4000';
-  return 'http://192.168.0.23:4000';
-})();
+final String API_BASE =
+    (() {
+      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+      if (defined.isNotEmpty) return defined;
+      if (kIsWeb) return 'http://localhost:4000';
+      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
+      if (Platform.isIOS) return 'http://localhost:4000';
+      return 'http://192.168.0.23:4000';
+    })();
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
@@ -31,7 +32,12 @@ const String PREF_ATTEMPT_COUNT = 'attempt_count_v1';
 
 // ✅ 인지/동화 키 세트
 const Set<String> kCognitionKeys = {
-  '반응 시간', '반복어 비율', '평균 문장 길이', '화행 적절성', '회상어 점수', '문법 완성도',
+  '반응 시간',
+  '반복어 비율',
+  '평균 문장 길이',
+  '화행 적절성',
+  '회상어 점수',
+  '문법 완성도',
 };
 const Set<String> kStoryKeys = {'요구', '질문', '단언', '의례화'};
 
@@ -44,9 +50,9 @@ class CategoryStat {
   double get riskRatio => 1 - correctRatio;
 
   factory CategoryStat.fromJson(Map<String, dynamic> j) => CategoryStat(
-        correct: (j['correct'] ?? 0) as int,
-        total: (j['total'] ?? 0) as int,
-      );
+    correct: (j['correct'] ?? 0) as int,
+    total: (j['total'] ?? 0) as int,
+  );
 }
 
 class InterviewResultPage extends StatefulWidget {
@@ -57,6 +63,7 @@ class InterviewResultPage extends StatefulWidget {
   final DateTime testedAt;
   final String? interviewTitle;
   final bool persist;
+  final int? fixedAttemptOrder;
 
   const InterviewResultPage({
     super.key,
@@ -67,6 +74,7 @@ class InterviewResultPage extends StatefulWidget {
     required this.testedAt,
     this.interviewTitle,
     this.persist = true,
+    this.fixedAttemptOrder,
   });
 
   @override
@@ -84,7 +92,12 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       InterviewSession.markCompleted();
       WidgetsBinding.instance.addPostFrameCallback((_) => _sendOnce());
     } else {
-      _loadAttemptCountOnly();
+      // ✅ 읽기 전용: 회차가 넘어오면 그대로, 없으면 로컬 캐시만 표시
+      if (widget.fixedAttemptOrder != null) {
+        _attemptOrder = widget.fixedAttemptOrder!;
+      } else {
+        _loadAttemptCountOnly();
+      }
     }
   }
 
@@ -108,17 +121,19 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   // ---------- 인지용 소스 만들기: byCategory/byType 어디에 와도 인지 키만 모음 ----------
   Map<String, CategoryStat> _buildCognitionSource() {
-    final merged = <String, CategoryStat>{}
-      ..addAll(widget.byCategory)
-      ..addAll(widget.byType);
+    final merged =
+        <String, CategoryStat>{}
+          ..addAll(widget.byCategory)
+          ..addAll(widget.byType);
     return _filterKeys(merged, kCognitionKeys);
   }
 
   // ---------- 동화용 소스(타입별) 만들기 (서버로는 riskBarsByType에만) ----------
   Map<String, CategoryStat> _buildStorySource() {
-    final merged = <String, CategoryStat>{}
-      ..addAll(widget.byCategory)
-      ..addAll(widget.byType);
+    final merged =
+        <String, CategoryStat>{}
+          ..addAll(widget.byCategory)
+          ..addAll(widget.byType);
     return _filterKeys(merged, kStoryKeys);
   }
 
@@ -127,9 +142,10 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     final bars = <String, double>{};
     for (final key in kCognitionKeys) {
       final s = src[key];
-      final v = (s == null || s.total == 0)
-          ? 0.5
-          : (1 - (s.correct / s.total)).clamp(0.0, 1.0);
+      final v =
+          (s == null || s.total == 0)
+              ? 0.5
+              : (1 - (s.correct / s.total)).clamp(0.0, 1.0);
       bars[key] = v;
     }
     return bars;
@@ -138,8 +154,10 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
   // 공통 risk map
   Map<String, double> _riskMapFrom(Map<String, CategoryStat> m) {
     return m.map(
-      (k, v) =>
-          MapEntry(k, v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0)),
+      (k, v) => MapEntry(
+        k,
+        v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0),
+      ),
     );
   }
 
@@ -149,7 +167,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
     // ✅ 인지/동화 소스 분리
     final cogSrc = _buildCognitionSource(); // 인지 키만
-    final storySrc = _buildStorySource();   // 동화 키만
+    final storySrc = _buildStorySource(); // 동화 키만
 
     // ✅ riskBars: 무조건 인지 키 6종
     final riskBars = _buildCognitionRiskBars(cogSrc);
@@ -179,8 +197,8 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       'byType': widget.byType.map(
         (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
       ),
-      'riskBars': riskBars,                 // 👈 인지 6키 고정
-      'riskBarsByType': riskBarsByType,     // 👈 동화 키(있을 때만 의미)
+      'riskBars': riskBars, // 👈 인지 6키 고정
+      'riskBarsByType': riskBarsByType, // 👈 동화 키(있을 때만 의미)
     };
   }
 
@@ -196,12 +214,58 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     return next;
   }
 
+  // (1) 유저키 로드 유틸 추가
+  Future<String> _loadUserKey() async {
+    final prefs = await SharedPreferences.getInstance();
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+    if (loginId.isNotEmpty) return loginId; // ✅ login_id 우선
+    final userKey = (prefs.getString('user_key') ?? '').trim();
+    return userKey.isNotEmpty ? userKey : 'guest';
+  }
+
+  // (2) 서버로 내 신원 전달용(헤더/쿼리 둘 다 안전망)
+  Future<Map<String, String>> _identityForApi() async {
+    final key = await _loadUserKey();
+    if (key == 'guest' || key.isEmpty) return {};
+    return {'userKey': key}; // 서버는 userKey로 통일 (값은 login_id)
+  }
+
+  String _normTitle(String? s) =>
+      (s ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  // (3) 서버 최신 회차 → 다음 회차 계산
+  Future<int?> _serverNextAttempt(Map<String, String> identity) async {
+    if (!kUseServer || identity.isEmpty) return null;
+    try {
+      final qp = {
+        ...identity,
+        if (_normTitle(widget.interviewTitle).isNotEmpty)
+          'title': _normTitle(widget.interviewTitle),
+      };
+      final uri = Uri.parse('$API_BASE/ir/latest').replace(queryParameters: qp);
+      final res = await http.get(uri);
+      if (res.statusCode != 200) return null;
+      final j = jsonDecode(res.body);
+      if (j is! Map || j['ok'] != true) return null;
+      final latest = j['latest'];
+      if (latest is Map) {
+        final ord = latest['clientAttemptOrder'] ?? latest['clientRound'];
+        if (ord is num) return ord.toInt() + 1;
+        return 1;
+      }
+      return 1;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _postToServer(Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse('$API_BASE/ir/attempt');
+      final userKey = await _loadUserKey();
       await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'x-user-key': userKey},
         body: jsonEncode(payload),
       );
       // 디버그 프린트 제거 (사용자 요청)
@@ -214,14 +278,39 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     if (_posted) return;
     _posted = true;
 
-    final next = await _bumpAttemptCount();
+    // ✅ 서버 기준 다음 회차 우선, 실패 시 로컬 +1
+    final idn = await _identityForApi();
+    int next = (await _serverNextAttempt(idn)) ?? (await _bumpAttemptCount());
+    // 서버 기준을 따르도록 로컬 캐시도 동기화
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(PREF_ATTEMPT_COUNT, next);
+    } catch (_) {}
     if (mounted) setState(() => _attemptOrder = next);
 
     final payload = _buildAttemptPayload(attemptOrder: next);
     await _cacheLatestLocally(payload);
 
     if (kUseServer) {
-      await _postToServer(payload);
+      try {
+        final uriBase = Uri.parse('$API_BASE/ir/attempt');
+        final uri =
+            idn.isEmpty
+                ? uriBase
+                : uriBase.replace(
+                  queryParameters: {'userKey': idn['userKey']!},
+                );
+        await http.post(
+          uri,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            if (idn.isNotEmpty) 'x-user-key': idn['userKey']!,
+            // (옵션) 호환용
+            if (idn.isNotEmpty) 'x-login-id': idn['userKey']!,
+          },
+          body: jsonEncode({...payload, ...idn}),
+        );
+      } catch (_) {}
     }
   }
 
@@ -237,8 +326,9 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fixedMedia =
-        MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0));
+    final fixedMedia = MediaQuery.of(
+      context,
+    ).copyWith(textScaler: const TextScaler.linear(1.0));
 
     // 화면 표시는 인지 키 6종만 보여주도록 소스 구성
     final cogSrc = _buildCognitionSource();
@@ -336,7 +426,9 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                       ),
                       SizedBox(height: 12.h),
                       if (showWarn) _warnBanner(),
-                      ..._buildEvalItems().expand((w) => [w, SizedBox(height: 10.h)]),
+                      ..._buildEvalItems().expand(
+                        (w) => [w, SizedBox(height: 10.h)],
+                      ),
                     ],
                   ),
                 ),
@@ -349,11 +441,16 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
+                        MaterialPageRoute(
+                          builder: (_) => const BrainTrainingMainPage(),
+                        ),
                         (route) => false,
                       );
                     },
-                    icon: Icon(Icons.videogame_asset_rounded, size: 22.sp * 1.25),
+                    icon: Icon(
+                      Icons.videogame_asset_rounded,
+                      size: 22.sp * 1.25,
+                    ),
                     label: Text(
                       '두뇌 게임으로 이동',
                       textScaler: fixedScale,
@@ -381,56 +478,56 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   // ----- UI 유틸 -----
   Widget _card({required Widget child}) => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
         ),
-        child: child,
-      );
+      ],
+    ),
+    child: child,
+  );
 
   Widget _attemptChip(int order, String formattedKst) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.r),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          '${order}회차',
+          textScaler: fixedScale,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w900,
+            fontSize: 18.sp,
+            color: AppColors.btnColorDark,
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${order}회차',
-              textScaler: fixedScale,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w900,
-                fontSize: 18.sp,
-                color: AppColors.btnColorDark,
-              ),
-            ),
-            SizedBox(width: 10.w),
-            Text(
-              formattedKst,
-              textScaler: fixedScale,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w700,
-                fontSize: 18.sp,
-                color: const Color(0xFF111827),
-              ),
-            ),
-          ],
+        SizedBox(width: 10.w),
+        Text(
+          formattedKst,
+          textScaler: fixedScale,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w700,
+            fontSize: 18.sp,
+            color: const Color(0xFF111827),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 140.w;
@@ -511,129 +608,151 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444)],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      );
-
-  Widget _statusChip(_EvalView eval) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: eval.badgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: eval.badgeBorder),
-        ),
-        child: Text(
-          eval.text,
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w900,
-            fontSize: 17.sp,
-            color: eval.textColor,
-          ),
-        ),
-      );
-
-  Widget _warnBanner() => Container(
-        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-        margin: EdgeInsets.only(bottom: 12.h),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFFF1F2),
-          border: Border.all(color: const Color(0xFFFCA5A5)),
-          borderRadius: BorderRadius.circular(14.r),
-        ),
-        child: Row(
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
           children: [
-            const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
-            SizedBox(width: 8.w),
-            Expanded(
-              child: Text(
-                '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
-                style: TextStyle(
-                  fontFamily: 'GmarketSans',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 19.sp,
-                  color: const Color(0xFF7F1D1D),
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
               ),
             ),
           ],
+        );
+      },
+    ),
+  );
+
+  Widget _statusChip(_EvalView eval) => Container(
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: eval.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: eval.badgeBorder),
+    ),
+    child: Text(
+      eval.text,
+      style: TextStyle(
+        fontFamily: 'GmarketSans',
+        fontWeight: FontWeight.w900,
+        fontSize: 17.sp,
+        color: eval.textColor,
+      ),
+    ),
+  );
+
+  Widget _warnBanner() => Container(
+    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+    margin: EdgeInsets.only(bottom: 12.h),
+    decoration: BoxDecoration(
+      color: const Color(0xFFFFF1F2),
+      border: Border.all(color: const Color(0xFFFCA5A5)),
+      borderRadius: BorderRadius.circular(14.r),
+    ),
+    child: Row(
+      children: [
+        const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
+            style: TextStyle(
+              fontFamily: 'GmarketSans',
+              fontWeight: FontWeight.w600,
+              fontSize: 19.sp,
+              color: const Color(0xFF7F1D1D),
+            ),
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   // 설명 블록은 고정 텍스트
   List<Widget> _buildEvalItems() => <Widget>[
-        _evalBlock('[반응 시간]', '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.'),
-        _evalBlock('[반복어 비율]', '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.'),
-        _evalBlock('[평균 문장 길이]', '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.'),
-        _evalBlock('[화행 적절성 점수]', '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.'),
-        _evalBlock('[회상어 점수]', '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.'),
-        _evalBlock('[문법 완성도]', '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.'),
-      ];
+    _evalBlock(
+      '[반응 시간]',
+      '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.',
+    ),
+    _evalBlock(
+      '[반복어 비율]',
+      '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.',
+    ),
+    _evalBlock(
+      '[평균 문장 길이]',
+      '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.',
+    ),
+    _evalBlock(
+      '[화행 적절성 점수]',
+      '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.',
+    ),
+    _evalBlock(
+      '[회상어 점수]',
+      '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.',
+    ),
+    _evalBlock(
+      '[문법 완성도]',
+      '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.',
+    ),
+  ];
 
   Widget _evalBlock(String title, String body) => Container(
-        padding: EdgeInsets.all(12.w),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+    padding: EdgeInsets.all(12.w),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF9FAFB),
+      borderRadius: BorderRadius.circular(12.r),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w900,
+            fontSize: 20.sp,
+            color: const Color(0xFF111827),
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w900,
-                fontSize: 20.sp,
-                color: const Color(0xFF111827),
-              ),
-            ),
-            SizedBox(height: 6.h),
-            Text(
-              body,
-              style: TextStyle(
-                fontFamily: 'GmarketSans',
-                fontWeight: FontWeight.w700,
-                fontSize: 19.sp,
-                color: const Color(0xFF4B5563),
-                height: 1.5,
-              ),
-            ),
-          ],
+        SizedBox(height: 6.h),
+        Text(
+          body,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w700,
+            fontSize: 19.sp,
+            color: const Color(0xFF4B5563),
+            height: 1.5,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   _EvalView _evalFromStat(CategoryStat? s) {
     if (s == null || s.total == 0) {
