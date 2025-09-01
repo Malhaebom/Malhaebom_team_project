@@ -6,9 +6,7 @@ import ScoreCircle from "../../components/ScoreCircle.jsx";
 
 const InterviewHistory = () => {
   const { isMicrophoneActive, stopMicrophone } = useMicrophone();
-  const [expandedCategories, setExpandedCategories] = useState(new Set([
-    "반응 시간", "반복어 비율", "평균 문장 길이", "화행 적절성", "회상어 점수", "문법 완성도"
-  ]));
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [interviewData, setInterviewData] = useState([]);
   const [hasProcessedDummyData, setHasProcessedDummyData] = useState(false);
   const query = useQuery();
@@ -120,118 +118,51 @@ const InterviewHistory = () => {
     "문법 완성도": "비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석합니다.\n오류 없음: 8점 / 일부 오류: 4점 / 비문: 0점 (20% 가중치)"
   };
 
-  // 컬러 슬라이더 컴포넌트 (앱 디자인과 통일)
+  // 컬러 슬라이더 컴포넌트
   const ColorSlider = ({ score, total, category }) => {
     const ratio = score / total;
-    
-    // 앱과 동일한 색상 팔레트 사용 (왼쪽: 녹색, 오른쪽: 적색)
-    const getSliderColors = () => {
-      return {
-        green: "#10B981",    // 양호 (녹색) - 왼쪽 끝
-        orange: "#F59E0B",   // 보통 (주황) - 중간
-        red: "#EF4444"       // 주의 (적색) - 오른쪽 끝
-      };
-    };
-    
-    // 점수에 따른 색상 결정
-    const getScoreColor = (ratio) => {
-      if (ratio > 0.75) return getSliderColors().green;
-      if (ratio > 0.5) return getSliderColors().orange;
-      if (ratio > 0.25) return getSliderColors().red;
-      return getSliderColors().red;
-    };
     
     return (
       <div style={{ 
         display: "flex", 
         alignItems: "center", 
         gap: "12px",
-        padding: "12px 0"
+        padding: "8px 0"
       }}>
-        {/* 카테고리 라벨 */}
-        <div style={{
-          minWidth: "80px",
-          fontSize: "12px",
-          color: "#6B7280",
-          fontWeight: "500"
-        }}>
-          {category}
-        </div>
-        
-        {/* 슬라이더 컨테이너 */}
         <div style={{
           flex: 1,
-          height: "16px",
-          backgroundColor: "#F3F4F6",
-          borderRadius: "8px",
+          height: "12px",
+          borderRadius: "6px",
           position: "relative",
           overflow: "hidden",
-          border: "1px solid #E5E7EB",
-          boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)"
+          background: "linear-gradient(to right, #EF4444 0%, #F59E0B 50%, #10B981 100%)"
         }}>
-          {/* 전체 그라데이션 배경 (앱과 동일: 왼쪽 녹색 → 중간 주황 → 오른쪽 적색) */}
-          <div style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "100%",
-            background: `linear-gradient(90deg, ${getSliderColors().green}, ${getSliderColors().orange}, ${getSliderColors().red})`,
-            borderRadius: "8px"
-          }} />
-          
-          {/* 슬라이더 핸들 (점수에 따른 위치) */}
+          {/* 슬라이더 바 */}
           <div 
             style={{
               position: "absolute",
               top: "50%",
               left: `${ratio * 100}%`,
               transform: "translate(-50%, -50%)",
-              width: "20px",
-              height: "20px",
+              width: "16px",
+              height: "16px",
               backgroundColor: "#FFFFFF",
               borderRadius: "50%",
-              border: "3px solid #9CA3AF",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-              transition: "all 0.8s ease-out",
+              border: "2px solid #374151",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
               zIndex: 10
             }}
           />
-          
-          {/* 점수 표시 (슬라이더 위에) */}
-          <div style={{
-            position: "absolute",
-            top: "50%",
-            left: `${ratio * 100}%`,
-            transform: "translate(-50%, -50%)",
-            backgroundColor: "rgba(0,0,0,0.8)",
-            color: "white",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            fontSize: "10px",
-            fontWeight: "600",
-            whiteSpace: "nowrap",
-            opacity: 0,
-            transition: "opacity 0.3s ease",
-            zIndex: 20
-          }}
-          onMouseEnter={(e) => e.target.style.opacity = "1"}
-          onMouseLeave={(e) => e.target.style.opacity = "0"}
-          >
-            {score}/{total}
-          </div>
         </div>
         
-        {/* 점수 표시 (우측) */}
         <div style={{
-          minWidth: "50px",
+          minWidth: "60px",
           textAlign: "right"
         }}>
           <span style={{
             fontSize: "14px",
-            fontWeight: "700",
-            color: getScoreColor(ratio),
-            textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+            fontWeight: "600",
+            color: "#374151"
           }}>
             {score}/{total}
           </span>
@@ -487,17 +418,14 @@ const InterviewHistory = () => {
                                  borderTop: "1px solid #e0e0e0",
                                  background: "#fafafa"
                                }}>
-                                 {/* 컬러 슬라이더 표시 */}
-                                 <div style={{ marginBottom: "15px" }}>
-                                   <ColorSlider 
-                                     score={detail.score} 
-                                     total={detail.total} 
-                                     category={category} 
-                                   />
-                                 </div>
-                                 
+                                 <ColorSlider 
+                                   score={detail.score} 
+                                   total={detail.total} 
+                                   category={category} 
+                                 />
                                  {/* 평가 기준 텍스트 */}
                                  <div style={{
+                                   marginTop: "12px",
                                    padding: "8px 0",
                                    borderTop: "1px solid #e5e7eb"
                                  }}>
