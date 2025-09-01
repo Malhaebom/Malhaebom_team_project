@@ -2,44 +2,46 @@
 require("dotenv").config();
 
 const express = require("express");
-const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+// ✅ 공용 DB 풀만 사용
+const pool = require("./db");
 
 const router = express.Router();
 
 /* =========================
- * DB 설정
+ * JWT (Auther/STR와 통일)
  * ========================= */
-const DB_CONFIG = {
-  host: process.env.DB_HOST || "project-db-campus.smhrd.com",
-  port: Number(process.env.DB_PORT || 3307),
-  user: process.env.DB_USER || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME || "campus_25SW_BD_p3_3",
-  connectTimeout: 10000,
-  enableKeepAlive: true,
-  keepAliveInitialDelay: 10000,
-  multipleStatements: false,
-  timezone: "Z",
-};
+const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_ISS = process.env.JWT_ISS || undefined; // 예: 'malhaebom-auth'
+const JWT_AUD = process.env.JWT_AUD || undefined; // 예: 'malhaebom-app'
 
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+function sign(payload) {
+  const opts = { expiresIn: JWT_EXPIRES_IN };
+  if (JWT_ISS) opts.issuer = JWT_ISS;
+  if (JWT_AUD) opts.audience = JWT_AUD;
+  return jwt.sign(payload, JWT_SECRET, opts);
+}
 
-pool.on?.("connection", (conn) => {
-  conn.promise().query("SET SESSION wait_timeout=28800, interactive_timeout=28800").catch(() => {});
-});
+function auth(req, res, next) {
+  const h = req.headers.authorization || "";
+  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
+  if (!token) return res.status(401).json({ message: "토큰 필요" });
+  try {
+    const opts = {};
+    if (JWT_ISS) opts.issuer = JWT_ISS;
+    if (JWT_AUD) opts.audience = JWT_AUD;
+    req.user = jwt.verify(token, JWT_SECRET, opts);
+    next();
+  } catch (e) {
+    return res.status(401).json({ message: "유효하지 않은 토큰", code: e?.name || "" });
+  }
+}
 
-const PING_INTERVAL_MS = 30 * 1000;
-setInterval(async () => {
-  try { await pool.query("SELECT 1"); } catch (e) { console.warn("[DB] keepalive ping failed:", e?.code || e?.message); }
-}, PING_INTERVAL_MS);
-
+/* =========================
+ * 재시도 래퍼 (공용 풀 사용)
+ * ========================= */
 async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
   let lastErr;
   for (let i = 1; i <= tries; i++) {
@@ -52,32 +54,15 @@ async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
         err?.code === "ECONNRESET" ||
         err?.code === "PROTOCOL_CONNECTION_LOST" ||
         err?.code === "ETIMEDOUT";
-      console.warn(`[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`, err?.code || err?.message);
+      console.warn(
+        `[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`,
+        err?.code || err?.message
+      );
       if (!transient || i === tries) break;
       await new Promise((r) => setTimeout(r, 300 * i));
     }
   }
   throw lastErr;
-}
-
-/* =========================
- * JWT
- * ========================= */
-const JWT_SECRET = process.env.JWT_SECRET || "malhaebom";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
-function sign(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-}
-function auth(req, res, next) {
-  const h = req.headers.authorization || "";
-  const token = h.startsWith("Bearer ") ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ message: "토큰 필요" });
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    return res.status(401).json({ message: "유효하지 않은 토큰" });
-  }
 }
 
 /* =========================
@@ -154,11 +139,14 @@ router.get("/me", auth, async (req, res) => {
   }
 });
 
-/* 헬스체크 */
+/* 헬스체크 (공용 풀) */
 router.get("/healthz", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      db: `${process.env.DB_HOST || "project-db-campus.smhrd.com"}:${process.env.DB_PORT || 3307}/${process.env.DB_NAME || "campus_25SW_BD_p3_3"}`
+    });
   } catch (e) {
     res.status(500).json({ ok: false, code: e?.code || e?.message });
   }

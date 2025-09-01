@@ -1,26 +1,12 @@
 // File: src/Server/router/JoinServer.js
+require("dotenv").config();
+
 const express = require("express");
-const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
+// ✅ 공용 DB 풀만 사용
+const pool = require("./db");
 
 const router = express.Router();
-
-/* =========================
- * DB 설정
- * ========================= */
-const DB_CONFIG = {
-  host: process.env.DB_HOST || "project-db-campus.smhrd.com",
-  port: Number(process.env.DB_PORT || 3307),
-  user: process.env.DB_USER || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME || "campus_25SW_BD_p3_3",
-};
-
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit: 10,
-});
 
 /* =========================
  * 유효성 검사
@@ -38,7 +24,7 @@ function isGender1(v) {
 
 /* =========================
  * (선택) 로그인ID 중복 체크
- *  GET /join/exists/login_id?login_id=01012341234
+ *  GET /userJoin/exists/login_id?login_id=01012341234
  * ========================= */
 router.get("/exists/login_id", async (req, res) => {
   try {
@@ -79,7 +65,7 @@ router.get("/exists/nick", async (req, res) => {
 
 /* =========================
  * 회원가입 (local)
- *  POST /join/register
+ *  POST /userJoin/register
  *  body: { user_id(or login_id), pwd, nick, birthyear, gender }
  * ========================= */
 router.post("/register", async (req, res) => {

@@ -5,6 +5,7 @@ const express = require("express");
 const router = express.Router();
 const mysql = require("mysql2/promise");
 
+
 // ── 설정 ─────────────────────────────────────────────────────────────────────
 const {
   DB_HOST = "127.0.0.1",
@@ -14,6 +15,7 @@ const {
   DB_NAME = "appdb",
   IR_ALLOW_GUEST = "false", // true면 user_key 없이도 저장(디버깅용)
 } = process.env;
+
 
 const ALLOW_GUEST = String(IR_ALLOW_GUEST).toLowerCase() === "true";
 
@@ -421,6 +423,19 @@ router.get("/attempt/list", async (req, res) => {
   } finally {
     conn.release();
   }
+});
+
+/** 최근 시도 n개 조회 (메모리, 디버그용) */
+router.get("/attempts", (req, res) => {
+  const n = Math.min(Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1), 200);
+  res.json({ ok: true, list: attempts.slice(0, n) });
+});
+
+/** (주의) 메모리 기록 초기화 (디버그용) */
+router.post("/reset", (_req, res) => {
+  attempts.length = 0;
+  attemptIndex = 0;
+  res.json({ ok: true, message: "reset done" });
 });
 
 module.exports = router;
