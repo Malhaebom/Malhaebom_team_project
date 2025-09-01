@@ -28,10 +28,12 @@ const pool = mysql.createPool({
 });
 
 /* =========================
- * JWT (앱에서 쓰기 위함)
+ * JWT
  * ========================= */
 const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
-const sign = (payload) => jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+function signJWT(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
+}
 
 /* =========================
  * 모바일 앱 콜백 URI (flutter_web_auth_2)
@@ -112,8 +114,7 @@ function verifyAndDeleteState(store, state) {
 }
 
 /* =========================
- * 공통: 앱으로 리다이렉트/에러
- *  - 브라우저 탭이 전면에 남는 문제를 줄이기 위해 HTML 브리지 사용
+ * 앱 리다이렉트용 HTML 브리지
  * ========================= */
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
   return `<!doctype html>
@@ -150,13 +151,14 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
 </html>`;
 }
 
-function redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type }) {
+function redirectToApp(res, { token, uid, login_id, login_type, nick }) {
   const url =
     APP_CALLBACK +
     `?token=${encodeURIComponent(token)}` +
-    `&sns_user_id=${encodeURIComponent(sns_user_id)}` +
-    `&sns_nick=${encodeURIComponent(sns_nick ?? "")}` +
-    `&sns_login_type=${encodeURIComponent(sns_login_type)}`;
+    `&uid=${encodeURIComponent(String(uid))}` +
+    `&login_id=${encodeURIComponent(login_id)}` +
+    `&login_type=${encodeURIComponent(login_type)}` +
+    `&nick=${encodeURIComponent(nick ?? "")}`;
 
   const html = htmlBridge(url, "앱으로 돌아가는 중…", "앱으로 돌아가기");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
@@ -171,23 +173,35 @@ function redirectError(res, msg) {
 }
 
 /* =========================
- * DB: SNS 사용자 없으면 INSERT
+ * DB: SNS 사용자 UPSERT → tb_user
+ *  - 입력: login_id, login_type, nick(가능하면)
+ *  - 출력: { uid, login_id, login_type, nick }
  * ========================= */
-async function ensureSnsUser({ sns_user_id, sns_nick, sns_login_type }) {
-  const [[exists]] = await pool.execute(
-    "SELECT 1 FROM tb_sns_user WHERE sns_user_id = ? LIMIT 1",
-    [sns_user_id]
-  );
-  if (!exists) {
-    await pool.execute(
-      "INSERT INTO tb_sns_user (sns_user_id, sns_nick, sns_login_type) VALUES (?, ?, ?)",
-      [sns_user_id, sns_nick ?? "", sns_login_type]
+async function upsertAndGetUser({ login_id, login_type, nick }) {
+  const conn = await pool.getConnection();
+  try {
+    // 닉네임은 기존이 비어있을 때만 보완
+    const sql = `
+      INSERT INTO tb_user (login_id, login_type, nick, pwd)
+      VALUES (?, ?, ?, NULL)
+      ON DUPLICATE KEY UPDATE
+        nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)
+    `;
+    await conn.execute(sql, [login_id, login_type, nick || ""]);
+
+    const [rows] = await conn.execute(
+      "SELECT user_id AS uid, login_id, login_type, nick FROM tb_user WHERE login_id = ? AND login_type = ? LIMIT 1",
+      [login_id, login_type]
     );
+    if (!rows.length) throw new Error("UPSERT succeeded but SELECT returned no row");
+    return rows[0];
+  } finally {
+    conn.release();
   }
 }
 
 /* =========================
- * Helper: reauth 파라미터 해석
+ * Helper: reauth 플래그
  * ========================= */
 function getReauthFlags(req) {
   const reauth = String(req.query.reauth || "") === "1";
@@ -199,7 +213,7 @@ function getReauthFlags(req) {
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
-  saveState(GOOGLE_STATE, state);
+  GOOGLE_STATE.set(state, Date.now());
 
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(GOOGLE_REDIRECT_PATH);
@@ -253,16 +267,30 @@ router.get("/google/callback", async (req, res) => {
     );
 
     const data = profileRes.data || {};
-    const sns_user_id = String(data.email ?? "");
-    const sns_nick = String(data.name ?? "");
-    const sns_login_type = "google";
+    const email = String(data.email ?? "");
+    const name  = String(data.name  ?? "");
+    if (!email) return redirectError(res, "구글 이메일 없음");
 
-    if (!sns_user_id) return redirectError(res, "구글 이메일 없음");
+    const user = await upsertAndGetUser({
+      login_id: email,
+      login_type: "google",
+      nick: name,
+    });
 
-    await ensureSnsUser({ sns_user_id, sns_nick, sns_login_type });
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "google",
+      nick: user.nick || name || "",
+    });
 
-    const token = sign({ id: sns_user_id, nick: sns_nick, type: sns_login_type });
-    return redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type });
+    return redirectToApp(res, {
+      token,
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "google",
+      nick: user.nick || name || "",
+    });
   } catch (e) {
     console.error("Google error", e?.response?.data || e);
     return redirectError(res, "Google 로그인 실패");
@@ -274,7 +302,7 @@ router.get("/google/callback", async (req, res) => {
  * ========================= */
 router.get("/kakao", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
-  saveState(KAKAO_STATE, state);
+  KAKAO_STATE.set(state, Date.now());
 
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(KAKAO_REDIRECT_PATH);
@@ -288,9 +316,7 @@ router.get("/kakao", (req, res) => {
     state,
   };
 
-  if (reauth) {
-    params.prompt = "login";
-  }
+  if (reauth) params.prompt = "login";
 
   const url = "https://kauth.kakao.com/oauth/authorize?" + qs.stringify(params);
   res.redirect(url);
@@ -328,17 +354,31 @@ router.get("/kakao/callback", async (req, res) => {
     });
 
     const acct = profileRes.data?.kakao_account || {};
-    let  sns_user_id   = String(acct.email ?? "");
-    const sns_nick      = String(acct.profile?.nickname ?? "");
-    const sns_login_type = "kakao";
+    let email  = String(acct.email ?? "");
+    const name = String(acct.profile?.nickname ?? "");
+    if (!email) email = String(profileRes.data?.id ?? "");
+    if (!email) return redirectError(res, "카카오 아이디 없음");
 
-    if (!sns_user_id) sns_user_id = String(profileRes.data?.id ?? "");
-    if (!sns_user_id) return redirectError(res, "카카오 아이디 없음");
+    const user = await upsertAndGetUser({
+      login_id: email,
+      login_type: "kakao",
+      nick: name,
+    });
 
-    await ensureSnsUser({ sns_user_id, sns_nick, sns_login_type });
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "kakao",
+      nick: user.nick || name || "",
+    });
 
-    const token = sign({ id: sns_user_id, nick: sns_nick, type: sns_login_type });
-    return redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type });
+    return redirectToApp(res, {
+      token,
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "kakao",
+      nick: user.nick || name || "",
+    });
   } catch (e) {
     console.error("Kakao error", e?.response?.data || e);
     return redirectError(res, "Kakao 로그인 실패");
@@ -350,7 +390,7 @@ router.get("/kakao/callback", async (req, res) => {
  * ========================= */
 router.get("/naver", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
-  saveState(NAVER_STATE, state);
+  NAVER_STATE.set(state, Date.now());
 
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(NAVER_REDIRECT_PATH);
@@ -363,9 +403,7 @@ router.get("/naver", (req, res) => {
     state,
   };
 
-  if (reauth) {
-    params.auth_type = "reprompt";
-  }
+  if (reauth) params.auth_type = "reprompt";
 
   const url = "https://nid.naver.com/oauth2.0/authorize?" + qs.stringify(params);
   res.redirect(url);
@@ -398,17 +436,31 @@ router.get("/naver/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    const resp = profileRes.data?.response || {};
-    const sns_user_id   = String(resp.email ?? "");
-    const sns_nick      = String(resp.name  ?? "");
-    const sns_login_type = "naver";
+    const resp  = profileRes.data?.response || {};
+    const email = String(resp.email ?? "");
+    const name  = String(resp.name  ?? "");
+    if (!email) return redirectError(res, "네이버 이메일 없음");
 
-    if (!sns_user_id) return redirectError(res, "네이버 이메일 없음");
+    const user = await upsertAndGetUser({
+      login_id: email,
+      login_type: "naver",
+      nick: name,
+    });
 
-    await ensureSnsUser({ sns_user_id, sns_nick, sns_login_type });
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "naver",
+      nick: user.nick || name || "",
+    });
 
-    const token = sign({ id: sns_user_id, nick: sns_nick, type: sns_login_type });
-    return redirectToApp(res, { token, sns_user_id, sns_nick, sns_login_type });
+    return redirectToApp(res, {
+      token,
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "naver",
+      nick: user.nick || name || "",
+    });
   } catch (e) {
     console.error("Naver error", e?.response?.data || e);
     return redirectError(res, "Naver 로그인 실패");

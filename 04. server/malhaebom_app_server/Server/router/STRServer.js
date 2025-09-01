@@ -1,9 +1,10 @@
-// routes/STRServer.js
+// File: src/Server/router/STRServer.js
 require("dotenv").config();
 
 const express = require("express");
 const router = express.Router();
 const mysql = require("mysql2/promise");
+const jwt = require("jsonwebtoken");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
 const {
@@ -13,6 +14,7 @@ const {
   DB_PASSWORD = "",
   DB_NAME = "appdb",
   STR_ALLOW_GUEST = "false", // true면 user_key 없이도 저장(디버깅용)
+  JWT_SECRET = "malhaebom",  // LoginServer/Auther와 동일해야 함
 } = process.env;
 
 const ALLOW_GUEST = String(STR_ALLOW_GUEST).toLowerCase() === "true";
@@ -45,32 +47,44 @@ function computeRiskBars(by) {
   return out;
 }
 function isoToMysqlDatetime(iso) {
-  // 'YYYY-MM-DD HH:MM:SS'
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 
-// (참고용) user_key 생성기
-function buildUserKey({ userId, snsUserId, snsLoginType } = {}) {
-  if (userId && String(userId).trim()) return String(userId).trim();
-  if (snsUserId && snsLoginType) {
-    const t = String(snsLoginType).toLowerCase();
-    if (["kakao", "google", "naver"].includes(t)) {
-      return `${t}:${String(snsUserId).trim()}`;
-    }
-  }
-  return null;
+// 표준 user_key: `${login_type}:${login_id}`
+function buildUserKeyFromLogin({ login_id, login_type }) {
+  if (!login_id || !login_type) return null;
+  return `${String(login_type).toLowerCase()}:${String(login_id)}`;
 }
 
 /**
- * 클라에서 보낼 수 있는 위치:
- *  - body.userKey  또는 body.userId / body.snsUserId+snsLoginType
- *  - headers['x-user-key'] 또는 x-user-id / x-sns-user-id + x-sns-login-type
- *  - query 동일 키
+ * Authorization Bearer 토큰 → user_key 복원
+ *  - JWT 페이로드: { uid, login_id, login_type, nick }
  */
+function resolveFromBearer(req) {
+  try {
+    const h = req.headers.authorization || "";
+    if (!h.startsWith("Bearer ")) return null;
+    const token = h.slice(7);
+    const p = jwt.verify(token, JWT_SECRET);
+    // 우선순위: login_id + login_type → user_key
+    const key = buildUserKeyFromLogin({ login_id: p.login_id, login_type: p.login_type });
+    if (key) return { ok: true, user_key: key, from: "bearer" };
+    if (p.uid) return { ok: true, user_key: `uid:${p.uid}`, from: "bearer-uid" };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// (과거 호환) 다양한 헤더/쿼리/바디에서 신원 추출
 function resolveIdentity(req) {
+  // 0) 먼저 Bearer JWT
+  const fromBearer = resolveFromBearer(req);
+  if (fromBearer) return fromBearer;
+
   const b = req.body  || {};
   const q = req.query || {};
   const h = Object.fromEntries(
@@ -86,50 +100,40 @@ function resolveIdentity(req) {
     return null;
   };
 
-  // 0) userKey 직접
-  const directKey = readAny(
-    { ...b, ...q, ...h },
-    ["userKey","user_key","x-user-key","x-userkey"]
-  );
+  // 직접 주는 userKey
+  const directKey = readAny({ ...b, ...q, ...h }, ["userKey","user_key","x-user-key","x-userkey"]);
   if (directKey) return { ok: true, user_key: directKey, from: "userKey" };
 
-  // 0-1) Authorization: "UserKey <키값>" 허용
-  const auth = h["authorization"];
-  if (auth && /userkey\s+(.+)/i.test(String(auth))) {
-    const m = String(auth).match(/userkey\s+(.+)/i);
-    if (m && m[1]) return { ok: true, user_key: m[1].trim(), from: "authorization" };
+  // (구) 로컬 방식: user_id/phone
+  const localLoginId =
+    readAny(b, ["login_id","userId","user_id","userid","phone","phoneNumber","phone_number"]) ||
+    readAny(h, ["x-login-id","x-user-id","x-userid","x-phone","x-phone-number"]) ||
+    readAny(q, ["login_id","userId","user_id","userid","phone","phoneNumber","phone_number"]);
+
+  // SNS: id + type
+  const snsLoginId =
+    readAny(b, ["login_id","snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]) ||
+    readAny(h, ["x-login-id","x-sns-user-id"]) ||
+    readAny(q, ["login_id","snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]);
+
+  let loginType =
+    readAny(b, ["login_type","snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]) ||
+    readAny(h, ["x-login-type","x-sns-login-type"]) ||
+    readAny(q, ["login_type","snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]);
+  if (loginType) loginType = String(loginType).toLowerCase();
+
+  // 1) login_id + login_type → 표준 user_key
+  if (localLoginId && loginType === "local") {
+    return { ok: true, user_key: buildUserKeyFromLogin({ login_id: localLoginId, login_type: "local" }), from: "local" };
+  }
+  if (snsLoginId && ["kakao","google","naver"].includes(loginType || "")) {
+    return { ok: true, user_key: buildUserKeyFromLogin({ login_id: snsLoginId, login_type: loginType }), from: "sns" };
   }
 
-  // 공통 후보(스네이크/카멜 + 별칭 모두 지원)
-  const localUserId =
-    readAny(b, ["userId","user_id","userid","phone","phoneNumber","phone_number"]) ||
-    readAny(h, ["x-user-id","x-userid","x-phone","x-phone-number"]) ||
-    readAny(q, ["userId","user_id","userid","phone","phoneNumber","phone_number"]);
-
-  const snsId =
-    readAny(b, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]) ||
-    readAny(h, ["x-sns-user-id"]) ||
-    readAny(q, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]);
-
-  let snsType =
-    readAny(b, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]) ||
-    readAny(h, ["x-sns-login-type"]) ||
-    readAny(q, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]);
-  if (snsType) snsType = String(snsType).toLowerCase();
-
-  // 1) 로컬 유저
-  if (localUserId) {
-    return { ok: true, user_key: String(localUserId), from: "local" };
-  }
-  // 2) SNS 유저
-  if (snsId && ["kakao","google","naver"].includes(snsType || "")) {
-    return { ok: true, user_key: `${snsType}:${String(snsId)}`, from: "sns" };
-  }
-
-  return { ok: false, error: "missing user identity (userKey OR userId OR snsUserId+snsLoginType)" };
+  return { ok: false, error: "missing user identity (Authorization Bearer OR userKey OR login_id+login_type)" };
 }
 
-// --- NEW: JSON 안전 파서 & risk_bars -> byCategory 복원 --- //
+// --- JSON 안전 파서 & risk_bars → byCategory 복원 --- //
 function safeParseJSON(v, fallback = {}) {
   try {
     if (v && typeof v === "object") return v;
@@ -156,7 +160,7 @@ async function ensureTable() {
   const sql = `
   CREATE TABLE IF NOT EXISTS tb_story_result (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    user_key VARCHAR(120) NOT NULL COMMENT '로컬: phone / SNS: <type>:<id>',
+    user_key VARCHAR(120) NOT NULL COMMENT 'login_type:login_id',
     story_key VARCHAR(200) NOT NULL,
     story_title VARCHAR(200) NULL,
     client_attempt_order INT NULL,
@@ -174,15 +178,9 @@ async function ensureTable() {
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
   const conn = await pool.getConnection();
-  try {
-    await conn.query(sql);
-  } finally {
-    conn.release();
-  }
+  try { await conn.query(sql); } finally { conn.release(); }
 }
-ensureTable().catch((e) => {
-  console.error("[STR] ensureTable error:", e?.message || e);
-});
+ensureTable().catch((e) => console.error("[STR] ensureTable error:", e?.message || e));
 
 // ── 헬스체크 ───────────────────────────────────────────────────────────────────
 router.get("/health", (_req, res) => res.json({ ok: true, db: DB_HOST + "/" + DB_NAME }));
@@ -195,15 +193,9 @@ router.get("/whoami", (req, res) => {
 
 // ── 저장: POST /str/attempt ──────────────────────────────────────────────────
 router.post("/attempt", async (req, res) => {
-  console.log("==== [/str/attempt] ====");
-  console.log("headers.x-user-key/x-user-id/x-sns-user-id:",
-    req.headers["x-user-key"], req.headers["x-user-id"], req.headers["x-sns-user-id"]);
-  console.log("query.userKey/userId/snsUserId:", req.query?.userKey, req.query?.userId, req.query?.snsUserId);
-
   const idn = resolveIdentity(req);
-  console.log("identity ->", idn);
   if (!idn.ok && !ALLOW_GUEST) {
-    return res.status(400).json(idn); // { ok:false, error: ... }
+    return res.status(400).json(idn);
   }
 
   try {
@@ -246,7 +238,7 @@ router.post("/attempt", async (req, res) => {
     `;
 
     const params = {
-      user_key: idn.ok ? idn.user_key : "guest", // ALLOW_GUEST일 때만 guest로
+      user_key: idn.ok ? idn.user_key : "guest",
       story_key: key,
       story_title: storyTitle || null,
       client_attempt_order: attemptOrder ?? null,
@@ -330,7 +322,6 @@ router.get("/latest", async (req, res) => {
       const row = rows[0];
 
       const riskBars = safeParseJSON(row.risk_bars, {});
-      // by_category가 비었으면 risk_bars로 복원
       const parsedByCategory = safeParseJSON(row.by_category, {});
       const byCategory =
         (parsedByCategory && Object.keys(parsedByCategory).length)
@@ -350,7 +341,6 @@ router.get("/latest", async (req, res) => {
         riskBars,
         riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
 
-        // 보조 필드
         scoreText: `${row.score}/${row.total}`,
         serverAttemptOrder: 1,
         debugText:
@@ -374,12 +364,12 @@ riskBars(cat): ${JSON.stringify(riskBars)}
   }
 });
 
-// ── 전체 데이터 조회: GET /str/story/attempt/list ────────────────────────────
+// ── 목록 조회: GET /str/story/attempt/list ───────────────────────────────────
 router.get("/story/attempt/list", async (req, res) => {
   try {
     const idn = resolveIdentity(req);
     if (!idn.ok && !ALLOW_GUEST) {
-      return res.status(400).json(idn); // userKey 필요
+      return res.status(400).json(idn);
     }
 
     const storyKey = normalizeTitle(req.query.storyKey || req.query.title || "");
@@ -388,12 +378,8 @@ router.get("/story/attempt/list", async (req, res) => {
     }
 
     const userKey = idn.ok ? idn.user_key : "guest";
-    const limit = Math.min(
-      Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1),
-      200
-    );
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1), 200);
 
-    // 네가 지정한 7컬럼만 사용
     const sql = `
       SELECT user_key,
              story_key, story_title, client_attempt_order, score, total,
@@ -412,7 +398,7 @@ router.get("/story/attempt/list", async (req, res) => {
 
       const list = rows.map((row, idx) => {
         const riskBars = safeParseJSON(row.risk_bars, {});
-        const byCategory = barsToCategoryStats(riskBars); // UI가 쓰는 형태로 복원
+        const byCategory = barsToCategoryStats(riskBars);
 
         const score = Number(row.score ?? 0);
         const total = Number(row.total ?? 0);
@@ -422,17 +408,16 @@ router.get("/story/attempt/list", async (req, res) => {
           storyTitle: row.story_title,
           score,
           total,
-          byCategory,              // ← correct/total 포함
-          byType: {},              // SELECT에 없으니 빈 객체
+          byCategory,
+          byType: {},
           clientKst: row.client_kst,
           storyKey: row.story_key,
           clientAttemptOrder: row.client_attempt_order,
-          riskBars,                // 원본 막대값도 그대로 포함
-          riskBarsByType: {},      // 없음
+          riskBars,
+          riskBarsByType: {},
 
-          // 보조 필드
-          scoreText,               // "22/40"
-          serverAttemptOrder: idx + 1, // 최신이 1
+          scoreText,
+          serverAttemptOrder: idx + 1,
           debugText:
 `=============== [STR Attempt] ===============
 동화 키      : ${row.story_key}
@@ -452,9 +437,7 @@ riskBars(cat): ${JSON.stringify(riskBars)}
     }
   } catch (e) {
     console.error("[STR] list error:", e?.message || e);
-    return res
-      .status(500)
-      .json({ ok: false, error: "server_error", detail: String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   }
 });
 

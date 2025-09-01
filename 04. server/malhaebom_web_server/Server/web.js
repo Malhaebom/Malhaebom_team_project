@@ -31,10 +31,12 @@ app.use(cookieParser());
 const LoginServer = require("./router/LoginServer");
 const JoinServer = require("./router/JoinServer");
 const Auther = require("./router/Auther");
+const W_STRServer = require("./router/W_STRServer");
 
 app.use("/userLogin", LoginServer);
 app.use("/userJoin", JoinServer);
 app.use("/auth", Auther);
+app.use("/str", W_STRServer);
 
 /* =========================
  * 기본/헬스체크
