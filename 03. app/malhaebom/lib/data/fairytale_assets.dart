@@ -70,6 +70,15 @@ const List<FairytaleAsset> Fairytales = [
     workbookImg: 'assets/fairytale/할머니와바나나',
     voiceDir: 'assets/fairytale/할머니와바나나/voice',
   ),
+    FairytaleAsset(
+    title: '꽁당보리밥',
+    titleImg: 'assets/fairytale/꽁당보리밥.png',
+    content: '1960~70년대에 있었던 어머니와 딸의 따스한 과거를 담은 이야기입니다.',
+    video: 'assets/fairytale/kkongdang_boribap.mp4',
+    workbookJson: 'assets/fairytale/꽁당보리밥/workbook.json',
+    workbookImg: 'assets/fairytale/꽁당보리밥',
+    voiceDir: 'assets/fairytale/꽁당보리밥/voice',
+  ),
 ];
 
 /// 제목으로 찾기 (없으면 assert 에러)

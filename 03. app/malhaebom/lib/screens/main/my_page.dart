@@ -54,6 +54,7 @@ const List<String> kStoryTitles = <String>[
   '아버지와 결혼식',
   '아들의 호빵',
   '할머니와 바나나',
+  '꽁당보리밥',
 ];
 
 class MyPage extends StatefulWidget {
@@ -179,9 +180,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       // 회차 표시는 서버의 clientAttemptOrder/clientRound 우선
       final attemptNo = latestFromServer.attemptOrder ?? 1;
 
-      // (원하면) 로컬 캐시로 저장
-      // await prefs.setString(PREF_LATEST_ATTEMPT, jsonEncode({...}));
-
       if (!mounted) return;
       setState(() {
         _latest = latestFromServer;
@@ -220,7 +218,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     // ✅ 항상 x-user-key 보내기 (있다면)
     if (userKey.isNotEmpty) {
       headers['x-user-key'] = userKey;
-      // headers['x-login-id'] = userKey; // (옵션) 이행기간 병행 전송
     }
 
     // 선택적으로 Bearer도 함께
@@ -425,6 +422,34 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     // 돌아오면 최신 데이터 리프레시
     _loadLatest();
     _loadStoryLatest();
+  }
+
+  // ====== 디바이스별 탭바 사이즈/패딩 ======
+  bool _isLargeTablet(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide >= 840;
+
+  bool _isTablet(BuildContext context) {
+    final s = MediaQuery.sizeOf(context).shortestSide;
+    return s >= 600 && s < 840;
+  }
+
+  double _tabBarHeight(BuildContext context) {
+    if (_isLargeTablet(context)) return 56; // 큰 태블릿: 여유 높이
+    if (_isTablet(context)) return 52;      // 일반 태블릿
+    return 44;                              // 폰(콤팩트)
+  }
+
+  double _tabFontSp(BuildContext context) {
+    if (_isLargeTablet(context)) return 20.sp;
+    if (_isTablet(context)) return 19.sp;
+    return 18.sp; // 폰
+  }
+
+  double _tabHPad(BuildContext context) {
+    // 제목 길이에 따라 좌우 패딩은 조금만
+    if (_isLargeTablet(context)) return 16.w;
+    if (_isTablet(context)) return 14.w;
+    return 12.w;
   }
 
   @override
@@ -651,58 +676,64 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             // 본문
             _storyLoading
                 ? Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: _skeleton(),
-                )
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: _skeleton(),
+                  )
                 : Padding(
-                  padding: EdgeInsets.only(top: 8.h),
-                  child: Column(
-                    children: [
-                      TabBar(
-                        controller: _storyTabController,
-                        isScrollable: true,
-                        tabAlignment: TabAlignment.start,
-                        padding: EdgeInsets.zero,
-                        labelPadding: EdgeInsets.symmetric(horizontal: 14.w),
-                        labelColor: AppColors.btnColorDark,
-                        unselectedLabelColor: const Color(0xFF6B7280),
-                        indicatorColor: AppColors.btnColorDark,
-                        labelStyle: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w700,
-                          fontFamily: 'GmarketSans',
+                    padding: EdgeInsets.only(top: 8.h),
+                    child: Column(
+                      children: [
+                        // ✅ 여기부터 변경: 탭바 높이 고정 + 라벨 FittedBox 처리
+                        SizedBox(
+                          height: _tabBarHeight(context),
+                          child: TabBar(
+                            controller: _storyTabController,
+                            isScrollable: true,
+                            tabAlignment: TabAlignment.start,
+                            padding: EdgeInsets.zero,
+                            labelPadding: EdgeInsets.symmetric(
+                              horizontal: _tabHPad(context),
+                            ),
+                            indicatorPadding:
+                                EdgeInsets.symmetric(horizontal: 6.w),
+                            indicatorSize: TabBarIndicatorSize.tab,
+                            labelColor: AppColors.btnColorDark,
+                            unselectedLabelColor: const Color(0xFF6B7280),
+                            indicatorColor: AppColors.btnColorDark,
+
+                            // ❌ labelStyle / unselectedLabelStyle 제거
+                            tabs: [
+                              for (final t in kStoryTitles)
+                                _CompactTab(
+                                  t,
+                                  fontSize: _tabFontSp(context),
+                                ),
+                            ],
+                          ),
                         ),
-                        unselectedLabelStyle: TextStyle(
-                          fontSize: 20.sp,
-                          fontWeight: FontWeight.w500,
-                          fontFamily: 'GmarketSans',
-                        ),
-                        tabs: [for (final t in kStoryTitles) Tab(text: t)],
-                      ),
-                      SizedBox(height: 12.h),
-                      SizedBox(
-                        height: 520.h,
-                        child: TabBarView(
-                          controller: _storyTabController,
-                          children: [
-                            for (final t in kStoryTitles)
-                              SingleChildScrollView(
-                                child:
-                                    (_storyLatest[t] == null)
-                                        ? _emptyStory(t) // 첫 검사 전
-                                        : _storyCard(
+                        SizedBox(height: 12.h),
+                        SizedBox(
+                          height: 520.h,
+                          child: TabBarView(
+                            controller: _storyTabController,
+                            children: [
+                              for (final t in kStoryTitles)
+                                SingleChildScrollView(
+                                  child: (_storyLatest[t] == null)
+                                      ? _emptyStory(t) // 첫 검사 전
+                                      : _storyCard(
                                           context,
                                           t,
                                           _storyLatest[t]!,
                                           _storyAttemptCounts[t] ?? 0,
                                         ),
-                              ),
-                          ],
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
           ],
         ),
       ),
@@ -941,15 +972,15 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                   MaterialPageRoute(
                     builder:
                         (_) => ir.InterviewResultPage(
-                          score: a.score,
-                          total: a.total,
-                          byCategory: a.byCategory,
-                          byType: a.byType ?? <String, ir.CategoryStat>{},
-                          testedAt: a.testedAt ?? DateTime.now(),
-                          interviewTitle: a.interviewTitle,
-                          persist: false,
-                          fixedAttemptOrder: a.attemptOrder,
-                        ),
+                              score: a.score,
+                              total: a.total,
+                              byCategory: a.byCategory,
+                              byType: a.byType ?? <String, ir.CategoryStat>{},
+                              testedAt: a.testedAt ?? DateTime.now(),
+                              interviewTitle: a.interviewTitle,
+                              persist: false,
+                              fixedAttemptOrder: a.attemptOrder,
+                            ),
                   ),
                 );
               },
@@ -970,29 +1001,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ),
             ),
           ),
-          // SizedBox(height: 10.h),
-          // // ✅ 다시 검사하기(로컬 초기화)
-          // SizedBox(
-          //   width: double.infinity,
-          //   height: 44.h,
-          //   child: OutlinedButton.icon(
-          //     onPressed: () => _startCognition(resetLocal: true),
-          //     icon: const Icon(Icons.restart_alt_rounded),
-          //     label: Text(
-          //       '다시 검사하기 (초기화)',
-          //       style: TextStyle(
-          //         fontSize: 18.sp,
-          //         fontWeight: FontWeight.w800,
-          //         fontFamily: 'GmarketSans',
-          //       ),
-          //     ),
-          //     style: OutlinedButton.styleFrom(
-          //       side: const BorderSide(color: Color(0xFFE5E7EB)),
-          //       foregroundColor: const Color(0xFF374151),
-          //       shape: const StadiumBorder(),
-          //     ),
-          //   ),
-          // ),
         ],
       ),
     );
@@ -1114,16 +1122,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                   MaterialPageRoute(
                     builder:
                         (_) => sr.StoryResultPage(
-                          score: s.score,
-                          total: s.total,
-                          byCategory: byCat,
-                          byType: byType,
-                          testedAt: s.testedAt ?? DateTime.now(),
-                          storyTitle: storyTitle,
-                          persist: false,
-                          fixedAttemptOrder: s.attemptOrder,
-                          riskBarsByType: s.riskBarsByType,
-                        ),
+                              score: s.score,
+                              total: s.total,
+                              byCategory: byCat,
+                              byType: byType,
+                              testedAt: s.testedAt ?? DateTime.now(),
+                              storyTitle: storyTitle,
+                              persist: false,
+                              fixedAttemptOrder: s.attemptOrder,
+                              riskBarsByType: s.riskBarsByType,
+                            ),
                   ),
                 );
                 if (!mounted) return;
@@ -1153,28 +1161,28 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
 
   // ====== 공통 스켈레톤 ======
   Widget _skeleton() => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(16.w),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20.r),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: List.generate(6, (i) {
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: 8.h),
-          child: Container(
-            height: 18.h,
-            decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
-              borderRadius: BorderRadius.circular(8.r),
-            ),
-          ),
-        );
-      }),
-    ),
-  );
+        width: double.infinity,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: List.generate(6, (i) {
+            return Padding(
+              padding: EdgeInsets.symmetric(vertical: 8.h),
+              child: Container(
+                height: 18.h,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+              ),
+            );
+          }),
+        ),
+      );
 
   // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
@@ -1207,62 +1215,63 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-    height: 16.h,
-    child: LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF10B981),
-                    Color(0xFFF59E0B),
-                    Color(0xFFEF4444),
-                  ],
+        height: 16.h,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  width: w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF10B981),
+                        Color(0xFFF59E0B),
+                        Color(0xFFEF4444),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                Positioned(
+                  left: (w - 18.w) * position,
+                  child: Container(
+                    width: 18.w,
+                    height: 18.w,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border:
+                          Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+              ],
+            );
+          },
+        ),
+      );
 
   Widget _statusChip(_EvalView ev) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-    decoration: BoxDecoration(
-      color: ev.badgeBg,
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: ev.badgeBorder),
-    ),
-    child: Text(
-      ev.text,
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 14.sp,
-        color: ev.textColor,
-        fontFamily: 'GmarketSans',
-      ),
-    ),
-  );
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: ev.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: ev.badgeBorder),
+        ),
+        child: Text(
+          ev.text,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14.sp,
+            color: ev.textColor,
+            fontFamily: 'GmarketSans',
+          ),
+        ),
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -1532,4 +1541,35 @@ class _EvalView {
     required this.badgeBorder,
     required this.position,
   });
+}
+
+/// ===== 소형 탭 라벨(자동 축소) 위젯 =====
+class _CompactTab extends StatelessWidget {
+  const _CompactTab(this.text, {Key? key, required this.fontSize})
+      : super(key: key);
+  final String text;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tab(
+      child: Align(
+        alignment: Alignment.center,
+        child: FittedBox(
+          fit: BoxFit.scaleDown, // 탭 영역 안에서만 글자 크기 자동 축소
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.visible, // 잘리지 않게
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'GmarketSans',
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

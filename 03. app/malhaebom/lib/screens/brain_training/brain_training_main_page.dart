@@ -98,7 +98,8 @@ class _BrainTrainingMainPageState extends State<BrainTrainingMainPage> {
                   textAlign: TextAlign.center,
                   textScaler: const TextScaler.linear(1.0), // 시스템 폰트 크기 설정 무시
                   style: TextStyle(
-                    fontSize: 18.sp,
+                    fontFamily: 'GmarketSans',
+                    fontSize: 20.sp,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text,
                     height: 1.4,

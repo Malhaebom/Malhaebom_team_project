@@ -136,10 +136,13 @@ flutter:
   - assets/fairytale/아들의 호빵/
   - assets/fairytale/할머니와바나나.png
   - assets/fairytale/할머니와바나나/
+  - assets/fairytale/꽁당보리밥.png
+  - assets/fairytale/꽁당보리밥/
   - assets/fairytale/어머니의벙어리/voice/
   - assets/fairytale/아버지와결혼식/voice/
   - assets/fairytale/아들의 호빵/voice/
   - assets/fairytale/할머니와바나나/voice/
+  - assets/fairytale/꽁당보리밥/voice/
   - assets/fairytale/어머니의벙어리/test/
   - assets/fairytale/어머니의벙어리/test/1/
   - assets/fairytale/어머니의벙어리/test/2/
@@ -224,6 +227,27 @@ flutter:
   - assets/fairytale/할머니와바나나/test/18/
   - assets/fairytale/할머니와바나나/test/19/
   - assets/fairytale/할머니와바나나/test/20/
+  - assets/fairytale/꽁당보리밥/test/
+  - assets/fairytale/꽁당보리밥/test/1/
+  - assets/fairytale/꽁당보리밥/test/2/
+  - assets/fairytale/꽁당보리밥/test/3/
+  - assets/fairytale/꽁당보리밥/test/4/
+  - assets/fairytale/꽁당보리밥/test/5/
+  - assets/fairytale/꽁당보리밥/test/6/
+  - assets/fairytale/꽁당보리밥/test/7/
+  - assets/fairytale/꽁당보리밥/test/8/
+  - assets/fairytale/꽁당보리밥/test/9/
+  - assets/fairytale/꽁당보리밥/test/10/
+  - assets/fairytale/꽁당보리밥/test/11/
+  - assets/fairytale/꽁당보리밥/test/12/
+  - assets/fairytale/꽁당보리밥/test/13/
+  - assets/fairytale/꽁당보리밥/test/14/
+  - assets/fairytale/꽁당보리밥/test/15/
+  - assets/fairytale/꽁당보리밥/test/16/
+  - assets/fairytale/꽁당보리밥/test/17/
+  - assets/fairytale/꽁당보리밥/test/18/
+  - assets/fairytale/꽁당보리밥/test/19/
+  - assets/fairytale/꽁당보리밥/test/20/
 
   # 인터뷰
   - assets/interview/
