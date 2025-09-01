@@ -28,15 +28,17 @@ import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
 // ===== 서버 설정(StoryResultPage와 동일 규칙) =====
+// - 배포 기본값: 공인 IP 사용 (http://211.188.63.38:4000)
+// - 필요 시: --dart-define=API_BASE=http://<도메인또는IP>:<포트>
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
-      if (kIsWeb) return 'http://localhost:4000';
-      if (Platform.isAndroid) return 'http://10.0.2.2:4000';
-      if (Platform.isIOS) return 'http://localhost:4000';
-      return 'http://192.168.0.23:4000';
+
+      // ✅ 공인 IP를 기본값으로 고정
+      // (로컬 개발 시에는 --dart-define=API_BASE=http://localhost:4000 로 덮어쓰기)
+      return 'http://211.188.63.38:4000';
     })();
 
 // ===== 로컬 저장 키 =====

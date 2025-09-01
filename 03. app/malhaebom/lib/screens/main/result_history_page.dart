@@ -34,18 +34,11 @@ class ResultHistoryPage extends StatefulWidget {
 }
 
 class _ResultHistoryPageState extends State<ResultHistoryPage> {
-  // 로그인 페이지와 동일한 규칙으로 BASE 결정(+ /str)
+  // ✅ 공인 IP를 기본값으로 사용하고, --dart-define=API_BASE 로 덮어쓰기 가능
   static final String STR_BASE =
       (() {
         const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-        final base =
-            defined.isNotEmpty
-                ? defined
-                : (kIsWeb
-                    ? 'http://localhost:4000'
-                    : (Platform.isAndroid
-                        ? 'http://10.0.2.2:4000'
-                        : 'http://localhost:4000'));
+        final base = defined.isNotEmpty ? defined : 'http://211.188.63.38:4000';
         return '$base/str';
       })();
 

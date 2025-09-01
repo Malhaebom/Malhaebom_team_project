@@ -32,14 +32,18 @@ const pool = mysql.createPool({
 });
 
 pool.on?.("connection", (conn) => {
+  // 세션 타임아웃(8h) 연장
   conn.promise().query("SET SESSION wait_timeout=28800, interactive_timeout=28800").catch(() => {});
 });
 
+// DB keepalive ping
 const PING_INTERVAL_MS = 30 * 1000;
 setInterval(async () => {
-  try { await pool.query("SELECT 1"); } catch (e) { console.warn("[DB] keepalive ping failed:", e?.code || e?.message); }
+  try { await pool.query("SELECT 1"); }
+  catch (e) { console.warn("[DB] keepalive ping failed:", e?.code || e?.message); }
 }, PING_INTERVAL_MS);
 
+// 재시도 래퍼
 async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
   let lastErr;
   for (let i = 1; i <= tries; i++) {
@@ -52,7 +56,10 @@ async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
         err?.code === "ECONNRESET" ||
         err?.code === "PROTOCOL_CONNECTION_LOST" ||
         err?.code === "ETIMEDOUT";
-      console.warn(`[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`, err?.code || err?.message);
+      console.warn(
+        `[DB] query failed${label ? " (" + label + ")" : ""}, try ${i}/${tries}:`,
+        err?.code || err?.message
+      );
       if (!transient || i === tries) break;
       await new Promise((r) => setTimeout(r, 300 * i));
     }
@@ -61,22 +68,32 @@ async function execWithRetry(sql, params = [], { tries = 3, label = "" } = {}) {
 }
 
 /* =========================
- * JWT
+ * JWT (Auther/STR와 통일)
  * ========================= */
-const JWT_SECRET = process.env.JWT_SECRET || "malhaebom";
+const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+const JWT_ISS = process.env.JWT_ISS || undefined; // 예: 'malhaebom-auth'
+const JWT_AUD = process.env.JWT_AUD || undefined; // 예: 'malhaebom-app'
+
 function sign(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  const opts = { expiresIn: JWT_EXPIRES_IN };
+  if (JWT_ISS) opts.issuer = JWT_ISS;
+  if (JWT_AUD) opts.audience = JWT_AUD;
+  return jwt.sign(payload, JWT_SECRET, opts);
 }
+
 function auth(req, res, next) {
   const h = req.headers.authorization || "";
   const token = h.startsWith("Bearer ") ? h.slice(7) : null;
   if (!token) return res.status(401).json({ message: "토큰 필요" });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    const opts = {};
+    if (JWT_ISS) opts.issuer = JWT_ISS;
+    if (JWT_AUD) opts.audience = JWT_AUD;
+    req.user = jwt.verify(token, JWT_SECRET, opts);
     next();
-  } catch {
-    return res.status(401).json({ message: "유효하지 않은 토큰" });
+  } catch (e) {
+    return res.status(401).json({ message: "유효하지 않은 토큰", code: e?.name || "" });
   }
 }
 
@@ -158,7 +175,7 @@ router.get("/me", auth, async (req, res) => {
 router.get("/healthz", async (_req, res) => {
   try {
     await pool.query("SELECT 1");
-    res.json({ ok: true });
+    res.json({ ok: true, db: `${DB_CONFIG.host}:${DB_CONFIG.port}/${DB_CONFIG.database}` });
   } catch (e) {
     res.status(500).json({ ok: false, code: e?.code || e?.message });
   }

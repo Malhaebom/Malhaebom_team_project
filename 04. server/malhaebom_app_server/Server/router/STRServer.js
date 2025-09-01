@@ -7,14 +7,17 @@ const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
+// 배포 기본값을 캠퍼스 DB로 통일, JWT도 Auther/Login 과 동일 키를 사용
 const {
-  DB_HOST = "127.0.0.1",
-  DB_PORT = "3306",
-  DB_USER = "root",
-  DB_PASSWORD = "",
-  DB_NAME = "appdb",
-  STR_ALLOW_GUEST = "false", // true면 user_key 없이도 저장(디버깅용)
-  JWT_SECRET = "malhaebom",  // LoginServer/Auther와 동일해야 함
+  DB_HOST = "project-db-campus.smhrd.com",
+  DB_PORT = "3307",
+  DB_USER = "campus_25SW_BD_p3_3",
+  DB_PASSWORD = "smhrd3",
+  DB_NAME = "campus_25SW_BD_p3_3",
+  STR_ALLOW_GUEST = "false",                // true면 user_key 없이도 저장(디버깅용)
+  JWT_SECRET = "malhaebom_sns",             // ★ Auther/Login과 통일
+  JWT_ISS,                                  // 선택: 토큰 발급자
+  JWT_AUD,                                  // 선택: 토큰 대상자
 } = process.env;
 
 const ALLOW_GUEST = String(STR_ALLOW_GUEST).toLowerCase() === "true";
@@ -29,7 +32,26 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   namedPlaceholders: true,
+  timezone: "Z",
 });
+
+pool.on?.("connection", (conn) => {
+  // 세션 타임아웃(8h) 연장
+  conn
+    .promise()
+    .query("SET SESSION wait_timeout=28800, interactive_timeout=28800")
+    .catch(() => {});
+});
+
+// DB keepalive ping
+const PING_INTERVAL_MS = 30 * 1000;
+setInterval(async () => {
+  try {
+    await pool.query("SELECT 1");
+  } catch (e) {
+    console.warn("[STR][DB] keepalive ping failed:", e?.code || e?.message);
+  }
+}, PING_INTERVAL_MS);
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────────
 function normalizeTitle(s) {
@@ -59,6 +81,14 @@ function buildUserKeyFromLogin({ login_id, login_type }) {
   return `${String(login_type).toLowerCase()}:${String(login_id)}`;
 }
 
+// ── JWT 옵션 ─────────────────────────────────────────────────────────────────
+function jwtVerifyWithOpts(token) {
+  const opts = {};
+  if (JWT_ISS) opts.issuer = JWT_ISS;
+  if (JWT_AUD) opts.audience = JWT_AUD;
+  return jwt.verify(token, JWT_SECRET, opts);
+}
+
 /**
  * Authorization Bearer 토큰 → user_key 복원
  *  - JWT 페이로드: { uid, login_id, login_type, nick }
@@ -68,7 +98,7 @@ function resolveFromBearer(req) {
     const h = req.headers.authorization || "";
     if (!h.startsWith("Bearer ")) return null;
     const token = h.slice(7);
-    const p = jwt.verify(token, JWT_SECRET);
+    const p = jwtVerifyWithOpts(token);
     // 우선순위: login_id + login_type → user_key
     const key = buildUserKeyFromLogin({ login_id: p.login_id, login_type: p.login_type });
     if (key) return { ok: true, user_key: key, from: "bearer" };
@@ -101,7 +131,7 @@ function resolveIdentity(req) {
   };
 
   // 직접 주는 userKey
-  const directKey = readAny({ ...b, ...q, ...h }, ["userKey","user_key","x-user-key","x-userkey"]);
+  const directKey = readAny({ ...b, ...q, ...h }, ["userkey","user_key","x-user-key","x-userkey"]);
   if (directKey) return { ok: true, user_key: directKey, from: "userKey" };
 
   // (구) 로컬 방식: user_id/phone
@@ -183,7 +213,9 @@ async function ensureTable() {
 ensureTable().catch((e) => console.error("[STR] ensureTable error:", e?.message || e));
 
 // ── 헬스체크 ───────────────────────────────────────────────────────────────────
-router.get("/health", (_req, res) => res.json({ ok: true, db: DB_HOST + "/" + DB_NAME }));
+router.get("/health", (_req, res) =>
+  res.json({ ok: true, db: `${DB_HOST}:${DB_PORT}/${DB_NAME}` })
+);
 
 // 디버그용: 내가 인식한 아이덴티티 보기
 router.get("/whoami", (req, res) => {
