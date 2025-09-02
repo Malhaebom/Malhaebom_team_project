@@ -455,6 +455,36 @@ export default function BookHistory() {
     "D-의례화가 부족합니다.",
   ];
 
+  // 페이징 관련 상태
+  const [paginationState, setPaginationState] = useState({});
+
+  const getPaginatedRecords = (records, storyKey) => {
+    const page = paginationState[storyKey]?.currentPage || 1;
+    const perPage = 5; // 한 페이지당 레코드 수
+    const start = (page - 1) * perPage;
+    const end = start + perPage;
+    return records.slice(start, end);
+  };
+
+  const getTotalPages = (records, storyKey) => {
+    const perPage = 5;
+    return Math.ceil(records.length / perPage);
+  };
+
+  const handlePageChange = async (storyKey, page) => {
+    if (page < 1 || page > getTotalPages(mergedList.find(g => g.story_key === storyKey)?.records, storyKey)) {
+      return;
+    }
+    setPaginationState(prev => ({
+      ...prev,
+      [storyKey]: { ...prev[storyKey], currentPage: page }
+    }));
+  };
+
+  const getPaginationState = (storyKey) => {
+    return paginationState[storyKey] || { currentPage: 1 };
+  };
+
   return (
     <div className="content">
       {windowWidth > 1100 && <Background />}
@@ -521,69 +551,158 @@ export default function BookHistory() {
                 {opened && (
                   <div style={{ padding: "14px 20px", borderTop: "1px solid #eee" }}>
                     {Array.isArray(g.records) && g.records.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        {g.records.map((r) => {
-                          const selected = openRecordId === r.id;
-                          const color = getScoreColor(toNum(r.score), toNum(r.total));
-                          const loading = !!detailLoading[r.id];
-                          const detail = detailCache[r.id];
-                          return (
-                            <div key={r.id}>
-                              <div
-                                onClick={() => handleRecordClick(r.id, r)}
-                                style={{
-                                  background: "#fafafa",
-                                  borderRadius: 8,
-                                  padding: "12px 16px",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  cursor: "pointer",
-                                }}
-                              >
-                                <span style={{ fontSize: 15, color: "#333" }}>
-                                  {r.client_kst || r.client_utc || "-"}
-                                  <span
-                                    style={{
-                                      background: "#eee",
-                                      padding: "2px 8px",
-                                      borderRadius: 8,
-                                      fontSize: 13,
-                                      marginLeft: 8,
-                                      fontWeight: 600,
-                                      color: "#333",
-                                    }}
-                                  >
-                                    {r.client_attempt_order ? `${r.client_attempt_order}회차` : "회차 미정"}
-                                  </span>
-                                </span>
-                                <span style={{ fontSize: 16, fontWeight: "bold", color }}>
-                                  {r.score ?? 0}점
-                                </span>
-                              </div>
-
-                              {selected && (
-                                <div style={{ marginTop: 12 }}>
-                                  {loading ? (
-                                    <ResultSkeleton />
-                                  ) : (
-                                    <ResultDetailCard
-                                      data={detail}
-                                      fallback={{
-                                        story_title: g.story_title,
-                                        client_attempt_order: r.client_attempt_order,
-                                        client_kst: r.client_kst || r.client_utc,
-                                        score: r.score,
-                                        total: r.total,
+                      <>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                          {getPaginatedRecords(g.records, g.story_key).map((r) => {
+                            const selected = openRecordId === r.id;
+                            const color = getScoreColor(toNum(r.score), toNum(r.total));
+                            const loading = !!detailLoading[r.id];
+                            const detail = detailCache[r.id];
+                            return (
+                              <div key={r.id}>
+                                {/* 요약 행 */}
+                                <div
+                                  onClick={() => handleRecordClick(r.id, r)}
+                                  style={{
+                                    background: "#fafafa",
+                                    borderRadius: 8,
+                                    padding: "12px 16px",
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "center",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  <span style={{ fontSize: 15, color: "#333" }}>
+                                    {r.client_kst || r.client_utc || "-"}
+                                    <span
+                                      style={{
+                                        background: "#eee",
+                                        padding: "2px 8px",
+                                        borderRadius: 8,
+                                        fontSize: 13,
+                                        marginLeft: 8,
+                                        fontWeight: 600,
+                                        color: "#333",
                                       }}
-                                    />
-                                  )}
+                                    >
+                                      {r.client_attempt_order ? `${r.client_attempt_order}회차` : "회차 미정"}
+                                    </span>
+                                  </span>
+                                  <span style={{ fontSize: 16, fontWeight: "bold", color }}>
+                                    {r.score ?? 0}점
+                                  </span>
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+
+                                {/* 상세 */}
+                                {selected && (
+                                  <div style={{ marginTop: 12 }}>
+                                    {loading ? (
+                                      <ResultSkeleton />
+                                    ) : (
+                                      <ResultDetailCard
+                                        data={detail}
+                                        fallback={{
+                                          story_title: g.story_title,
+                                          client_attempt_order: r.client_attempt_order,
+                                          client_kst: r.client_kst || r.client_utc,
+                                          score: r.score,
+                                          total: r.total,
+                                        }}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {/* 페이징 */}
+                        {getTotalPages(g.records, g.story_key) > 1 && (
+                          <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
+                            <button
+                              onClick={() => handlePageChange(g.story_key, 1)}
+                              disabled={getPaginationState(g.story_key).currentPage === 1}
+                              style={{
+                                padding: "8px 15px",
+                                border: "1px solid #d0d0d0",
+                                borderRadius: 8,
+                                background: getPaginationState(g.story_key).currentPage === 1 ? "#f0f0f0" : "#fff",
+                                cursor: getPaginationState(g.story_key).currentPage === 1 ? "not-allowed" : "pointer",
+                                marginRight: 10,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: getPaginationState(g.story_key).currentPage === 1 ? "#ccc" : "#333",
+                              }}
+                            >
+                              처음
+                            </button>
+                            <button
+                              onClick={() => handlePageChange(g.story_key, getPaginationState(g.story_key).currentPage - 1)}
+                              disabled={getPaginationState(g.story_key).currentPage === 1}
+                              style={{
+                                padding: "8px 15px",
+                                border: "1px solid #d0d0d0",
+                                borderRadius: 8,
+                                background: getPaginationState(g.story_key).currentPage === 1 ? "#f0f0f0" : "#fff",
+                                cursor: getPaginationState(g.story_key).currentPage === 1 ? "not-allowed" : "pointer",
+                                marginRight: 10,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: getPaginationState(g.story_key).currentPage === 1 ? "#ccc" : "#333",
+                              }}
+                            >
+                              이전
+                            </button>
+                            <span style={{ 
+                              fontSize: 14, 
+                              fontWeight: 600, 
+                              color: "#333",
+                              padding: "8px 15px",
+                              background: "#f8f9fa",
+                              borderRadius: 8,
+                              border: "1px solid #e9ecef"
+                            }}>
+                              {getPaginationState(g.story_key).currentPage} / {getTotalPages(g.records, g.story_key)}
+                            </span>
+                            <button
+                              onClick={() => handlePageChange(g.story_key, getPaginationState(g.story_key).currentPage + 1)}
+                              disabled={getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key)}
+                              style={{
+                                padding: "8px 15px",
+                                border: "1px solid #d0d0d0",
+                                borderRadius: 8,
+                                background: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "#f0f0f0" : "#fff",
+                                cursor: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "not-allowed" : "pointer",
+                                marginLeft: 10,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "#ccc" : "#333",
+                              }}
+                            >
+                              다음
+                            </button>
+                            <button
+                              onClick={() => handlePageChange(g.story_key, getTotalPages(g.records, g.story_key))}
+                              disabled={getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key)}
+                              style={{
+                                padding: "8px 15px",
+                                border: "1px solid #d0d0d0",
+                                borderRadius: 8,
+                                background: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "#f0f0f0" : "#fff",
+                                cursor: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "not-allowed" : "pointer",
+                                marginLeft: 10,
+                                fontSize: 14,
+                                fontWeight: 600,
+                                color: getPaginationState(g.story_key).currentPage === getTotalPages(g.records, g.story_key) ? "#ccc" : "#333",
+                              }}
+                            >
+                              마지막
+                            </button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p
                         style={{

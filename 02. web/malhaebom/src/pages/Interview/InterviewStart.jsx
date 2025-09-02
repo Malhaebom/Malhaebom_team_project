@@ -285,8 +285,8 @@ function InterviewStart() {
 
   return (
     <div className="content">
-      {/* 공통 배경 추가 */}
-      <Background />
+      {/* 공통 배경 추가 - 화면이 클 때만 표시 */}
+      {windowWidth > 1100 && <Background />}
       <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">
