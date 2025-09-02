@@ -3,11 +3,10 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.brain_up">
 
-    <!-- 인터넷 권한 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- 패키지 가시성 쿼리(선택). manifest 최상위에 두는게 안전합니다. -->
     <queries>
+        <!-- 필요시 외부 인텐트 탐색 항목을 추가할 수 있으나 기본은 불필요 -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
@@ -18,7 +17,8 @@
         android:name="${applicationName}"
         android:label="말해봄"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".MainActivity"
@@ -39,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- flutter_web_auth_2 딥링크 콜백 -->
+        <!-- ✅ flutter_web_auth_2 콜백: 어떤 host/path로 와도 수신되도록 보강 -->
         <activity
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
             android:exported="true"
@@ -47,14 +47,23 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Transparent">
 
-            <intent-filter android:label="flutter_web_auth_2">
+            <!-- 정확 매칭 -->
+            <intent-filter android:label="flutter_web_auth_2_exact">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="myapp"
                     android:host="auth"
-                    android:pathPrefix="/callback" />
+                    android:path="/callback" />
+            </intent-filter>
+
+            <!-- 느슨한 매칭(호환용): scheme만 맞으면 받음 -->
+            <intent-filter android:label="flutter_web_auth_2_fallback">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="myapp" />
             </intent-filter>
         </activity>
 
