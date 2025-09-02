@@ -17,10 +17,7 @@ import 'package:malhaebom/screens/story/story_test_result_page.dart' as sr;
 
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
-// 빠른 실패(화면 전환 후 이 시간 경과 시 스피너 대신 오류 메시지 우선 표시)
 const Duration kFastFailAfter = Duration(milliseconds: 700);
-// HTTP 자체 타임아웃 (요청을 오래 끌지 않도록)
-// 기존 2초 → 8초로 완화
 const Duration kHttpTimeout = Duration(seconds: 8);
 
 enum HistoryMode { cognition, story }
@@ -34,42 +31,26 @@ class ResultHistoryPage extends StatefulWidget {
 }
 
 class _ResultHistoryPageState extends State<ResultHistoryPage> {
-  // ✅ 공인 IP를 기본값으로 사용하고, --dart-define=API_BASE 로 덮어쓰기 가능
-  static final String STR_BASE =
-      (() {
-        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-        final base = defined.isNotEmpty ? defined : 'http://211.188.63.38:4000';
-        return '$base/str';
-      })();
+  static final String STR_BASE = (() {
+    const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+    final base = defined.isNotEmpty ? defined : 'http://211.188.63.38:4000';
+    return '$base/str';
+  })();
 
-  // ✅ 새로 추가: IR 서버 베이스 (인지 히스토리 용)
-  static final String IR_BASE =
-      (() {
-        const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-        final base =
-            defined.isNotEmpty
-                ? defined
-                : (kIsWeb
-                    ? 'http://localhost:4000'
-                    : (Platform.isAndroid
-                        ? 'http://10.0.2.2:4000'
-                        : 'http://localhost:4000'));
-        return '$base/ir';
-      })();
+  static final String IR_BASE = (() {
+    const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+    final base = defined.isNotEmpty ? defined : 'http://211.188.63.38:4000';
+    return '$base/ir';
+  })();
 
   late Future<List<AttemptSummary>> _cogFuture;
   final Map<String, Future<List<StoryAttempt>>> _storyFutures = {};
 
-  // fast-fail 표시용 플래그
   bool _showOfflineHint = false;
   Timer? _ffTimer;
 
-  // ir → sr 타입 매핑(자세히 보기 버튼에서 사용)
   Map<String, sr.CategoryStat> _toSr(Map<String, ir.CategoryStat> m) {
-    return m.map(
-      (k, v) =>
-          MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)),
-    );
+    return m.map((k, v) => MapEntry(k, sr.CategoryStat(correct: v.correct, total: v.total)));
   }
 
   @override
@@ -78,7 +59,6 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
     if (widget.mode == HistoryMode.cognition) {
       _cogFuture = _fetchCognitionList();
     }
-    // 일정 시간 안에 응답이 없으면 오류 문구 먼저 보여주기
     _ffTimer = Timer(kFastFailAfter, () {
       if (mounted) setState(() => _showOfflineHint = true);
     });
@@ -113,10 +93,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
         ),
         body: Padding(
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
-          child:
-              widget.mode == HistoryMode.cognition
-                  ? _buildCognitionBody()
-                  : _buildStoryBody(),
+          child: widget.mode == HistoryMode.cognition ? _buildCognitionBody() : _buildStoryBody(),
         ),
       ),
     );
@@ -128,10 +105,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
       future: _cogFuture,
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          // fast-fail 시간 경과 시 즉시 오류 문구
-          return _showOfflineHint
-              ? const _HistoryMessage('기록을 불러올 수 없습니다.')
-              : const Center(child: CircularProgressIndicator());
+          return _showOfflineHint ? const _HistoryMessage('기록을 불러올 수 없습니다.') : const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
           return const _HistoryMessage('기록을 불러올 수 없습니다.');
@@ -146,20 +120,15 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
           separatorBuilder: (_, __) => SizedBox(height: 10.h),
           itemBuilder: (context, i) {
             final a = items[i];
-            final attemptNo = (items.length - i);
+            final attemptNo = a.attemptOrder ?? (items.length - i); // ✅ 서버 회차 우선
             final dateStr = _dateLabel(a.kstLabel, a.testedAt);
             final ratio = a.total == 0 ? 0.0 : a.score / a.total;
 
             return _Card(
               child: Theme(
-                data: Theme.of(
-                  context,
-                ).copyWith(dividerColor: Colors.transparent),
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                 child: ExpansionTile(
-                  tilePadding: EdgeInsets.symmetric(
-                    horizontal: 14.w,
-                    vertical: 4.h,
-                  ),
+                  tilePadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 4.h),
                   childrenPadding: EdgeInsets.fromLTRB(14.w, 0, 14.w, 14.h),
                   iconColor: AppColors.text,
                   collapsedIconColor: AppColors.text,
@@ -168,21 +137,14 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                       Expanded(
                         child: Text(
                           dateStr,
-                          style: TextStyle(
-                            fontSize: 16.sp,
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w800),
                         ),
                       ),
                       _AttemptChip('$attemptNo회차'),
                       SizedBox(width: 8.w),
                       Text(
                         '${a.score}점',
-                        style: TextStyle(
-                          fontSize: 16.sp,
-                          fontWeight: FontWeight.w900,
-                          color: _scoreColor(ratio),
-                        ),
+                        style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w900, color: _scoreColor(ratio)),
                       ),
                     ],
                   ),
@@ -210,31 +172,24 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder:
-                                  (_) => ir.InterviewResultPage(
-                                    score: a.score,
-                                    total: a.total,
-                                    byCategory: a.byCategory,
-                                    byType:
-                                        a.byType ??
-                                        const <String, ir.CategoryStat>{},
-                                    testedAt: a.testedAt ?? DateTime.now(),
-                                    interviewTitle: a.interviewTitle,
-                                    persist: false,
-                                    fixedAttemptOrder:
-                                        a.attemptOrder ?? attemptNo, // ✅ 회차 고정
-                                  ),
+                              builder: (_) => ir.InterviewResultPage(
+                                score: a.score,
+                                total: a.total,
+                                byCategory: a.byCategory,
+                                byType: a.byType ?? const <String, ir.CategoryStat>{},
+                                testedAt: a.testedAt ?? DateTime.now(),
+                                interviewTitle: a.interviewTitle,
+                                persist: false,
+                                fixedAttemptOrder: a.attemptOrder ?? attemptNo,
+                                kstLabel: a.kstLabel, // ✅ 전달
+                              ),
                             ),
                           );
                         },
                         icon: Icon(Icons.open_in_new, size: 26.sp),
                         label: Text(
                           '자세히 보기',
-                          style: TextStyle(
-                            fontSize: 23.sp,
-                            fontWeight: FontWeight.w700,
-                            fontFamily: 'GmarketSans',
-                          ),
+                          style: TextStyle(fontSize: 23.sp, fontWeight: FontWeight.w700, fontFamily: 'GmarketSans'),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFFD43B),
@@ -268,16 +223,10 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
           child: Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              tilePadding: EdgeInsets.symmetric(
-                horizontal: 14.w,
-                vertical: 6.h,
-              ),
+              tilePadding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 6.h),
               iconColor: AppColors.text,
               collapsedIconColor: AppColors.text,
-              title: Text(
-                title,
-                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900),
-              ),
+              title: Text(title, style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w900)),
               onExpansionChanged: (expanded) {
                 if (expanded && _storyFutures[title] == null) {
                   setState(() {
@@ -295,9 +244,9 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                         return _showOfflineHint
                             ? const _HistoryMessage('기록을 불러올 수 없습니다.')
                             : const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Center(child: CircularProgressIndicator()),
-                            );
+                                padding: EdgeInsets.symmetric(vertical: 20),
+                                child: Center(child: CircularProgressIndicator()),
+                              );
                       }
                       if (snap.hasError) {
                         return const _HistoryMessage('기록을 불러올 수 없습니다.');
@@ -310,8 +259,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                       return Column(
                         children: List.generate(attempts.length, (idx) {
                           final a = attempts[idx];
-                          final attemptNo =
-                              a.attemptOrder ?? (attempts.length - idx);
+                          final attemptNo = a.attemptOrder ?? (attempts.length - idx); // ✅ 서버 회차 우선
                           final dateStr = _dateLabel(a.kstLabel, a.testedAt);
                           final ratio = a.total == 0 ? 0.0 : a.score / a.total;
 
@@ -319,20 +267,10 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                             padding: EdgeInsets.only(bottom: 10.h),
                             child: _InnerCard(
                               child: Theme(
-                                data: Theme.of(
-                                  context,
-                                ).copyWith(dividerColor: Colors.transparent),
+                                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                                 child: ExpansionTile(
-                                  tilePadding: EdgeInsets.symmetric(
-                                    horizontal: 12.w,
-                                    vertical: 2.h,
-                                  ),
-                                  childrenPadding: EdgeInsets.fromLTRB(
-                                    12.w,
-                                    0,
-                                    12.w,
-                                    12.h,
-                                  ),
+                                  tilePadding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 2.h),
+                                  childrenPadding: EdgeInsets.fromLTRB(12.w, 0, 12.w, 12.h),
                                   iconColor: AppColors.text,
                                   collapsedIconColor: AppColors.text,
                                   title: Row(
@@ -340,10 +278,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                       Expanded(
                                         child: Text(
                                           dateStr,
-                                          style: TextStyle(
-                                            fontSize: 15.sp,
-                                            fontWeight: FontWeight.w800,
-                                          ),
+                                          style: TextStyle(fontSize: 15.sp, fontWeight: FontWeight.w800),
                                         ),
                                       ),
                                       _AttemptChip('$attemptNo회차'),
@@ -363,22 +298,11 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                     _scoreCircle(a.score, a.total),
                                     SizedBox(height: 12.h),
                                     ...['요구', '질문', '단언', '의례화']
-                                        .where(
-                                          (k) => a.byCategory.containsKey(k),
-                                        )
-                                        .map(
-                                          (k) => Padding(
-                                            padding: EdgeInsets.only(
-                                              bottom: 10.h,
-                                            ),
-                                            child: _riskBarRow(
-                                              k,
-                                              a.byCategory[k],
-                                            ),
-                                          ),
-                                        ),
-
-                                    // ===== 마이페이지와 동일한 '자세히 보기' 버튼 추가 =====
+                                        .where((k) => a.byCategory.containsKey(k))
+                                        .map((k) => Padding(
+                                              padding: EdgeInsets.only(bottom: 10.h),
+                                              child: _riskBarRow(k, a.byCategory[k]),
+                                            )),
                                     SizedBox(height: 6.h),
                                     SizedBox(
                                       width: double.infinity,
@@ -391,29 +315,22 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                           await Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder:
-                                                  (_) => sr.StoryResultPage(
-                                                    score: a.score,
-                                                    total: a.total,
-                                                    byCategory: byCat,
-                                                    byType: byType,
-                                                    testedAt:
-                                                        a.testedAt ??
-                                                        DateTime.now(),
-                                                    storyTitle: title,
-                                                    persist: false,
-                                                    fixedAttemptOrder:
-                                                        a.attemptOrder,
-                                                    riskBarsByType:
-                                                        a.riskBarsByType,
-                                                  ),
+                                              builder: (_) => sr.StoryResultPage(
+                                                score: a.score,
+                                                total: a.total,
+                                                byCategory: byCat,
+                                                byType: byType,
+                                                testedAt: a.testedAt ?? DateTime.now(),
+                                                storyTitle: title,
+                                                persist: false,
+                                                fixedAttemptOrder: a.attemptOrder,
+                                                riskBarsByType: a.riskBarsByType,
+                                                kstLabel: a.kstLabel,
+                                              ),
                                             ),
                                           );
                                         },
-                                        icon: Icon(
-                                          Icons.open_in_new,
-                                          size: 26.sp,
-                                        ),
+                                        icon: Icon(Icons.open_in_new, size: 26.sp),
                                         label: Text(
                                           '자세히 보기',
                                           style: TextStyle(
@@ -423,9 +340,7 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
                                           ),
                                         ),
                                         style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFFFFD43B,
-                                          ),
+                                          backgroundColor: const Color(0xFFFFD43B),
                                           foregroundColor: Colors.black,
                                           shape: const StadiumBorder(),
                                           elevation: 0,
@@ -450,39 +365,33 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
     );
   }
 
-  // 유저키 로딩 (로그인 시 저장해 둔 값 사용; 없으면 guest로)
   Future<Map<String, String>> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = (prefs.getString('auth_token') ?? '').trim();
 
-    // ✅ user_key가 비어있으면 login_id로 대체
     String userKey = (prefs.getString('user_key') ?? '').trim();
     final loginId = (prefs.getString('login_id') ?? '').trim();
     if (userKey.isEmpty && loginId.isNotEmpty) {
       userKey = loginId;
-      // (선택) 로컬 동기화
       await prefs.setString('user_key', userKey);
     }
 
     final headers = <String, String>{'accept': 'application/json'};
-    if (userKey.isNotEmpty) headers['x-user-key'] = userKey; // ✅ 항상 넣기
+    if (userKey.isNotEmpty) headers['x-user-key'] = userKey;
     if (token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
     return headers;
   }
 
-  // ---------------- networking ----------------
   Future<List<AttemptSummary>> _fetchCognitionList() async {
     final headers = await _authHeaders();
 
-    // ✅ 쿼리에 userKey도 같이 실어주기(세이프가드)
     final prefs = await SharedPreferences.getInstance();
-    final userKey =
-        ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
-            ? (prefs.getString('user_key') ?? '').trim()
-            : (prefs.getString('login_id') ?? '').trim();
+    final userKey = ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
+        ? (prefs.getString('user_key') ?? '').trim()
+        : (prefs.getString('login_id') ?? '').trim();
 
     final qp = <String, String>{'limit': '30'};
-    if (userKey.isNotEmpty) qp['userKey'] = userKey; // ✅
+    if (userKey.isNotEmpty) qp['userKey'] = userKey;
 
     final uri = Uri.parse('$IR_BASE/attempt/list').replace(queryParameters: qp);
     final res = await http.get(uri, headers: headers).timeout(kHttpTimeout);
@@ -492,33 +401,27 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
     }
 
     final decoded = jsonDecode(res.body);
-    final arr =
-        (decoded is Map && decoded['list'] is List)
-            ? decoded['list'] as List
-            : (decoded is List ? decoded : const <dynamic>[]);
+    final arr = (decoded is Map && decoded['list'] is List)
+        ? decoded['list'] as List
+        : (decoded is List ? decoded : const <dynamic>[]);
 
-    return arr
-        .map((e) => AttemptSummary.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return arr.map((e) => AttemptSummary.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<StoryAttempt>> _fetchStoryList(String storyTitle) async {
     final headers = await _authHeaders();
 
     final prefs = await SharedPreferences.getInstance();
-    final userKey =
-        ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
-            ? (prefs.getString('user_key') ?? '').trim()
-            : (prefs.getString('login_id') ?? '').trim();
+    final userKey = ((prefs.getString('user_key') ?? '').trim().isNotEmpty)
+        ? (prefs.getString('user_key') ?? '').trim()
+        : (prefs.getString('login_id') ?? '').trim();
 
     final storyKey = storyTitle.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     final qp = <String, String>{'storyKey': storyKey};
-    if (userKey.isNotEmpty) qp['userKey'] = userKey; // ✅
+    if (userKey.isNotEmpty) qp['userKey'] = userKey;
 
-    final uri = Uri.parse(
-      '$STR_BASE/story/attempt/list',
-    ).replace(queryParameters: qp);
+    final uri = Uri.parse('$STR_BASE/story/attempt/list').replace(queryParameters: qp);
 
     final res = await http.get(uri, headers: headers).timeout(kHttpTimeout);
 
@@ -527,14 +430,11 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
     }
 
     final decoded = jsonDecode(res.body);
-    final arr =
-        (decoded is Map && decoded['list'] is List)
-            ? decoded['list'] as List
-            : (decoded is List ? decoded : const <dynamic>[]);
+    final arr = (decoded is Map && decoded['list'] is List)
+        ? decoded['list'] as List
+        : (decoded is List ? decoded : const <dynamic>[]);
 
-    return arr
-        .map((e) => StoryAttempt.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return arr.map((e) => StoryAttempt.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   // ---------------- UI utils ----------------
@@ -545,12 +445,14 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
   }
 
   String _dateLabel(String? kstLabel, DateTime? testedAt) {
-    if (kstLabel != null && kstLabel.trim().isNotEmpty) return kstLabel;
+    if (kstLabel != null && kstLabel.trim().isNotEmpty) return kstLabel; // ✅ 서버 제공 레이블 우선
     if (testedAt != null) {
-      final d = testedAt.toLocal();
+      final d = testedAt.toUtc().add(const Duration(hours: 9)); // ✅ 항상 KST로
       final mm = d.month.toString().padLeft(2, '0');
       final dd = d.day.toString().padLeft(2, '0');
-      return '${d.year}-$mm-$dd';
+      final hh = d.hour.toString().padLeft(2, '0');
+      final m = d.minute.toString().padLeft(2, '0');
+      return '${d.year}년 $mm월 $dd일 $hh:$m';
     }
     return '날짜 미상';
   }
@@ -585,62 +487,58 @@ class _ResultHistoryPageState extends State<ResultHistoryPage> {
   }
 
   Widget _riskBar(double position) => SizedBox(
-    height: 16.h,
-    child: LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF10B981),
-                    Color(0xFFF59E0B),
-                    Color(0xFFEF4444),
-                  ],
+        height: 16.h,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  width: w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF10B981), Color(0xFFF59E0B), Color(0xFFEF4444)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                Positioned(
+                  left: (w - 18.w) * position,
+                  child: Container(
+                    width: 18.w,
+                    height: 18.w,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-          ],
-        );
-      },
-    ),
-  );
+              ],
+            );
+          },
+        ),
+      );
 
   Widget _statusChip(_EvalView ev) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-    decoration: BoxDecoration(
-      color: ev.badgeBg,
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: ev.badgeBorder),
-    ),
-    child: Text(
-      ev.text,
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 14.sp,
-        color: ev.textColor,
-        fontFamily: 'GmarketSans',
-      ),
-    ),
-  );
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: ev.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: ev.badgeBorder),
+        ),
+        child: Text(
+          ev.text,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 14.sp,
+            color: ev.textColor,
+            fontFamily: 'GmarketSans',
+          ),
+        ),
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -774,7 +672,6 @@ class StoryAttempt {
         });
         return out;
       }
-      // 문자열이면 JSON 파싱 시도
       if (x is String && x.trim().isNotEmpty) {
         try {
           return _parseBars(jsonDecode(x));
@@ -790,10 +687,7 @@ class StoryAttempt {
           if (val is Map) {
             final correct = (val['correct'] as num?)?.toInt() ?? 0;
             final total = (val['total'] as num?)?.toInt() ?? 0;
-            out[key.toString()] = ir.CategoryStat(
-              correct: correct,
-              total: total,
-            );
+            out[key.toString()] = ir.CategoryStat(correct: correct, total: total);
           }
         });
         return out;
@@ -805,7 +699,6 @@ class StoryAttempt {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
-    // 👇 서버 키 호환
     final ord = j['clientAttemptOrder'] ?? j['attemptOrder'];
     final ordInt = (ord is num) ? ord.toInt() : null;
 
@@ -823,7 +716,6 @@ class StoryAttempt {
   }
 }
 
-// ====== 작은 위젯 ======
 class _Card extends StatelessWidget {
   const _Card({required this.child});
   final Widget child;
@@ -837,11 +729,7 @@ class _Card extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16.r),
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
+            BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4)),
           ],
         ),
         child: child,
@@ -855,11 +743,7 @@ class _InnerCard extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: const Color(0xFFFAFAFA),
-      borderRadius: BorderRadius.circular(12.r),
-      child: child,
-    );
+    return Material(color: const Color(0xFFFAFAFA), borderRadius: BorderRadius.circular(12.r), child: child);
   }
 }
 
@@ -877,11 +761,7 @@ class _AttemptChip extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 12.sp,
-          color: const Color(0xFF374151),
-        ),
+        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.sp, color: const Color(0xFF374151)),
       ),
     );
   }
@@ -897,11 +777,7 @@ class _HistoryMessage extends StatelessWidget {
         padding: EdgeInsets.only(top: 24.h),
         child: Text(
           text,
-          style: TextStyle(
-            fontSize: 16.sp,
-            fontWeight: FontWeight.w700,
-            color: const Color(0xFF6B7280),
-          ),
+          style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.w700, color: const Color(0xFF6B7280)),
         ),
       ),
     );

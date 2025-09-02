@@ -1,3 +1,5 @@
+// lib/screens/main/my_page.dart
+// (파일 전체 — 변경 포인트: 인터뷰 '자세히 보기' push 시 kstLabel 전달)
 import 'dart:convert';
 import 'dart:io' show Platform; // ✅
 import 'package:flutter/foundation.dart' show kIsWeb; // ✅
@@ -28,16 +30,11 @@ import 'package:malhaebom/data/fairytale_assets.dart' as ft;
 const TextScaler _fixedScale = TextScaler.linear(1.0);
 
 // ===== 서버 설정(StoryResultPage와 동일 규칙) =====
-// - 배포 기본값: 공인 IP 사용 (http://211.188.63.38:4000)
-// - 필요 시: --dart-define=API_BASE=http://<도메인또는IP>:<포트>
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 final String API_BASE =
     (() {
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
-
-      // ✅ 공인 IP를 기본값으로 고정
-      // (로컬 개발 시에는 --dart-define=API_BASE=http://localhost:4000 로 덮어쓰기)
       return 'http://211.188.63.38:4000';
     })();
 
@@ -47,10 +44,40 @@ const String PREF_ATTEMPT_COUNT = 'attempt_count_v1';
 const String PREF_STORY_LATEST_PREFIX = 'story_latest_attempt_v1_';
 const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
 
-// ✅ 정규화 함수(공백 통일)
+// 게스트 캐시 전체 삭제
+Future<void> _clearGuestCaches(SharedPreferences prefs) async {
+  await prefs.remove(PREF_LATEST_ATTEMPT);
+  await prefs.remove(PREF_ATTEMPT_COUNT);
+  for (final title in kStoryTitles) {
+    final keyTitle = _norm(title);
+    await prefs.remove('$PREF_STORY_LATEST_PREFIX$keyTitle');
+    await prefs.remove('$PREF_STORY_COUNT_PREFIX$keyTitle');
+    await prefs.remove('$PREF_STORY_LATEST_PREFIX$title');
+    await prefs.remove('$PREF_STORY_COUNT_PREFIX$title');
+  }
+}
+
+Future<void> _bootstrapGuestEphemeral() async {
+  final prefs = await SharedPreferences.getInstance();
+  final hasLogin =
+      ((prefs.getString('login_id') ?? '').trim().isNotEmpty) ||
+      ((prefs.getString('user_key') ?? '').trim().isNotEmpty);
+  if (!hasLogin) {
+    await _clearGuestCaches(prefs);
+  }
+}
+
+Future<void> _purgeStoryLocal(SharedPreferences prefs, String title) async {
+  final keyTitle = _norm(title);
+  await prefs.remove('$PREF_STORY_LATEST_PREFIX$keyTitle');
+  await prefs.remove('$PREF_STORY_COUNT_PREFIX$keyTitle');
+  // 과거 호환 키도 함께 제거
+  await prefs.remove('$PREF_STORY_LATEST_PREFIX$title');
+  await prefs.remove('$PREF_STORY_COUNT_PREFIX$title');
+}
+
 String _norm(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
-// 동화책 제목 목록(탭 라벨)
 const List<String> kStoryTitles = <String>[
   '어머니의 벙어리 장갑',
   '아버지와 결혼식',
@@ -66,18 +93,15 @@ class MyPage extends StatefulWidget {
 }
 
 class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
-  // ===== 인지검사 =====
   AttemptSummary? _latest;
   int _attemptCount = 0;
   bool _loading = true;
 
-  // ===== 내 동화 기록 =====
   late TabController _storyTabController;
   bool _storyLoading = true;
   final Map<String, StorySummary?> _storyLatest = {};
   final Map<String, int> _storyAttemptCounts = {};
 
-  // ===== 로그인 상태(user_key 존재 여부) =====
   bool _hasUserKey = false;
 
   @override
@@ -87,8 +111,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       length: kStoryTitles.length,
       vsync: this,
     );
-    _loadAll();
-    _checkUserKey(); // ⬅️ 초기 진입 시 로그인 여부 확인
+    Future.microtask(() async {
+      await _bootstrapGuestEphemeral();
+      await _loadAll();
+      await _checkUserKey();
+    });
   }
 
   @override
@@ -97,16 +124,11 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// ✅ 핵심: login_id ↔ user_key 동기화
-  /// - login_id가 있으면 user_key를 동일 값으로 덮어씀
-  /// - login_id가 없고 user_key만 있으면 login_id를 user_key 값으로 채움(구버전 대비)
-  /// - 둘다 없을 때 auth_user JSON에서 login_id를 복구 시도
   Future<void> _syncUserKeyWithLoginId() async {
     final prefs = await SharedPreferences.getInstance();
     String loginId = (prefs.getString('login_id') ?? '').trim();
     String userKey = (prefs.getString('user_key') ?? '').trim();
 
-    // auth_user에서 보강
     if (loginId.isEmpty) {
       final raw = prefs.getString('auth_user');
       if (raw != null && raw.isNotEmpty) {
@@ -126,19 +148,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         await prefs.setString('user_key', loginId);
       }
     } else if (userKey.isNotEmpty) {
-      // 구버전 보존: login_id가 비어 있으면 user_key로 채워 동등성 유지
       await prefs.setString('login_id', userKey);
     }
   }
 
   Future<void> _loadAll() async {
-    // ⬇️ 먼저 동기화로 user_key ≡ login_id 보장
     await _syncUserKeyWithLoginId();
     await Future.wait([_loadLatest(), _loadStoryLatest()]);
-    await _checkUserKey(); // ⬅️ 데이터 로드 후에도 상태 동기화
+    await _checkUserKey();
   }
 
-  // ====== 인지검사 로컬 초기화 + 시작 헬퍼 ======
   Future<void> _resetCognitionLocal() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(PREF_LATEST_ATTEMPT);
@@ -160,10 +179,9 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       MaterialPageRoute(builder: (_) => const InterviewListPage()),
     );
     if (!mounted) return;
-    await _loadLatest(); // 돌아오면 최신 데이터 리프레시
+    await _loadLatest();
   }
 
-  // ===== user_key 존재 여부 확인 =====
   Future<void> _checkUserKey() async {
     final prefs = await SharedPreferences.getInstance();
     final key = (prefs.getString('user_key') ?? '').trim();
@@ -171,17 +189,13 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     setState(() => _hasUserKey = key.isNotEmpty);
   }
 
-  // ===== 인지검사 로드 =====
   Future<void> _loadLatest() async {
     setState(() => _loading = true);
     final prefs = await SharedPreferences.getInstance();
 
-    // 1) 서버에서 최신 1건 시도
     AttemptSummary? latestFromServer = await _fetchCognitionLatestFromServer();
     if (latestFromServer != null) {
-      // 회차 표시는 서버의 clientAttemptOrder/clientRound 우선
       final attemptNo = latestFromServer.attemptOrder ?? 1;
-
       if (!mounted) return;
       setState(() {
         _latest = latestFromServer;
@@ -191,7 +205,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       return;
     }
 
-    // 2) 서버 실패 시, 로컬 fallback
     AttemptSummary? latest;
     final s = prefs.getString(PREF_LATEST_ATTEMPT);
     if (s != null && s.isNotEmpty) {
@@ -209,56 +222,35 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     });
   }
 
-  // ===== 인증 헤더(Bearer 우선, 없으면 x-user-key) =====
   Future<Map<String, String>> _authHeaders() async {
     final prefs = await SharedPreferences.getInstance();
     final token = (prefs.getString('auth_token') ?? '').trim();
-    final userKey = (prefs.getString('user_key') ?? '').trim(); // = login_id
+    final userKey = (prefs.getString('user_key') ?? '').trim();
 
     final headers = <String, String>{'accept': 'application/json'};
-
-    // ✅ 항상 x-user-key 보내기 (있다면)
-    if (userKey.isNotEmpty) {
-      headers['x-user-key'] = userKey;
-    }
-
-    // 선택적으로 Bearer도 함께
-    if (token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-
+    if (userKey.isNotEmpty) headers['x-user-key'] = userKey;
+    if (token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
     return headers;
   }
 
-  // ===== 서버: 로그인 식별 파라미터 (user_key 통일) — 보조 복구용 =====
   Future<Map<String, String>> _identityParams() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // 1) login_id 최우선 → userKey로 사용
     final loginId = (prefs.getString('login_id') ?? '').trim();
     if (loginId.isNotEmpty) {
-      // 보장: user_key = login_id
-      final currentUserKey = (prefs.getString('user_key') ?? '').trim();
-      if (currentUserKey != loginId) {
+      if ((prefs.getString('user_key') ?? '').trim() != loginId) {
         await prefs.setString('user_key', loginId);
       }
       return {'userKey': loginId};
     }
-
-    // 2) 기존 user_key가 있으면 그대로 사용(레거시 호환)
     final direct =
         ((prefs.getString('user_key') ?? prefs.getString('userKey')) ?? '')
             .trim();
     if (direct.isNotEmpty) {
-      // login_id도 맞춰서 동기화
-      final currentLoginId = (prefs.getString('login_id') ?? '').trim();
-      if (currentLoginId != direct) {
+      if ((prefs.getString('login_id') ?? '').trim() != direct) {
         await prefs.setString('login_id', direct);
       }
       return {'userKey': direct};
     }
-
-    // 3) auth_user(JSON)에서 복구
     final raw = prefs.getString('auth_user');
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -266,87 +258,67 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         final lid = (u['login_id'] ?? '').toString().trim();
         if (lid.isNotEmpty) {
           await prefs.setString('login_id', lid);
-          await prefs.setString('user_key', lid); // 동기화
+          await prefs.setString('user_key', lid);
           return {'userKey': lid};
         }
       } catch (_) {}
     }
-
     return {};
   }
 
-  // ===== 서버: 특정 동화의 최신 결과 가져오기 =====
   Future<StorySummary?> _fetchStoryLatestFromServer(String storyTitle) async {
     if (!kUseServer) return null;
-
-    // 인증은 헤더로 전달 (Bearer 우선, 없으면 x-user-key)
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization') &&
         !headers.containsKey('x-user-key')) {
-      // 게스트라면 서버 조회 스킵
       return null;
     }
-
     final uri = Uri.parse(
       '$API_BASE/str/latest',
     ).replace(queryParameters: {'storyKey': _norm(storyTitle)});
-
     try {
       final res = await http.get(uri, headers: headers);
       if (res.statusCode != 200) return null;
-
       final j = jsonDecode(res.body);
       if (j is! Map || j['ok'] != true) return null;
-
       final latest = j['latest'];
       if (latest == null) return null;
-
       return StorySummary.fromJson(latest as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
   }
 
-  // ===== 서버: 인지검사 최신 결과 가져오기 =====
   Future<AttemptSummary?> _fetchCognitionLatestFromServer({
     String? interviewTitle,
   }) async {
     if (!kUseServer) return null;
-
-    // 인증은 헤더로 전달 (Bearer 우선, 없으면 x-user-key)
     final headers = await _authHeaders();
     if (!headers.containsKey('Authorization') &&
         !headers.containsKey('x-user-key')) {
-      // 게스트라면 서버 조회 스킵
       return null;
     }
-
-    final qp = <String, String>{};
+    final id = await _identityParams();
+    final qp = <String, String>{...id};
     if ((interviewTitle ?? '').trim().isNotEmpty) {
       qp['title'] = _norm(interviewTitle!);
     }
-
-    final uri = Uri.parse(
-      '$API_BASE/ir/latest',
-    ).replace(queryParameters: qp.isEmpty ? null : qp);
-
+    final uri = Uri.parse('$API_BASE/ir/latest').replace(queryParameters: qp);
     try {
-      final res = await http.get(uri, headers: headers);
+      final res = await http
+          .get(uri, headers: headers)
+          .timeout(const Duration(seconds: 8));
       if (res.statusCode != 200) return null;
-
       final j = jsonDecode(res.body);
       if (j is! Map || j['ok'] != true) return null;
-
       final latest = j['latest'];
       if (latest == null) return null;
-
       return AttemptSummary.fromJson(latest as Map<String, dynamic>);
     } catch (_) {
       return null;
     }
   }
 
-  // ===== 동화별 최신 결과 로드 (서버 우선, 없으면 로컬 fallback) =====
   Future<void> _loadStoryLatest() async {
     setState(() => _storyLoading = true);
     final prefs = await SharedPreferences.getInstance();
@@ -354,15 +326,35 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     // 과거 오남용 키 제거(있다면)
     await prefs.remove('$PREF_STORY_COUNT_PREFIX동화');
 
+    // ✅ 로그인 여부
+    final isLoggedIn =
+        ((prefs.getString('login_id') ?? '').trim().isNotEmpty) ||
+        ((prefs.getString('user_key') ?? '').trim().isNotEmpty);
+
     for (final title in kStoryTitles) {
       final keyTitle = _norm(title);
 
       // 1) 서버 조회
-      StorySummary? latestFromServer = await _fetchStoryLatestFromServer(title);
+      final latestFromServer = await _fetchStoryLatestFromServer(title);
 
-      // 2) 로컬 캐시(백업)
+      if (isLoggedIn) {
+        // ✅ 로그인 상태: 서버가 진실
+        if (latestFromServer == null) {
+          // 서버에 기록이 "없다"면 로컬 캐시를 즉시 제거하고 화면에서도 숨김
+          await _purgeStoryLocal(prefs, title);
+          _storyLatest[title] = null;
+          _storyAttemptCounts[title] = 0;
+        } else {
+          // 서버 결과를 그대로 채택 (로컬 캐시는 굳이 덮어쓰지 않아도 OK)
+          _storyLatest[title] = latestFromServer;
+          _storyAttemptCounts[title] = latestFromServer.attemptOrder ?? 1;
+        }
+        continue; // 게스트 폴백 로직은 건너뜀
+      }
+
+      // 2) 게스트(미로그인): 예전처럼 로컬 폴백 허용
       StorySummary? latestFromLocal;
-      String? js =
+      final js =
           prefs.getString('$PREF_STORY_LATEST_PREFIX$keyTitle') ??
           prefs.getString('$PREF_STORY_LATEST_PREFIX$title');
       if (js != null && js.isNotEmpty) {
@@ -373,10 +365,8 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         } catch (_) {}
       }
 
-      // 3) 우선순위: 서버 결과 > 로컬
       final chosen = latestFromServer ?? latestFromLocal;
 
-      // 4) 회차 표기값: 서버(clientAttemptOrder) > 로컬 카운터
       int attemptCount =
           prefs.getInt('$PREF_STORY_COUNT_PREFIX$keyTitle') ??
           prefs.getInt('$PREF_STORY_COUNT_PREFIX$title') ??
@@ -396,7 +386,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     Clipboard.setData(ClipboardData(text: text));
   }
 
-  /// ✅ 제목으로 FairytaleAsset/Index를 찾아서 StoryDetailPage로 진입
   void _goToStoryDetail(String storyTitle) {
     final asset = ft.byTitle(storyTitle);
     final idx = ft.indexByTitle(storyTitle);
@@ -414,41 +403,36 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  /// ✅ 공통: 이전 기록 페이지로 이동(모드에 따라 서로 다른 화면 구성)
   Future<void> _openHistory(HistoryMode mode) async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => ResultHistoryPage(mode: mode)),
     );
     if (!mounted) return;
-    // 돌아오면 최신 데이터 리프레시
     _loadLatest();
     _loadStoryLatest();
   }
 
-  // ====== 디바이스별 탭바 사이즈/패딩 ======
   bool _isLargeTablet(BuildContext context) =>
       MediaQuery.sizeOf(context).shortestSide >= 840;
-
   bool _isTablet(BuildContext context) {
     final s = MediaQuery.sizeOf(context).shortestSide;
     return s >= 600 && s < 840;
   }
 
   double _tabBarHeight(BuildContext context) {
-    if (_isLargeTablet(context)) return 56; // 큰 태블릿: 여유 높이
-    if (_isTablet(context)) return 52;      // 일반 태블릿
-    return 44;                              // 폰(콤팩트)
+    if (_isLargeTablet(context)) return 56;
+    if (_isTablet(context)) return 52;
+    return 44;
   }
 
   double _tabFontSp(BuildContext context) {
     if (_isLargeTablet(context)) return 20.sp;
     if (_isTablet(context)) return 19.sp;
-    return 18.sp; // 폰
+    return 18.sp;
   }
 
   double _tabHPad(BuildContext context) {
-    // 제목 길이에 따라 좌우 패딩은 조금만
     if (_isLargeTablet(context)) return 16.w;
     if (_isTablet(context)) return 14.w;
     return 12.w;
@@ -500,18 +484,17 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         borderRadius: BorderRadius.circular(10),
         onTap: () async {
           if (isLoggedIn) {
-            // 로그아웃: 핵심 키만 정리 (auto_login은 유지)
             final prefs = await SharedPreferences.getInstance();
             await prefs.remove('auth_token');
             await prefs.remove('auth_user');
             await prefs.remove('user_key');
-            await prefs.remove('login_id'); // ✅ 함께 제거
+            await prefs.remove('login_id');
             await prefs.remove('sns_user_id');
             await prefs.remove('sns_login_type');
             await prefs.remove('user_id');
-            // ⬇️ 인지검사 로컬 캐시도 초기화(선택)
             await prefs.remove(PREF_LATEST_ATTEMPT);
             await prefs.remove(PREF_ATTEMPT_COUNT);
+            await _clearGuestCaches(prefs);
 
             if (!mounted) return;
             setState(() => _hasUserKey = false);
@@ -519,20 +502,17 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               context,
             ).showSnackBar(const SnackBar(content: Text("로그아웃 되었습니다.")));
 
-            // 로그인 페이지로 스택 리셋
             Navigator.pushAndRemoveUntil(
               context,
               MaterialPageRoute(builder: (_) => const LoginPage()),
               (route) => false,
             );
           } else {
-            // 로그인: 로그인 페이지로 이동, 복귀 시 상태 갱신
             await Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const LoginPage()),
             );
             if (!mounted) return;
-            // ⬇️ 로그인 후 동기화 + 상태 리프레시
             await _syncUserKeyWithLoginId();
             await _checkUserKey();
             await _loadAll();
@@ -571,7 +551,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // == 나의 인지 검사 결과 (헤더 탭 누르면 -> 인지 기록 화면) ==
+  // == 나의 인지 검사 결과 ==
   Widget _myCognitionReportCard(BuildContext context) {
     return Material(
       color: AppColors.white,
@@ -581,7 +561,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         child: Column(
           children: [
             SizedBox(height: 5.h),
-            // 🔸 헤더 전체 탭 + 우측 꺾쇠
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -615,7 +594,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ),
             ),
 
-            // 본문
             Padding(
               padding: EdgeInsets.only(top: 8.h),
               child:
@@ -631,7 +609,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // == 나의 동화 검사 결과 (헤더 탭 누르면 -> 동화 기록 화면) ==
+  // == 나의 동화 검사 결과 ==
   Widget _myStoryHistoryCard(BuildContext context) {
     return Material(
       color: AppColors.white,
@@ -641,7 +619,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
         child: Column(
           children: [
             SizedBox(height: 5.h),
-            // 🔸 헤더 전체 탭 + 우측 꺾쇠
             Material(
               color: Colors.transparent,
               child: InkWell(
@@ -675,74 +652,68 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
               ),
             ),
 
-            // 본문
             _storyLoading
                 ? Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: _skeleton(),
-                  )
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: _skeleton(),
+                )
                 : Padding(
-                    padding: EdgeInsets.only(top: 8.h),
-                    child: Column(
-                      children: [
-                        // ✅ 여기부터 변경: 탭바 높이 고정 + 라벨 FittedBox 처리
-                        SizedBox(
-                          height: _tabBarHeight(context),
-                          child: TabBar(
-                            controller: _storyTabController,
-                            isScrollable: true,
-                            tabAlignment: TabAlignment.start,
-                            padding: EdgeInsets.zero,
-                            labelPadding: EdgeInsets.symmetric(
-                              horizontal: _tabHPad(context),
-                            ),
-                            indicatorPadding:
-                                EdgeInsets.symmetric(horizontal: 6.w),
-                            indicatorSize: TabBarIndicatorSize.tab,
-                            labelColor: AppColors.btnColorDark,
-                            unselectedLabelColor: const Color(0xFF6B7280),
-                            indicatorColor: AppColors.btnColorDark,
-
-                            // ❌ labelStyle / unselectedLabelStyle 제거
-                            tabs: [
-                              for (final t in kStoryTitles)
-                                _CompactTab(
-                                  t,
-                                  fontSize: _tabFontSp(context),
-                                ),
-                            ],
+                  padding: EdgeInsets.only(top: 8.h),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        height: _tabBarHeight(context),
+                        child: TabBar(
+                          controller: _storyTabController,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          padding: EdgeInsets.zero,
+                          labelPadding: EdgeInsets.symmetric(
+                            horizontal: _tabHPad(context),
                           ),
+                          indicatorPadding: EdgeInsets.symmetric(
+                            horizontal: 6.w,
+                          ),
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          labelColor: AppColors.btnColorDark,
+                          unselectedLabelColor: const Color(0xFF6B7280),
+                          indicatorColor: AppColors.btnColorDark,
+                          tabs: [
+                            for (final t in kStoryTitles)
+                              _CompactTab(t, fontSize: _tabFontSp(context)),
+                          ],
                         ),
-                        SizedBox(height: 12.h),
-                        SizedBox(
-                          height: 520.h,
-                          child: TabBarView(
-                            controller: _storyTabController,
-                            children: [
-                              for (final t in kStoryTitles)
-                                SingleChildScrollView(
-                                  child: (_storyLatest[t] == null)
-                                      ? _emptyStory(t) // 첫 검사 전
-                                      : _storyCard(
+                      ),
+                      SizedBox(height: 12.h),
+                      SizedBox(
+                        height: 520.h,
+                        child: TabBarView(
+                          controller: _storyTabController,
+                          children: [
+                            for (final t in kStoryTitles)
+                              SingleChildScrollView(
+                                child:
+                                    (_storyLatest[t] == null)
+                                        ? _emptyStory(t)
+                                        : _storyCard(
                                           context,
                                           t,
                                           _storyLatest[t]!,
                                           _storyAttemptCounts[t] ?? 0,
                                         ),
-                                ),
-                            ],
-                          ),
+                              ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                ),
           ],
         ),
       ),
     );
   }
 
-  // ====== 비어있을 때 (인지검사) ======
   Widget _emptyLatest(BuildContext context) {
     return Container(
       width: double.infinity,
@@ -791,7 +762,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
             width: double.infinity,
             height: 48.h,
             child: ElevatedButton.icon(
-              onPressed: () => _startCognition(), // ✅ 헬퍼 사용
+              onPressed: () => _startCognition(),
               icon: const Icon(Icons.play_arrow_rounded),
               label: Text(
                 '검사 시작하기',
@@ -814,7 +785,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 비어있을 때 (동화) : 버튼에서만 디테일로 이동 ======
   Widget _emptyStory(String storyTitle) {
     return Container(
       width: double.infinity,
@@ -882,7 +852,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 최신 결과 카드(인지검사) ======
   Widget _latestCard(BuildContext context, AttemptSummary a, int attemptCount) {
     return Container(
       width: double.infinity,
@@ -974,15 +943,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                   MaterialPageRoute(
                     builder:
                         (_) => ir.InterviewResultPage(
-                              score: a.score,
-                              total: a.total,
-                              byCategory: a.byCategory,
-                              byType: a.byType ?? <String, ir.CategoryStat>{},
-                              testedAt: a.testedAt ?? DateTime.now(),
-                              interviewTitle: a.interviewTitle,
-                              persist: false,
-                              fixedAttemptOrder: a.attemptOrder,
-                            ),
+                          score: a.score,
+                          total: a.total,
+                          byCategory: a.byCategory,
+                          byType: a.byType ?? <String, ir.CategoryStat>{},
+                          testedAt: a.testedAt ?? DateTime.now(),
+                          interviewTitle: a.interviewTitle,
+                          persist: false,
+                          fixedAttemptOrder: a.attemptOrder,
+                          kstLabel: a.kstLabel, // ✅ 전달
+                        ),
                   ),
                 );
               },
@@ -1008,7 +978,6 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 동화 결과 카드 ======
   Widget _storyCard(
     BuildContext context,
     String storyTitle,
@@ -1124,16 +1093,17 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                   MaterialPageRoute(
                     builder:
                         (_) => sr.StoryResultPage(
-                              score: s.score,
-                              total: s.total,
-                              byCategory: byCat,
-                              byType: byType,
-                              testedAt: s.testedAt ?? DateTime.now(),
-                              storyTitle: storyTitle,
-                              persist: false,
-                              fixedAttemptOrder: s.attemptOrder,
-                              riskBarsByType: s.riskBarsByType,
-                            ),
+                          score: s.score,
+                          total: s.total,
+                          byCategory: byCat,
+                          byType: byType,
+                          testedAt: s.testedAt ?? DateTime.now(),
+                          storyTitle: storyTitle,
+                          persist: false,
+                          fixedAttemptOrder: s.attemptOrder,
+                          riskBarsByType: s.riskBarsByType,
+                          kstLabel: s.kstLabel,
+                        ),
                   ),
                 );
                 if (!mounted) return;
@@ -1161,32 +1131,30 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     );
   }
 
-  // ====== 공통 스켈레톤 ======
   Widget _skeleton() => Container(
-        width: double.infinity,
-        padding: EdgeInsets.all(16.w),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: List.generate(6, (i) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.h),
-              child: Container(
-                height: 18.h,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-            );
-          }),
-        ),
-      );
+    width: double.infinity,
+    padding: EdgeInsets.all(16.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20.r),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(6, (i) {
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: 8.h),
+          child: Container(
+            height: 18.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F4F6),
+              borderRadius: BorderRadius.circular(8.r),
+            ),
+          ),
+        );
+      }),
+    ),
+  );
 
-  // ====== 공용 UI 유틸 ======
   Widget _riskBarRow(String label, ir.CategoryStat? stat) {
     final ev = _evalFromStat(stat);
     return Column(
@@ -1217,63 +1185,62 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 
   Widget _riskBar(double position) => SizedBox(
-        height: 16.h,
-        child: LayoutBuilder(
-          builder: (context, c) {
-            final w = c.maxWidth;
-            return Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                Container(
-                  width: w,
-                  height: 6.h,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF10B981),
-                        Color(0xFFF59E0B),
-                        Color(0xFFEF4444),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+    height: 16.h,
+    child: LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              width: w,
+              height: 6.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [
+                    Color(0xFF10B981),
+                    Color(0xFFF59E0B),
+                    Color(0xFFEF4444),
+                  ],
                 ),
-                Positioned(
-                  left: (w - 18.w) * position,
-                  child: Container(
-                    width: 18.w,
-                    height: 18.w,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border:
-                          Border.all(color: const Color(0xFF9CA3AF), width: 2),
-                    ),
-                  ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Positioned(
+              left: (w - 18.w) * position,
+              child: Container(
+                width: 18.w,
+                height: 18.w,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
                 ),
-              ],
-            );
-          },
-        ),
-      );
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
 
   Widget _statusChip(_EvalView ev) => Container(
-        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-        decoration: BoxDecoration(
-          color: ev.badgeBg,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: ev.badgeBorder),
-        ),
-        child: Text(
-          ev.text,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 14.sp,
-            color: ev.textColor,
-            fontFamily: 'GmarketSans',
-          ),
-        ),
-      );
+    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: ev.badgeBg,
+      borderRadius: BorderRadius.circular(999),
+      border: Border.all(color: ev.badgeBorder),
+    ),
+    child: Text(
+      ev.text,
+      style: TextStyle(
+        fontWeight: FontWeight.w900,
+        fontSize: 14.sp,
+        color: ev.textColor,
+        fontFamily: 'GmarketSans',
+      ),
+    ),
+  );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 120.w;
@@ -1373,7 +1340,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
   }
 }
 
-// ===== 모델 (인지검사) =====
+// ===== 모델 (인터뷰 요약) =====
 class AttemptSummary {
   final int score;
   final int total;
@@ -1418,7 +1385,6 @@ class AttemptSummary {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
-    // ✅ 서버 키 호환: clientAttemptOrder > clientRound > attemptOrder
     final ord =
         j['clientAttemptOrder'] ?? j['clientRound'] ?? j['attemptOrder'];
     int? ordInt;
@@ -1436,7 +1402,7 @@ class AttemptSummary {
       testedAt: ts,
       kstLabel: j['clientKst'] as String?,
       interviewTitle: j['interviewTitle'] as String?,
-      attemptOrder: ordInt, // ✅
+      attemptOrder: ordInt,
     );
   }
 }
@@ -1450,7 +1416,7 @@ class StorySummary {
   final Map<String, ir.CategoryStat> byType;
   final DateTime? testedAt;
   final String? kstLabel;
-  final int? attemptOrder; // ✅ 서버의 clientAttemptOrder
+  final int? attemptOrder;
   final Map<String, double> riskBarsByType;
 
   StorySummary({
@@ -1512,7 +1478,6 @@ class StorySummary {
     final rawTs = j['attemptTime'] ?? j['testedAt'] ?? j['createdAt'];
     if (rawTs is String) ts = DateTime.tryParse(rawTs);
 
-    // 서버 응답 키: clientAttemptOrder (없으면 attemptOrder 호환)
     final ord = (j['clientAttemptOrder'] ?? j['attemptOrder']);
     final ordInt = (ord is num) ? ord.toInt() : null;
 
@@ -1545,10 +1510,9 @@ class _EvalView {
   });
 }
 
-/// ===== 소형 탭 라벨(자동 축소) 위젯 =====
 class _CompactTab extends StatelessWidget {
   const _CompactTab(this.text, {Key? key, required this.fontSize})
-      : super(key: key);
+    : super(key: key);
   final String text;
   final double fontSize;
 
@@ -1558,11 +1522,11 @@ class _CompactTab extends StatelessWidget {
       child: Align(
         alignment: Alignment.center,
         child: FittedBox(
-          fit: BoxFit.scaleDown, // 탭 영역 안에서만 글자 크기 자동 축소
+          fit: BoxFit.scaleDown,
           child: Text(
             text,
             maxLines: 1,
-            overflow: TextOverflow.visible, // 잘리지 않게
+            overflow: TextOverflow.visible,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: fontSize,
