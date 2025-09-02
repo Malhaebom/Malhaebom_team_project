@@ -1,11 +1,10 @@
-// src/pages/Join.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "http://211.188.63.38:3001",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -19,9 +18,7 @@ const Join = () => {
   const [gender, setGender] = useState("");
   const navigate = useNavigate();
 
-  // 브라우저 가로 폭 상태
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
@@ -81,18 +78,16 @@ const Join = () => {
         return;
       }
 
-      // birth에서 연도만 추출 (YYYY-MM-DD → YYYY)
-      const birthYear = birth.split('-')[0];
-      
-      // gender 변환 (male/female → M/F)
-      const genderCode = gender === 'male' ? 'M' : 'F';
-      
+      const birthYear = birth.split("-")[0];
+      const genderCode = gender === "male" ? "M" : "F";
+
+      // ✅ 새 스키마에 맞춰 전송
       const payload = {
-        user_id: phone,  // phone을 user_id로 사용
+        login_id: phone,
         pwd: password,
         nick,
-        birthyear: birthYear,  // 연도만 전송
-        gender: genderCode,    // M/F 형식으로 변환
+        birthyear: birthYear,
+        gender: genderCode,
       };
 
       const { data } = await API.post("/userJoin/register", payload);
@@ -110,7 +105,6 @@ const Join = () => {
 
   return (
     <div className="content">
-      {/* 브라우저 가로 1100 이상일 때만 배경 렌더링 */}
       {windowWidth > 1100 && <Background />}
 
       <div
@@ -124,7 +118,6 @@ const Join = () => {
           fontFamily: "Pretendard-Regular",
         }}
       >
-        {/* 타이틀 */}
         <h2
           style={{
             textAlign: "center",
@@ -140,7 +133,6 @@ const Join = () => {
           회원가입
         </h2>
 
-        {/* 테두리 박스 컨테이너 */}
         <div
           style={{
             border: "2px solid rgba(255, 255, 255, 0.8)",
@@ -151,7 +143,6 @@ const Join = () => {
             boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3)",
           }}
         >
-          {/* 닉네임 */}
           <label style={labelStyle}>닉네임</label>
           <input
             type="text"
@@ -161,7 +152,6 @@ const Join = () => {
             placeholder="닉네임을 입력하세요"
           />
 
-          {/* 휴대전화번호 */}
           <label style={labelStyle}>휴대전화번호</label>
           <input
             type="text"
@@ -171,7 +161,6 @@ const Join = () => {
             placeholder="휴대전화번호를 입력하세요"
           />
 
-          {/* 비밀번호 */}
           <label style={labelStyle}>비밀번호</label>
           <input
             type="password"
@@ -181,7 +170,6 @@ const Join = () => {
             placeholder="비밀번호를 입력하세요"
           />
 
-          {/* 비밀번호 확인 */}
           <label style={labelStyle}>비밀번호 확인</label>
           <input
             type="password"
@@ -191,7 +179,6 @@ const Join = () => {
             placeholder="비밀번호를 다시 입력하세요"
           />
 
-          {/* 생년월일 */}
           <label style={labelStyle}>생년월일</label>
           <input
             type="date"
@@ -200,7 +187,6 @@ const Join = () => {
             style={inputStyle}
           />
 
-          {/* 성별 */}
           <label style={labelStyle}>성별</label>
           <div style={{ display: "flex", marginBottom: "20px" }}>
             <div
@@ -217,7 +203,6 @@ const Join = () => {
             </div>
           </div>
 
-          {/* 회원가입 버튼 */}
           <button
             style={{
               width: "100%",
@@ -238,7 +223,6 @@ const Join = () => {
             회원가입
           </button>
 
-          {/* 로그인 안내 */}
           <div
             style={{
               marginTop: "12px",

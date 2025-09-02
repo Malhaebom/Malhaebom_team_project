@@ -6,19 +6,30 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 /* =========================
- * 하드코딩 설정
+ * 환경변수
+ * ========================= */
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38:5137";
+const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
+const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
+const NODE_ENV          = process.env.NODE_ENV || "production";
+const IS_HTTPS          = SERVER_BASE_URL.startsWith("https://");
+
+/* =========================
+ * DB 풀
  * ========================= */
 const DB_CONFIG = {
-  host: "project-db-campus.smhrd.com",
-  port: 3307,
-  user: "campus_25SW_BD_p3_3",
-  password: "smhrd3",
-  database: "campus_25SW_BD_p3_3",
+  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
+  port    : Number(process.env.DB_PORT || 3307),
+  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
+  password: process.env.DB_PASSWORD || "smhrd3",
+  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
 };
-
-const JWT_SECRET = "malhaebom_sns"; // 데모/로컬용
-const COOKIE_NAME = "mb_access";
-const pool = mysql.createPool({ ...DB_CONFIG, waitForConnections: true, connectionLimit: 10 });
+const pool = mysql.createPool({
+  ...DB_CONFIG,
+  waitForConnections: true,
+  connectionLimit  : 10,
+});
 
 /* =========================
  * 유틸
@@ -26,56 +37,53 @@ const pool = mysql.createPool({ ...DB_CONFIG, waitForConnections: true, connecti
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: false,     // 로컬 개발
+    secure  : IS_HTTPS || NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-    path: "/",
+    maxAge  : 7 * 24 * 60 * 60 * 1000,
+    path    : "/",
   });
 }
-
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure: false,
+    secure  : IS_HTTPS || NODE_ENV === "production",
     sameSite: "lax",
-    path: "/",
+    path    : "/",
   });
 }
 
 /* =========================
  * 로컬 로그인
  * ========================= */
-/**
- * POST /userLogin/login
- * body: { user_id | phone, pwd }
- */
 router.post("/login", async (req, res) => {
   try {
-    const { user_id, phone, pwd } = req.body || {};
-    const loginId = user_id || phone;
+    const { login_id, user_id, phone, pwd } = req.body || {};
+    const id = login_id || user_id || phone;
 
-    if (!loginId || !pwd) {
+    if (!id || !pwd) {
       return res.status(400).json({ ok: false, msg: "아이디/비밀번호를 입력하세요." });
     }
 
     const [rows] = await pool.query(
-      "SELECT user_id, pwd, nick FROM tb_user WHERE user_id = ?",
-      [loginId]
+      `SELECT user_id, login_id, pwd, nick
+         FROM tb_user
+        WHERE login_id = ? AND login_type = 'local'
+        LIMIT 1`,
+      [id]
     );
     if (!rows.length) return res.status(401).json({ ok: false, msg: "존재하지 않는 계정입니다." });
 
-    const user = rows[0];
-    const ok = await bcrypt.compare(String(pwd), String(user.pwd));
+    const u = rows[0];
+    const ok = await bcrypt.compare(String(pwd), String(u.pwd || ""));
     if (!ok) return res.status(401).json({ ok: false, msg: "비밀번호가 올바르지 않습니다." });
 
-    const token = sign({ sub: user.user_id, typ: "local" });
+    const token = sign({ uid: u.user_id, typ: "local" });
     setAuthCookie(res, token);
 
-    return res.json({ ok: true, nick: user.nick, userId: user.user_id, loginType: "local" });
+    return res.json({ ok: true, userId: u.user_id, loginId: u.login_id, nick: u.nick, loginType: "local" });
   } catch (err) {
     console.error("[/userLogin/login] error:", err);
     return res.status(500).json({ ok: false, msg: "로그인 중 오류가 발생했습니다." });
@@ -96,7 +104,7 @@ router.post("/logout", async (req, res) => {
 /* 내 정보 */
 router.get("/me", async (req, res) => {
   try {
-    const token = req.cookies[COOKIE_NAME];
+    const token = req.cookies?.[COOKIE_NAME];
     if (!token) return res.json({ ok: false, isAuthed: false });
 
     let decoded;
@@ -107,44 +115,26 @@ router.get("/me", async (req, res) => {
       return res.json({ ok: false, isAuthed: false });
     }
 
-    if (decoded.typ === "local") {
-      const [rows] = await pool.query(
-        "SELECT user_id, nick FROM tb_user WHERE user_id = ?",
-        [decoded.sub]
-      );
-      if (!rows.length) {
-        clearAuthCookie(res);
-        return res.json({ ok: false, isAuthed: false });
-      }
-      const u = rows[0];
-      return res.json({
-        ok: true,
-        isAuthed: true,
-        loginType: "local",
-        userId: u.user_id,
-        nick: u.nick,
-      });
-    } else if (decoded.typ === "sns") {
-      const [rows] = await pool.query(
-        "SELECT sns_user_id, sns_nick, sns_login_type FROM tb_sns_user WHERE sns_user_id = ?",
-        [decoded.sub]
-      );
-      if (!rows.length) {
-        clearAuthCookie(res);
-        return res.json({ ok: false, isAuthed: false });
-      }
-      const s = rows[0];
-      return res.json({
-        ok: true,
-        isAuthed: true,
-        loginType: s.sns_login_type,
-        userId: s.sns_user_id,
-        nick: s.sns_nick,
-      });
+    const [rows] = await pool.query(
+      `SELECT user_id, login_id, login_type, nick
+         FROM tb_user
+        WHERE user_id = ? AND login_type = ?
+        LIMIT 1`,
+      [decoded.uid, decoded.typ]
+    );
+    if (!rows.length) {
+      clearAuthCookie(res);
+      return res.json({ ok: false, isAuthed: false });
     }
-
-    clearAuthCookie(res);
-    return res.json({ ok: false, isAuthed: false });
+    const u = rows[0];
+    return res.json({
+      ok: true,
+      isAuthed: true,
+      loginType: u.login_type,
+      userId: u.user_id,
+      loginId: u.login_id,
+      nick: u.nick,
+    });
   } catch (err) {
     console.error("[/userLogin/me] error:", err);
     return res.status(500).json({ ok: false, isAuthed: false });

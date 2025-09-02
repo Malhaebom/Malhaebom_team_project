@@ -1,4 +1,3 @@
-// src/pages/Mypage.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
@@ -6,20 +5,15 @@ import axios from "axios";
 import MypageInterviewHistory from "./MypageInterviewHistory.jsx";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "http://211.188.63.38:3001",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
 
 const Mypage = () => {
   const navigate = useNavigate();
-
-  // 로그인 닉네임 (세션 복구로 채움)
   const [nick, setNick] = useState("");
-  
 
-
-  // 로그인 상태 복구
   useEffect(() => {
     (async () => {
       try {
@@ -32,7 +26,6 @@ const Mypage = () => {
     })();
   }, []);
 
-  // 브라우저 가로 폭 상태 (배경 노출 조건)
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -40,7 +33,6 @@ const Mypage = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 버튼 스타일 함수
   const buttonStyle = (bgColor, hoverColor) => ({
     width: "100%",
     padding: "15px",
@@ -60,12 +52,10 @@ const Mypage = () => {
   const handleMouseLeave = (e, bgColor) =>
     (e.currentTarget.style.backgroundColor = bgColor);
 
-  // 이동 핸들러
   const goLogin = () => navigate("/login");
   const goBookHistory = () => navigate("/bookHistory");
   const goInterviewHistory = () => navigate("/mypage-interview-history");
 
-  // 로그아웃
   const logout = async () => {
     try {
       await API.post("/userLogin/logout");
@@ -99,7 +89,6 @@ const Mypage = () => {
           마이페이지
         </h2>
 
-        {/* 로그인 상태에 따른 설명 텍스트 */}
         {nick ? (
           <p
             style={{
@@ -136,7 +125,6 @@ const Mypage = () => {
             gap: "15px",
           }}
         >
-          {/* 로그인 이동 버튼 (미로그인일 때만 노출) */}
           {!nick && (
             <button
               style={buttonStyle("#4a85d1", "#5f9cec")}
@@ -148,7 +136,6 @@ const Mypage = () => {
             </button>
           )}
 
-          {/* 로그아웃 버튼 (로그인 상태일 때만 노출) */}
           {nick && (
             <button
               style={buttonStyle("#FF4D4D", "#d13c3c")}
@@ -160,7 +147,6 @@ const Mypage = () => {
             </button>
           )}
 
-          {/* 동화 화행검사 결과 이동 */}
           <button
             style={buttonStyle("#4E6C50", "#3f5a41")}
             onMouseEnter={(e) => handleMouseEnter(e, "#3f5a41")}
@@ -170,7 +156,6 @@ const Mypage = () => {
             동화 화행검사 결과
           </button>
 
-          {/* 인지능력검사 결과 이동 */}
           <button
             style={buttonStyle("#9C27B0", "#7B1FA2")}
             onMouseEnter={(e) => handleMouseEnter(e, "#7B1FA2")}

@@ -1,4 +1,3 @@
-// src/pages/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
@@ -6,7 +5,7 @@ import Logo from "../../components/Logo.jsx";
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "http://211.188.63.38:3001",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -15,9 +14,8 @@ const Login = () => {
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [nick, setNick] = useState(""); // 로그인 후 닉네임
+  const [nick, setNick] = useState("");
 
-  // 브라우저 가로 폭 상태 (배경 노출 조건)
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -25,14 +23,13 @@ const Login = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 로그인 상태 복구: 이미 로그인되어 /login에 오면 홈으로 보냄
   useEffect(() => {
     (async () => {
       try {
         const { data } = await API.get("/userLogin/me");
         if (data?.ok && data.isAuthed) {
           setNick(data.nick || "");
-          navigate("/"); // 이미 로그인 상태면 홈으로
+          navigate("/");
         } else {
           setNick("");
         }
@@ -44,18 +41,18 @@ const Login = () => {
 
   const handleLogin = async () => {
     try {
-      const user_id = (phone || "").trim();
+      const login_id = (phone || "").trim();
       const pwd = (password || "").trim();
 
-      if (!user_id || !pwd) {
+      if (!login_id || !pwd) {
         alert("전화번호와 비밀번호를 모두 입력하세요.");
         return;
       }
 
-      const { data } = await API.post("/userLogin/login", { user_id, pwd });
+      const { data } = await API.post("/userLogin/login", { login_id, pwd });
       if (data?.ok) {
         setNick(data.nick || "");
-        navigate("/"); // 로그인 성공 후 홈으로 이동
+        navigate("/");
       } else {
         alert(data?.msg || "로그인 실패");
       }
@@ -71,11 +68,10 @@ const Login = () => {
   };
 
   // SNS 시작 (백엔드 OAuth 시작 URL로 이동)
-  const startKakao = () => (window.location.href = "http://localhost:3001/auth/kakao");
-  const startNaver = () => (window.location.href = "http://localhost:3001/auth/naver");
-  const startGoogle = () => (window.location.href = "http://localhost:3001/auth/google");
+  const startKakao  = () => (window.location.href = "http://211.188.63.38:3001/auth/kakao");
+  const startNaver  = () => (window.location.href = "http://211.188.63.38:3001/auth/naver");
+  const startGoogle = () => (window.location.href = "http://211.188.63.38:3001/auth/google");
 
-  // 스타일 도우미
   const socialBtnStyle = (bgColor, color = "#000") => ({
     display: "flex",
     alignItems: "center",
@@ -121,7 +117,6 @@ const Login = () => {
 
   return (
     <div className="content">
-      {/* 가로 1100 이상일 때만 배경 렌더링 */}
       {windowWidth > 1100 && <Background />}
 
       <div
@@ -133,7 +128,6 @@ const Login = () => {
           fontFamily: "Pretendard-Regular",
         }}
       >
-        {/* 로고 */}
         <Logo
           src="/img/logo.png"
           alt="말해봄 로고"
@@ -146,24 +140,10 @@ const Login = () => {
           }}
         />
 
-        <h6
-          style={{
-            fontSize: "30px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "10px",
-          }}
-        >
+        <h6 style={{ fontSize: "30px", color: "#000", textAlign: "center", marginBottom: "10px" }}>
           나를 지키는 특별한 습관
         </h6>
-        <p
-          style={{
-            fontSize: "26px",
-            color: "#000",
-            textAlign: "center",
-            marginBottom: "30px",
-          }}
-        >
+        <p style={{ fontSize: "26px", color: "#000", textAlign: "center", marginBottom: "30px" }}>
           지금 시작하세요!
         </p>
 
@@ -218,15 +198,7 @@ const Login = () => {
           </button>
         </div>
 
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: "16px",
-            marginTop: "20px",
-            width: "100%",
-            display: "block",
-          }}
-        >
+        <p style={{ textAlign: "center", fontSize: "16px", marginTop: "20px", width: "100%", display: "block" }}>
           아직 계정이 없으신가요?{" "}
           <span
             style={{
