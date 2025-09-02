@@ -12,18 +12,14 @@ import 'package:malhaebom/theme/colors.dart';
 import 'interview_session.dart';
 
 // --- 서버 전송 스위치 & 베이스 URL ---
-// - 배포 기본값: 공인 IP 사용 (http://211.188.63.38:4000)
-// - 필요 시: --dart-define=API_BASE=http://<도메인또는IP>:<포트>
 const bool kUseServer = bool.fromEnvironment('USE_SERVER', defaultValue: true);
 
-final String API_BASE =
-    (() {
-      const defined = String.fromEnvironment('API_BASE', defaultValue: '');
-      if (defined.isNotEmpty) return defined;
-      // ✅ 공인 IP를 기본 기본값으로 고정
-      // 로컬 개발 시에는 --dart-define=API_BASE=http://localhost:4000 로 덮어쓰기
-      return 'http://211.188.63.38:4000';
-    })();
+final String API_BASE = (() {
+  const defined = String.fromEnvironment('API_BASE', defaultValue: '');
+  if (defined.isNotEmpty) return defined;
+  // ✅ 기본값을 공인 IP로 통일 (에뮬레이터/로컬 분기 제거)
+  return 'http://211.188.63.38:4000';
+})();
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
@@ -51,9 +47,9 @@ class CategoryStat {
   double get riskRatio => 1 - correctRatio;
 
   factory CategoryStat.fromJson(Map<String, dynamic> j) => CategoryStat(
-    correct: (j['correct'] ?? 0) as int,
-    total: (j['total'] ?? 0) as int,
-  );
+        correct: (j['correct'] ?? 0) as int,
+        total: (j['total'] ?? 0) as int,
+      );
 }
 
 class InterviewResultPage extends StatefulWidget {
@@ -65,6 +61,7 @@ class InterviewResultPage extends StatefulWidget {
   final String? interviewTitle;
   final bool persist;
   final int? fixedAttemptOrder;
+  final String? kstLabel; // ✅ 추가: 서버에서 받은 레이블 그대로 사용
 
   const InterviewResultPage({
     super.key,
@@ -76,6 +73,7 @@ class InterviewResultPage extends StatefulWidget {
     this.interviewTitle,
     this.persist = true,
     this.fixedAttemptOrder,
+    this.kstLabel,
   });
 
   @override
@@ -83,6 +81,8 @@ class InterviewResultPage extends StatefulWidget {
 }
 
 class _InterviewResultPageState extends State<InterviewResultPage> {
+  static const Duration _httpTimeout = Duration(seconds: 12);
+
   bool _posted = false;
   int _attemptOrder = 1; // 화면 표시용 회차
 
@@ -93,13 +93,29 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       InterviewSession.markCompleted();
       WidgetsBinding.instance.addPostFrameCallback((_) => _sendOnce());
     } else {
-      // ✅ 읽기 전용: 회차가 넘어오면 그대로, 없으면 로컬 캐시만 표시
       if (widget.fixedAttemptOrder != null) {
         _attemptOrder = widget.fixedAttemptOrder!;
       } else {
         _loadAttemptCountOnly();
       }
     }
+  }
+
+  // -------- 공통 헤더 --------
+  Future<Map<String, String>> _authHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = (prefs.getString('auth_token') ?? '').trim();
+    String userKey = (prefs.getString('user_key') ?? '').trim();
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+    if (userKey.isEmpty && loginId.isNotEmpty) {
+      userKey = loginId;
+      await prefs.setString('user_key', userKey);
+    }
+    return {
+      'accept': 'application/json',
+      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (userKey.isNotEmpty) 'x-user-key': userKey,
+    };
   }
 
   Future<void> _loadAttemptCountOnly() async {
@@ -120,21 +136,19 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     return out;
   }
 
-  // ---------- 인지용 소스 만들기: byCategory/byType 어디에 와도 인지 키만 모음 ----------
+  // ---------- 인지용 소스 ----------
   Map<String, CategoryStat> _buildCognitionSource() {
-    final merged =
-        <String, CategoryStat>{}
-          ..addAll(widget.byCategory)
-          ..addAll(widget.byType);
+    final merged = <String, CategoryStat>{}
+      ..addAll(widget.byCategory)
+      ..addAll(widget.byType);
     return _filterKeys(merged, kCognitionKeys);
   }
 
-  // ---------- 동화용 소스(타입별) 만들기 (서버로는 riskBarsByType에만) ----------
+  // ---------- 동화용 소스(타입별) ----------
   Map<String, CategoryStat> _buildStorySource() {
-    final merged =
-        <String, CategoryStat>{}
-          ..addAll(widget.byCategory)
-          ..addAll(widget.byType);
+    final merged = <String, CategoryStat>{}
+      ..addAll(widget.byCategory)
+      ..addAll(widget.byType);
     return _filterKeys(merged, kStoryKeys);
   }
 
@@ -144,9 +158,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     for (final key in kCognitionKeys) {
       final s = src[key];
       final v =
-          (s == null || s.total == 0)
-              ? 0.5
-              : (1 - (s.correct / s.total)).clamp(0.0, 1.0);
+          (s == null || s.total == 0) ? 0.5 : (1 - (s.correct / s.total)).clamp(0.0, 1.0);
       bars[key] = v;
     }
     return bars;
@@ -154,29 +166,19 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   // 공통 risk map
   Map<String, double> _riskMapFrom(Map<String, CategoryStat> m) {
-    return m.map(
-      (k, v) => MapEntry(
-        k,
-        v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0),
-      ),
-    );
+    return m.map((k, v) => MapEntry(k, v.total == 0 ? 0.5 : (1 - v.correct / v.total).clamp(0.0, 1.0)));
   }
 
   Map<String, dynamic> _buildAttemptPayload({required int attemptOrder}) {
     final measuredAtIso = widget.testedAt.toUtc().toIso8601String();
     final clientKst = _formatKst(widget.testedAt);
 
-    // ✅ 인지/동화 소스 분리
-    final cogSrc = _buildCognitionSource(); // 인지 키만
-    final storySrc = _buildStorySource(); // 동화 키만
+    final cogSrc = _buildCognitionSource();
+    final storySrc = _buildStorySource();
 
-    // ✅ riskBars: 무조건 인지 키 6종
     final riskBars = _buildCognitionRiskBars(cogSrc);
-
-    // ✅ riskBarsByType: 동화 키가 있으면 전송(없으면 비어도 OK)
     final riskBarsByType = _riskMapFrom(storySrc);
 
-    // ✅ 점수/총점이 0/0이면 인지 합으로 보정
     int score = widget.score;
     int total = widget.total;
     if (total == 0) {
@@ -184,22 +186,18 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       score = cogSrc.values.fold(0, (s, e) => s + e.correct);
     }
 
-    // byCategory/byType 원본은 그대로 두되, 서버는 riskBars 우선 사용
     return {
       'attemptOrder': attemptOrder,
+      'clientAttemptOrder': attemptOrder, // ✅ 서버 호환 키 추가
       'attemptTime': measuredAtIso,
       'clientKst': clientKst,
       'interviewTitle': widget.interviewTitle,
       'score': score,
       'total': total,
-      'byCategory': widget.byCategory.map(
-        (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
-      ),
-      'byType': widget.byType.map(
-        (k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total}),
-      ),
-      'riskBars': riskBars, // 👈 인지 6키 고정
-      'riskBarsByType': riskBarsByType, // 👈 동화 키(있을 때만 의미)
+      'byCategory': widget.byCategory.map((k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total})),
+      'byType': widget.byType.map((k, v) => MapEntry(k, {'correct': v.correct, 'total': v.total})),
+      'riskBars': riskBars,
+      'riskBarsByType': riskBarsByType,
     };
   }
 
@@ -215,42 +213,41 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     return next;
   }
 
-  // (1) 유저키 로드 유틸 추가
+  // (1) 유저키 로드 유틸
   Future<String> _loadUserKey() async {
     final prefs = await SharedPreferences.getInstance();
     final loginId = (prefs.getString('login_id') ?? '').trim();
-    if (loginId.isNotEmpty) return loginId; // ✅ login_id 우선
+    if (loginId.isNotEmpty) return loginId;
     final userKey = (prefs.getString('user_key') ?? '').trim();
     return userKey.isNotEmpty ? userKey : 'guest';
   }
 
-  // (2) 서버로 내 신원 전달용(헤더/쿼리 둘 다 안전망)
+  // (2) 서버로 내 신원 전달용(쿼리)
   Future<Map<String, String>> _identityForApi() async {
     final key = await _loadUserKey();
     if (key == 'guest' || key.isEmpty) return {};
-    return {'userKey': key}; // 서버는 userKey로 통일 (값은 login_id)
+    return {'userKey': key};
   }
 
-  String _normTitle(String? s) =>
-      (s ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+  String _normTitle(String? s) => (s ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
 
-  // (3) 서버 최신 회차 → 다음 회차 계산
+  // (3) 서버 최신 회차 → 다음 회차 계산 (헤더 포함)
   Future<int?> _serverNextAttempt(Map<String, String> identity) async {
     if (!kUseServer || identity.isEmpty) return null;
     try {
+      final headers = await _authHeaders();
       final qp = {
         ...identity,
-        if (_normTitle(widget.interviewTitle).isNotEmpty)
-          'title': _normTitle(widget.interviewTitle),
+        if (_normTitle(widget.interviewTitle).isNotEmpty) 'title': _normTitle(widget.interviewTitle),
       };
       final uri = Uri.parse('$API_BASE/ir/latest').replace(queryParameters: qp);
-      final res = await http.get(uri);
+      final res = await http.get(uri, headers: headers).timeout(_httpTimeout);
       if (res.statusCode != 200) return null;
       final j = jsonDecode(res.body);
       if (j is! Map || j['ok'] != true) return null;
       final latest = j['latest'];
       if (latest is Map) {
-        final ord = latest['clientAttemptOrder'] ?? latest['clientRound'];
+        final ord = latest['clientAttemptOrder'] ?? latest['clientRound'] ?? latest['attemptOrder'];
         if (ord is num) return ord.toInt() + 1;
         return 1;
       }
@@ -260,29 +257,12 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     }
   }
 
-  Future<void> _postToServer(Map<String, dynamic> payload) async {
-    try {
-      final uri = Uri.parse('$API_BASE/ir/attempt');
-      final userKey = await _loadUserKey();
-      await http.post(
-        uri,
-        headers: {'Content-Type': 'application/json', 'x-user-key': userKey},
-        body: jsonEncode(payload),
-      );
-      // 디버그 프린트 제거 (사용자 요청)
-    } catch (_) {
-      // 조용히 실패 (UI 영향 없음)
-    }
-  }
-
   Future<void> _sendOnce() async {
     if (_posted) return;
     _posted = true;
 
-    // ✅ 서버 기준 다음 회차 우선, 실패 시 로컬 +1
     final idn = await _identityForApi();
     int next = (await _serverNextAttempt(idn)) ?? (await _bumpAttemptCount());
-    // 서버 기준을 따르도록 로컬 캐시도 동기화
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(PREF_ATTEMPT_COUNT, next);
@@ -292,29 +272,38 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
     final payload = _buildAttemptPayload(attemptOrder: next);
     await _cacheLatestLocally(payload);
 
-    if (kUseServer) {
+    if (!kUseServer) return;
+
+    try {
+      final headers = await _authHeaders()..['Content-Type'] = 'application/json; charset=utf-8';
+      final userKey = idn['userKey'] ?? headers['x-user-key'] ?? '';
+      final base = Uri.parse('$API_BASE/ir/attempt');
+      final uri = userKey.isEmpty ? base : base.replace(queryParameters: {'userKey': userKey});
+
+      final res = await http
+          .post(uri, headers: headers, body: jsonEncode({...payload, if (userKey.isNotEmpty) 'userKey': userKey}))
+          .timeout(_httpTimeout);
+
+      // 서버가 최종 회차를 돌려주면 로컬 동기화
       try {
-        final uriBase = Uri.parse('$API_BASE/ir/attempt');
-        final uri =
-            idn.isEmpty
-                ? uriBase
-                : uriBase.replace(
-                  queryParameters: {'userKey': idn['userKey']!},
-                );
-        await http.post(
-          uri,
-          headers: {
-            'Content-Type': 'application/json; charset=utf-8',
-            if (idn.isNotEmpty) 'x-user-key': idn['userKey']!,
-            // (옵션) 호환용
-            if (idn.isNotEmpty) 'x-login-id': idn['userKey']!,
-          },
-          body: jsonEncode({...payload, ...idn}),
-        );
+        final jr = jsonDecode(res.body);
+        if (jr is Map) {
+          final saved = jr['saved'];
+          final ord = (saved is Map) ? (saved['clientAttemptOrder'] ?? saved['attemptOrder']) : null;
+          if (ord is num) {
+            final finalOrder = ord.toInt();
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setInt(PREF_ATTEMPT_COUNT, finalOrder);
+            if (mounted) setState(() => _attemptOrder = finalOrder);
+          }
+        }
       } catch (_) {}
+    } catch (_) {
+      // 조용히 실패
     }
   }
 
+  // ---- KST 포맷 ----
   String _formatKst(DateTime dt) {
     final kst = dt.toUtc().add(const Duration(hours: 9));
     final y = kst.year;
@@ -327,11 +316,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    final fixedMedia = MediaQuery.of(
-      context,
-    ).copyWith(textScaler: const TextScaler.linear(1.0));
-
-    // 화면 표시는 인지 키 6종만 보여주도록 소스 구성
+    final fixedMedia = MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.0));
     final cogSrc = _buildCognitionSource();
 
     final overall = widget.total == 0 ? 0.0 : widget.score / widget.total;
@@ -343,6 +328,10 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
       if (shortest >= 600) return 72;
       return kToolbarHeight;
     }
+
+    final formattedKst = (widget.kstLabel != null && widget.kstLabel!.trim().isNotEmpty)
+        ? widget.kstLabel!
+        : _formatKst(widget.testedAt);
 
     return MediaQuery(
       data: fixedMedia,
@@ -368,7 +357,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
             padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
             child: Column(
               children: [
-                _attemptChip(_attemptOrder, _formatKst(widget.testedAt)),
+                _attemptChip(_attemptOrder, formattedKst),
                 SizedBox(height: 12.h),
 
                 _card(
@@ -427,9 +416,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                       ),
                       SizedBox(height: 12.h),
                       if (showWarn) _warnBanner(),
-                      ..._buildEvalItems().expand(
-                        (w) => [w, SizedBox(height: 10.h)],
-                      ),
+                      ..._buildEvalItems().expand((w) => [w, SizedBox(height: 10.h)]),
                     ],
                   ),
                 ),
@@ -442,16 +429,11 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (_) => const BrainTrainingMainPage(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const BrainTrainingMainPage()),
                         (route) => false,
                       );
                     },
-                    icon: Icon(
-                      Icons.videogame_asset_rounded,
-                      size: 22.sp * 1.25,
-                    ),
+                    icon: Icon(Icons.videogame_asset_rounded, size: 22.sp * 1.25),
                     label: Text(
                       '두뇌 게임으로 이동',
                       textScaler: fixedScale,
@@ -479,56 +461,56 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
 
   // ----- UI 유틸 -----
   Widget _card({required Widget child}) => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(16.w),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20.r),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
+        width: double.infinity,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: child,
-  );
+        child: child,
+      );
 
   Widget _attemptChip(int order, String formattedKst) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16.r),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${order}회차',
-          textScaler: fixedScale,
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w900,
-            fontSize: 18.sp,
-            color: AppColors.btnColorDark,
-          ),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        SizedBox(width: 10.w),
-        Text(
-          formattedKst,
-          textScaler: fixedScale,
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w700,
-            fontSize: 18.sp,
-            color: const Color(0xFF111827),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${order}회차',
+              textScaler: fixedScale,
+              style: TextStyle(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w900,
+                fontSize: 18.sp,
+                color: AppColors.btnColorDark,
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Text(
+              formattedKst,
+              textScaler: fixedScale,
+              style: TextStyle(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w700,
+                fontSize: 18.sp,
+                color: const Color(0xFF111827),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 140.w;
@@ -609,151 +591,133 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
   }
 
   Widget _riskBar(double position) => SizedBox(
-    height: 16.h,
-    child: LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF10B981),
-                    Color(0xFFF59E0B),
-                    Color(0xFFEF4444),
-                  ],
+        height: 16.h,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  width: w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF10B981),
+                        Color(0xFFF59E0B),
+                        Color(0xFFEF4444),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                Positioned(
+                  left: (w - 18.w) * position,
+                  child: Container(
+                    width: 18.w,
+                    height: 18.w,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+  Widget _statusChip(_EvalView eval) => Container(
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: eval.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: eval.badgeBorder),
+        ),
+        child: Text(
+          eval.text,
+          style: TextStyle(
+            fontFamily: 'GmarketSans',
+            fontWeight: FontWeight.w900,
+            fontSize: 17.sp,
+            color: eval.textColor,
+          ),
+        ),
+      );
+
+  Widget _warnBanner() => Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+        margin: EdgeInsets.only(bottom: 12.h),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1F2),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+          borderRadius: BorderRadius.circular(14.r),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
+                style: TextStyle(
+                  fontFamily: 'GmarketSans',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 19.sp,
+                  color: const Color(0xFF7F1D1D),
                 ),
               ),
             ),
           ],
-        );
-      },
-    ),
-  );
-
-  Widget _statusChip(_EvalView eval) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-    decoration: BoxDecoration(
-      color: eval.badgeBg,
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: eval.badgeBorder),
-    ),
-    child: Text(
-      eval.text,
-      style: TextStyle(
-        fontFamily: 'GmarketSans',
-        fontWeight: FontWeight.w900,
-        fontSize: 17.sp,
-        color: eval.textColor,
-      ),
-    ),
-  );
-
-  Widget _warnBanner() => Container(
-    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-    margin: EdgeInsets.only(bottom: 12.h),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF1F2),
-      border: Border.all(color: const Color(0xFFFCA5A5)),
-      borderRadius: BorderRadius.circular(14.r),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
-            style: TextStyle(
-              fontFamily: 'GmarketSans',
-              fontWeight: FontWeight.w600,
-              fontSize: 19.sp,
-              color: const Color(0xFF7F1D1D),
-            ),
-          ),
         ),
-      ],
-    ),
-  );
+      );
 
   // 설명 블록은 고정 텍스트
   List<Widget> _buildEvalItems() => <Widget>[
-    _evalBlock(
-      '[반응 시간]',
-      '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.',
-    ),
-    _evalBlock(
-      '[반복어 비율]',
-      '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.',
-    ),
-    _evalBlock(
-      '[평균 문장 길이]',
-      '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.',
-    ),
-    _evalBlock(
-      '[화행 적절성 점수]',
-      '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.',
-    ),
-    _evalBlock(
-      '[회상어 점수]',
-      '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.',
-    ),
-    _evalBlock(
-      '[문법 완성도]',
-      '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.',
-    ),
-  ];
+        _evalBlock('[반응 시간]', '반복어 비율 종료 시점부터 응답 시작까지의 시간을 측정합니다. 예) 3초 이내: 상점 / 4-6초: 보통 / 7초 이상: 주의.'),
+        _evalBlock('[반복어 비율]', '동일 단어·문장이 반복되는 비율입니다. 예) 5% 이하: 상점 / 10% 이하: 보통 / 20% 이상: 주의.'),
+        _evalBlock('[평균 문장 길이]', '응답의 평균 단어(또는 음절) 수를 봅니다. 적정 범위(예: 15±5어)는 양호, 지나치게 짧거나 긴 경우 감점.'),
+        _evalBlock('[화행 적절성 점수]', '맥락과 응답 화행의 매칭을 판정합니다. 예) 적합 12회: 상점 / 6회: 보통 / 0회: 주의.'),
+        _evalBlock('[회상어 점수]', '사람·장소·사건 등 회상 관련 키워드의 포함과 풍부성 평가. 키워드 다수: 상점 / 부족: 보통 / 없음: 주의.'),
+        _evalBlock('[문법 완성도]', '비문, 조사·부착, 주어·서술어 일치 등 문법적 오류를 분석. 오류 없음: 상점 / 일부: 보통 / 잦음: 주의.'),
+      ];
 
   Widget _evalBlock(String title, String body) => Container(
-    padding: EdgeInsets.all(12.w),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF9FAFB),
-      borderRadius: BorderRadius.circular(12.r),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w900,
-            fontSize: 20.sp,
-            color: const Color(0xFF111827),
-          ),
+        padding: EdgeInsets.all(12.w),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FAFB),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        SizedBox(height: 6.h),
-        Text(
-          body,
-          style: TextStyle(
-            fontFamily: 'GmarketSans',
-            fontWeight: FontWeight.w700,
-            fontSize: 19.sp,
-            color: const Color(0xFF4B5563),
-            height: 1.5,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w900,
+                fontSize: 20.sp,
+                color: const Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 6.h),
+            Text(
+              body,
+              style: TextStyle(
+                fontFamily: 'GmarketSans',
+                fontWeight: FontWeight.w700,
+                fontSize: 19.sp,
+                color: const Color(0xFF4B5563),
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   _EvalView _evalFromStat(CategoryStat? s) {
     if (s == null || s.total == 0) {
