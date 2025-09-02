@@ -72,19 +72,30 @@ export default function ResultExam() {
     try {
       const bookTitle = localStorage.getItem("bookTitle") || "동화";
       
-      // 서버에 전송할 데이터 구조
+      // 서버가 기대하는 데이터 구조로 변경
       const examResult = {
-        story_key: bookTitle,
+        storyTitle: bookTitle,
+        storyKey: bookTitle,
+        attemptTime: new Date().toISOString(),
+        clientKst: new Date().toISOString(),
         score: total,
         total: 40,
-        scoreAD: Number(scoreAD) * 2,
-        scoreAI: Number(scoreAI) * 2,
-        scoreB: Number(scoreB) * 2,
-        scoreC: Number(scoreC) * 2,
-        scoreD: Number(scoreD) * 2,
-        client_attempt_order: 1, // 기본값, 필요시 수정
-        client_kst: new Date().toISOString(),
-        client_utc: new Date().toISOString()
+        byCategory: {
+          A: { correct: Number(scoreAD), total: 4 },
+          AI: { correct: Number(scoreAI), total: 4 },
+          B: { correct: Number(scoreB), total: 4 },
+          C: { correct: Number(scoreC), total: 4 },
+          D: { correct: Number(scoreD), total: 4 }
+        },
+        byType: {},
+        riskBars: {
+          A: Number(scoreAD) * 2,
+          AI: Number(scoreAI) * 2,
+          B: Number(scoreB) * 2,
+          C: Number(scoreC) * 2,
+          D: Number(scoreD) * 2
+        },
+        riskBarsByType: {}
       };
 
       // user_key가 있으면 추가
@@ -93,8 +104,8 @@ export default function ResultExam() {
         console.log("테스트용 user_key 추가:", userKey);
       }
 
-      // 서버 API 호출하여 저장
-      const { data } = await API.post("/str/save", examResult);
+      // user_key를 쿼리 파라미터로 전달하여 서버에서 사용자 식별 가능하도록 수정
+      const { data } = await API.post(`/str/attempt?user_key=${userKey || 'guest'}`, examResult);
       
       if (data?.ok) {
         console.log("검사 결과가 서버에 저장되었습니다.");
