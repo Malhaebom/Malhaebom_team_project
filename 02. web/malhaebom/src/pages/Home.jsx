@@ -7,7 +7,7 @@ import Background from "./Background/Background";
 import Logo from "../components/Logo.jsx";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "/",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
