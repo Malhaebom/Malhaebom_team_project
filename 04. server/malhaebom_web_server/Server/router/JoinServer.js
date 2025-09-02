@@ -4,58 +4,55 @@ const router = express.Router();
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 
-/* =========================
- * 하드코딩 DB
- * ========================= */
-const DB_CONFIG = {
-  host: "project-db-campus.smhrd.com",
-  port: 3307,
-  user: "campus_25SW_BD_p3_3",
-  password: "smhrd3",
-  database: "campus_25SW_BD_p3_3",
-};
-const pool = mysql.createPool({ ...DB_CONFIG, waitForConnections: true, connectionLimit: 10 });
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
 
-/**
- * POST /userJoin/register
- * body: { user_id|phone, pwd, nick, birthyear|birth(YYYY-MM-DD), gender(male|female|M|F) }
- * - birth → YEAR만 저장
- * - gender → M/F 변환
- */
+const DB_CONFIG = {
+  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
+  port    : Number(process.env.DB_PORT || 3307),
+  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
+  password: process.env.DB_PASSWORD || "smhrd3",
+  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
+};
+const pool = mysql.createPool({
+  ...DB_CONFIG,
+  waitForConnections: true,
+  connectionLimit  : 10,
+});
+
 router.post("/register", async (req, res) => {
   try {
-    const { user_id, phone, pwd, nick, birthyear, birth, gender } = req.body || {};
+    const { login_id, pwd, nick, birthyear, birth, gender } = req.body || {};
 
-    const id = user_id || phone;
-    if (!id || !pwd || !nick) {
+    if (!login_id || !pwd || !nick) {
       return res.status(400).json({ ok: false, msg: "필수 항목 누락" });
     }
 
-    // 출생연도
     let byear = birthyear;
     if (!byear && birth) byear = String(birth).slice(0, 4);
-    if (!byear) return res.status(400).json({ ok: false, msg: "출생연도(또는 생년월일)가 필요합니다." });
+    if (!byear) return res.status(400).json({ ok: false, msg: "출생연도 필요" });
 
-    // 성별
     let g = (gender || "").toUpperCase();
     if (g === "MALE") g = "M";
     if (g === "FEMALE") g = "F";
-    if (!["M", "F"].includes(g)) return res.status(400).json({ ok: false, msg: "성별(M/F) 값이 필요합니다." });
+    if (!["M", "F"].includes(g)) return res.status(400).json({ ok: false, msg: "성별(M/F) 값 필요" });
 
-    // 중복 확인
-    const [dup] = await pool.query("SELECT user_id FROM tb_user WHERE user_id = ?", [id]);
-    if (dup.length) return res.status(409).json({ ok: false, msg: "이미 존재하는 아이디(전화번호)입니다." });
+    const [dup] = await pool.query(
+      `SELECT user_id FROM tb_user WHERE login_id = ? AND login_type = 'local' LIMIT 1`,
+      [login_id]
+    );
+    if (dup.length) return res.status(409).json({ ok: false, msg: "이미 존재하는 아이디" });
 
     const hash = await bcrypt.hash(String(pwd), 10);
     await pool.query(
-      "INSERT INTO tb_user (user_id, pwd, nick, birthyear, gender) VALUES (?, ?, ?, ?, ?)",
-      [id, hash, nick, byear, g]
+      `INSERT INTO tb_user (login_id, login_type, pwd, nick, birthyear, gender)
+       VALUES (?, 'local', ?, ?, ?, ?)`,
+      [login_id, hash, nick, byear, g]
     );
 
     return res.json({ ok: true });
   } catch (err) {
     console.error("[/userJoin/register] error:", err);
-    return res.status(500).json({ ok: false, msg: "회원가입 중 오류가 발생했습니다." });
+    return res.status(500).json({ ok: false, msg: "회원가입 중 오류 발생" });
   }
 });
 

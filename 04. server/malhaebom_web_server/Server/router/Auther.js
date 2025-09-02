@@ -1,3 +1,5 @@
+// Server/router/Auther.js
+// Google / Kakao / Naver OAuth (tb_user 단일 테이블 사용)
 require("dotenv").config();
 
 const express = require("express");
@@ -8,14 +10,15 @@ const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
 
 /* =========================
- * 환경변수 적용
+ * 환경변수
  * ========================= */
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://localhost:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://localhost:5173";
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38:5137";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
-const NODE_ENV          = process.env.NODE_ENV || "development";
-const IS_HTTPS          = SERVER_BASE_URL.startsWith("https://");
+
+// ⚠️ HTTP 환경에서 secure 쿠키가 막히지 않도록: HTTPS일 때만 true
+const USE_SECURE_COOKIE = /^https:\/\//i.test(SERVER_BASE_URL);
 
 /* =========================
  * DB 풀
@@ -58,66 +61,52 @@ const GOOGLE = {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : IS_HTTPS || NODE_ENV === "production",
+    secure  : USE_SECURE_COOKIE, // HTTPS일 때만 true
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
   });
 }
-
-/**
- * 동일인 매칭 우선 → 있으면 INSERT 금지, 닉네임만 갱신
- */
-async function upsertSNSUser({ sns_login_type, sns_user_id, sns_nick, email, provider_raw_id }) {
-  const candidates = [
-    sns_user_id,
-    provider_raw_id,
-    email,
-    email ? `${sns_login_type}:${email}` : null,
-    provider_raw_id ? `${sns_login_type}:${provider_raw_id}` : null,
-  ].filter(Boolean);
-
-  if (candidates.length) {
-    const placeholders = candidates.map(() => "?").join(",");
-    const [rows] = await pool.query(
-      `
-        SELECT sns_user_id
-          FROM tb_sns_user
-         WHERE sns_login_type = ?
-           AND sns_user_id IN (${placeholders})
-         LIMIT 1
-      `,
-      [sns_login_type, ...candidates]
-    );
-
-    if (rows.length) {
-      const existingId = rows[0].sns_user_id;
-      await pool.query(
-        `UPDATE tb_sns_user
-            SET sns_nick = ?
-          WHERE sns_login_type = ? AND sns_user_id = ?`,
-        [sns_nick, sns_login_type, existingId]
-      );
-      return existingId;
-    }
-  }
-
-  const toSaveId = email || sns_user_id;
-  await pool.query(
-    `INSERT INTO tb_sns_user (sns_user_id, sns_nick, sns_login_type)
-     VALUES (?, ?, ?)`,
-    [toSaveId, sns_nick, sns_login_type]
-  );
-
-  return toSaveId;
-}
-
 const makeState = (prefix) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * SNS 사용자 upsert (tb_user)
+ * - login_type: 'google' | 'kakao' | 'naver'
+ * - login_id  : 공급자 원시 ID(권장) or email(fallback)
+ * - 반환: user_id(pk)
+ */
+async function upsertSNSUser({ provider, providerRawId, email, nick }) {
+  let login_id = String(providerRawId || "").trim();
+  if (!login_id && email) login_id = String(email).trim();
+  if (!login_id) throw new Error("SNS 사용자 식별자 없음");
+
+  const [rows] = await pool.query(
+    `SELECT user_id, nick
+       FROM tb_user
+      WHERE login_id = ? AND login_type = ?
+      LIMIT 1`,
+    [login_id, provider]
+  );
+
+  if (rows.length) {
+    const uid = rows[0].user_id;
+    if (nick && nick !== rows[0].nick) {
+      await pool.query(`UPDATE tb_user SET nick = ? WHERE user_id = ?`, [nick, uid]);
+    }
+    return uid;
+  }
+
+  const [ins] = await pool.query(
+    `INSERT INTO tb_user (login_id, login_type, pwd, nick, birthyear, gender)
+     VALUES (?, ?, NULL, ?, NULL, NULL)`,
+    [login_id, provider, nick || `${provider}_${login_id.slice(0, 6)}`]
+  );
+  return ins.insertId;
+}
 
 /* =========================
  * Kakao
@@ -165,16 +154,14 @@ router.get("/kakao/callback", async (req, res) => {
     const email    = acc.email || null;
     const nickname = profile.nickname || (email ? email.split("@")[0] : `kakao_${kakaoId}`);
 
-    const normalizedId = `kakao:${kakaoId}`;
-    const savedId = await upsertSNSUser({
-      sns_login_type: "kakao",
-      sns_user_id   : normalizedId,
-      sns_nick      : nickname,
+    const uid = await upsertSNSUser({
+      provider: "kakao",
+      providerRawId: kakaoId,
       email,
-      provider_raw_id: kakaoId,
+      nick: nickname,
     });
 
-    const token = sign({ sub: savedId, typ: "sns" });
+    const token = sign({ uid, typ: "kakao" });
     setAuthCookie(res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
@@ -197,7 +184,7 @@ router.get("/naver", (req, res) => {
       redirect_uri : NAVER.redirect_uri,
       state,
       auth_type    : "reprompt",
-      scope        : "name nickname email"
+      scope        : "name nickname email",
     });
   return res.redirect(url);
 });
@@ -227,16 +214,14 @@ router.get("/naver/callback", async (req, res) => {
     const email    = resp.email || null;
     const nickname = resp.name || resp.nickname || (email ? email.split("@")[0] : `naver_${naverId}`);
 
-    const normalizedId = `naver:${naverId}`;
-    const savedId = await upsertSNSUser({
-      sns_login_type: "naver",
-      sns_user_id   : normalizedId,
-      sns_nick      : nickname,
+    const uid = await upsertSNSUser({
+      provider: "naver",
+      providerRawId: naverId,
       email,
-      provider_raw_id: naverId,
+      nick: nickname,
     });
 
-    const token = sign({ sub: savedId, typ: "sns" });
+    const token = sign({ uid, typ: "naver" });
     setAuthCookie(res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
@@ -291,16 +276,14 @@ router.get("/google/callback", async (req, res) => {
     const email    = gUser.email || null;
     const nickname = gUser.name || (email ? email.split("@")[0] : `google_${googleId}`);
 
-    const normalizedId = `google:${googleId}`;
-    const savedId = await upsertSNSUser({
-      sns_login_type: "google",
-      sns_user_id   : normalizedId,
-      sns_nick      : nickname,
+    const uid = await upsertSNSUser({
+      provider: "google",
+      providerRawId: googleId,
       email,
-      provider_raw_id: googleId,
+      nick: nickname,
     });
 
-    const token = sign({ sub: savedId, typ: "sns" });
+    const token = sign({ uid, typ: "google" });
     setAuthCookie(res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
