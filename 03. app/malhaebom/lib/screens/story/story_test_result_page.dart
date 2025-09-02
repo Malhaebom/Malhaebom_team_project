@@ -222,7 +222,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       final uri = Uri.parse(
         '$API_BASE/str/latest',
       ).replace(queryParameters: {...identity, 'storyKey': titleKey});
-      final res = await http.get(uri);
+      final res = await http.get(uri).timeout(_httpTimeout);
       if (res.statusCode != 200) return null;
       final j = jsonDecode(res.body);
       if (j is! Map || j['ok'] != true) return null;
@@ -338,27 +338,26 @@ class _StoryResultPageState extends State<StoryResultPage> {
         debugPrint('[STR] headers: $headers');
         debugPrint('[STR] body.identity.present = ${identity.isNotEmpty}');
 
-        // (선택) 사전 whoami 확인
+        // (선택) 사전 whoami 확인 (응답 실패여도 무시)
         try {
           final who = Uri.parse(
             '$API_BASE/str/whoami',
           ).replace(queryParameters: identity);
-          final whoRes = await http.get(who);
+          final whoRes = await http.get(who).timeout(_httpTimeout);
           debugPrint('[STR] whoami -> ${whoRes.statusCode} ${whoRes.body}');
         } catch (_) {}
 
-        final res = await http.post(
-          uri,
-          headers: headers,
-          body: jsonEncode(merged),
-        );
+        final res = await http
+            .post(uri, headers: headers, body: jsonEncode(merged))
+            .timeout(_httpTimeout);
         debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
 
-        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화(선택적)
+        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화
         try {
           final jr = jsonDecode(res.body);
           if (jr is Map) {
-            final ord = jr['clientAttemptOrder'] ?? jr['attemptOrder'];
+            final saved = jr['saved'];
+            final ord = (saved is Map) ? saved['clientAttemptOrder'] : null;
             if (ord is num) {
               final serverOrder = ord.toInt();
               final prefs = await SharedPreferences.getInstance();
