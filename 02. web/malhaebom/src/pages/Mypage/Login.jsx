@@ -5,7 +5,7 @@ import Logo from "../../components/Logo.jsx";
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://211.188.63.38:3001",
+  baseURL: "http://localhost:3001",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -68,9 +68,9 @@ const Login = () => {
   };
 
   // SNS 시작 (백엔드 OAuth 시작 URL로 이동)
-  const startKakao  = () => (window.location.href = "http://211.188.63.38:3001/auth/kakao");
-  const startNaver  = () => (window.location.href = "http://211.188.63.38:3001/auth/naver");
-  const startGoogle = () => (window.location.href = "http://211.188.63.38:3001/auth/google");
+  const startKakao  = () => (window.location.href = "http://localhost:3001/auth/kakao");
+  const startNaver  = () => (window.location.href = "http://localhost:3001/auth/naver");
+  const startGoogle = () => (window.location.href = "http://localhost:3001/auth/google");
 
   const socialBtnStyle = (bgColor, color = "#000") => ({
     display: "flex",

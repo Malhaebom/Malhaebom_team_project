@@ -4,11 +4,22 @@ import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
+import axios from "axios";
+
+const API = axios.create({
+  baseURL: "http://localhost:3001",
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
+
+  // URL 파라미터에서 user_key 읽기 추가
+  const query = new URLSearchParams(window.location.search);
+  const userKey = query.get('user_key');
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
 
@@ -56,41 +67,54 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // 검사 완료 시 BookHistory에 저장
-  const saveToBookHistory = () => {
-    const currentDate = new Date();
-    const dateStr = currentDate.toISOString().split('T')[0]; // YYYY-MM-DD
-    const timeStr = currentDate.toTimeString().split(' ')[0].substring(0, 5); // HH:MM
-    
-    const bookTitle = localStorage.getItem("bookTitle") || "동화";
-    
-    const examResult = {
-      id: Date.now(), // 고유 ID
-      date: dateStr,
-      time: timeStr,
-      fairyTale: bookTitle,
-      scoreAD: Number(scoreAD),
-      scoreAI: Number(scoreAI),
-      scoreB: Number(scoreB),
-      scoreC: Number(scoreC),
-      scoreD: Number(scoreD),
-      total: total,
-      timestamp: currentDate.getTime()
-    };
+  // 검사 완료 시 서버에 저장
+  const saveToBookHistory = async () => {
+    try {
+      const bookTitle = localStorage.getItem("bookTitle") || "동화";
+      
+      // 서버가 기대하는 데이터 구조로 변경
+      const examResult = {
+        storyTitle: bookTitle,
+        storyKey: bookTitle,
+        attemptTime: new Date().toISOString(),
+        clientKst: new Date().toISOString(),
+        score: total,
+        total: 40,
+        byCategory: {
+          A: { correct: Number(scoreAD), total: 4 },
+          AI: { correct: Number(scoreAI), total: 4 },
+          B: { correct: Number(scoreB), total: 4 },
+          C: { correct: Number(scoreC), total: 4 },
+          D: { correct: Number(scoreD), total: 4 }
+        },
+        byType: {},
+        riskBars: {
+          A: Number(scoreAD) * 2,
+          AI: Number(scoreAI) * 2,
+          B: Number(scoreB) * 2,
+          C: Number(scoreC) * 2,
+          D: Number(scoreD) * 2
+        },
+        riskBarsByType: {}
+      };
 
-    // localStorage에서 기존 BookHistory 데이터 가져오기
-    const existingHistory = JSON.parse(localStorage.getItem("bookHistory") || "[]");
-    
-    // 새로운 결과 추가
-    existingHistory.unshift(examResult); // 최신 결과를 맨 위에 추가
-    
-    // 최대 50개까지만 저장 (메모리 관리)
-    if (existingHistory.length > 50) {
-      existingHistory.splice(50);
+      // user_key가 있으면 추가
+      if (userKey) {
+        examResult.user_key = userKey;
+        console.log("테스트용 user_key 추가:", userKey);
+      }
+
+      // user_key를 쿼리 파라미터로 전달하여 서버에서 사용자 식별 가능하도록 수정
+      const { data } = await API.post(`/str/attempt?user_key=${userKey || 'guest'}`, examResult);
+      
+      if (data?.ok) {
+        console.log("검사 결과가 서버에 저장되었습니다.");
+      } else {
+        console.error("검사 결과 저장 실패:", data?.msg);
+      }
+    } catch (error) {
+      console.error("검사 결과 저장 중 오류 발생:", error);
     }
-    
-    // localStorage에 저장
-    localStorage.setItem("bookHistory", JSON.stringify(existingHistory));
   };
 
   // 컴포넌트 마운트 시 자동으로 저장 (중복 저장 방지)
@@ -99,8 +123,9 @@ export default function ResultExam() {
       // 이미 저장된 검사인지 확인 (sessionStorage 사용)
       const examCompleted = sessionStorage.getItem("examCompleted");
       if (!examCompleted) {
-        saveToBookHistory();
-        sessionStorage.setItem("examCompleted", "true");
+        saveToBookHistory().then(() => {
+          sessionStorage.setItem("examCompleted", "true");
+        });
       }
     }
   }, [total]);
