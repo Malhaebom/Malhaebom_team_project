@@ -4,7 +4,7 @@ const router = express.Router();
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || "http://211.188.63.38:3001";
 
 const DB_CONFIG = {
   host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",

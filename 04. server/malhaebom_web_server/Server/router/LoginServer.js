@@ -9,11 +9,10 @@ const jwt = require("jsonwebtoken");
  * 환경변수
  * ========================= */
 const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38:5137";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
-const NODE_ENV          = process.env.NODE_ENV || "production";
-const IS_HTTPS          = SERVER_BASE_URL.startsWith("https://");
+const IS_HTTPS          = /^https:\/\//i.test(SERVER_BASE_URL);
 
 /* =========================
  * DB 풀
@@ -40,7 +39,7 @@ function sign(payload) {
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : IS_HTTPS || NODE_ENV === "production",
+    secure  : IS_HTTPS,    // HTTPS일 때만 true
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
@@ -49,7 +48,7 @@ function setAuthCookie(res, token) {
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure  : IS_HTTPS || NODE_ENV === "production",
+    secure  : IS_HTTPS,
     sameSite: "lax",
     path    : "/",
   });
