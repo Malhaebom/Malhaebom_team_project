@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb; // ✅
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:malhaebom/screens/main/interview_list_page.dart';
+import 'package:malhaebom/screens/main/interview_info_page.dart';
 import 'package:malhaebom/screens/story/story_detail_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http; // ✅
@@ -111,6 +111,16 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
       length: kStoryTitles.length,
       vsync: this,
     );
+
+    // ✅ 탭 선택이 바뀌면 콘텐츠를 다시 그려서 높이가 자연스럽게 늘어나도록
+    _storyTabController.addListener(() {
+      if (!mounted) return;
+      // indexIsChanging 동안은 애니메이션 중일 수 있어요. 바뀐 뒤에만 setState.
+      if (!_storyTabController.indexIsChanging) {
+        setState(() {});
+      }
+    });
+
     Future.microtask(() async {
       await _bootstrapGuestEphemeral();
       await _loadAll();
@@ -176,7 +186,7 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
     if (!mounted) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const InterviewListPage()),
+      MaterialPageRoute(builder: (_) => const InterviewInfoPage()),
     );
     if (!mounted) return;
     await _loadLatest();
@@ -685,25 +695,14 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
                         ),
                       ),
                       SizedBox(height: 12.h),
-                      SizedBox(
-                        height: 520.h,
-                        child: TabBarView(
-                          controller: _storyTabController,
-                          children: [
-                            for (final t in kStoryTitles)
-                              SingleChildScrollView(
-                                child:
-                                    (_storyLatest[t] == null)
-                                        ? _emptyStory(t)
-                                        : _storyCard(
-                                          context,
-                                          t,
-                                          _storyLatest[t]!,
-                                          _storyAttemptCounts[t] ?? 0,
-                                        ),
-                              ),
-                          ],
-                        ),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        switchInCurve: Curves.easeOut,
+                        switchOutCurve: Curves.easeIn,
+                        transitionBuilder:
+                            (child, anim) =>
+                                SizeTransition(sizeFactor: anim, child: child),
+                        child: _buildCurrentStoryTabBody(context),
                       ),
                     ],
                   ),
@@ -711,6 +710,22 @@ class _MyPageState extends State<MyPage> with TickerProviderStateMixin {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCurrentStoryTabBody(BuildContext context) {
+    final idx = _storyTabController.index;
+    final t = kStoryTitles[idx];
+    final s = _storyLatest[t];
+    final attemptCount = _storyAttemptCounts[t] ?? 0;
+
+    // AnimatedSwitcher가 키를 보고 부드럽게 갈아끼우도록 KeyedSubtree 사용
+    return KeyedSubtree(
+      key: ValueKey('story-$idx'),
+      child:
+          (s == null)
+              ? _emptyStory(t)
+              : _storyCard(context, t, s, attemptCount),
     );
   }
 

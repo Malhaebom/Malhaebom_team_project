@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:malhaebom/screens/brain_training/brain_training_main_page.dart';
-import 'package:malhaebom/screens/main/interview_list_page.dart';
+import 'package:malhaebom/screens/main/interview_info_page.dart';
 import 'package:malhaebom/screens/main/my_page.dart';
 import 'package:malhaebom/screens/story/story_main_page.dart';
 import 'package:malhaebom/theme/colors.dart';
@@ -247,7 +247,7 @@ class _HomePageState extends State<HomePage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const InterviewListPage(),
+                                builder: (context) => const InterviewInfoPage(),
                               ),
                             );
                           },
