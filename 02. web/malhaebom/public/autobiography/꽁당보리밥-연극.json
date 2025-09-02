@@ -1,0 +1,227 @@
+[
+  {
+    "title": "동화연극하기1",
+    "speechText": "선생님: 얘들아, 가져온 도시락 책상 위로 꺼내봐. 지금부터 혼분식을 검사하겠다.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/01p_01.mp3"
+  },
+  {
+    "title": "동화연극하기2",
+    "speechText": "학생들: 네 선생님",
+    "speechAudio": "fairytale/꽁당보리밥/voice/01p_02.mp3"
+  },
+  {
+    "title": "동화연극하기3",
+    "speechText": "연이: 어머 뭐야 쌀밥이잖아~~",
+    "speechAudio": "fairytale/꽁당보리밥/voice/02p_01.mp3"
+  },
+  {
+    "title": "동화연극하기4",
+    "speechText": "영도: 연이야! 너도 쌀밥... 휴.. 다행이다.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/02p_02.mp3"
+  },
+  {
+    "title": "동화연극하기5",
+    "speechText": "선생님: 연이! 영도! 도시락 들고 일어서서 당장 나가!!",
+    "speechAudio": "fairytale/꽁당보리밥/voice/02p_03.mp3"
+  },
+  {
+    "title": "동화연극하기6",
+    "speechText": "연이: 저요....? (당황한 표정)",
+    "speechAudio": "fairytale/꽁당보리밥/voice/02p_04.mp3"
+  },
+  {
+    "title": "동화연극하기7",
+    "speechText": "영도: 연이야 배 안고파?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_01.mp3"
+  },
+  {
+    "title": "동화연극하기8",
+    "speechText": "연이: 배고파.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_02.mp3"
+  },
+  {
+    "title": "동화연극하기9",
+    "speechText": "영도: 우리 밥 먹어야 하는데 어디서 밥 먹을까?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_03.mp3"
+  },
+  {
+    "title": "동화연극하기10",
+    "speechText": "연이: 나 안먹어!!",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_04.mp3"
+  },
+  {
+    "title": "동화연극하기11",
+    "speechText": "영도: 밥 먹자!! 배 고프잖아! 근데 너 왜 쌀밥 싸왔어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_05.mp3"
+  },
+  {
+    "title": "동화연극하기12",
+    "speechText": "연이: 아~~몰라!! 왜 우리 엄마는 오늘 쌀밥을 싸줘서 혼나게 하는 거야.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_06.mp3"
+  },
+  {
+    "title": "동화연극하기13",
+    "speechText": "영도: 괜찮아? 그래도 밥 먹자!",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_07.mp3"
+  },
+  {
+    "title": "동화연극하기14",
+    "speechText": "연이: 싫어 싫다구",
+    "speechAudio": "fairytale/꽁당보리밥/voice/03p_08.mp3"
+  },
+  {
+    "title": "동화연극하기15",
+    "speechText": "연이: 우리 운동장가서 먹을까..",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_01.mp3"
+  },
+  {
+    "title": "동화연극하기16",
+    "speechText": "연이: 응 그럼 가.. 근데 추운데.. 가자... 배고프니깐.....",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_02.mp3"
+  },
+  {
+    "title": "동화연극하기17",
+    "speechText": "영도: 우와!! 분홍소세지야!! 누구 생일이야?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_03.mp3"
+  },
+  {
+    "title": "동화연극하기18",
+    "speechText": "연이: 아니.. 넌 계란후라이네.. 맛있겠다.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_04.mp3"
+  },
+  {
+    "title": "동화연극하기19",
+    "speechText": "영도: 같이먹자!!",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_05.mp3"
+  },
+  {
+    "title": "동화연극하기20",
+    "speechText": "연이: 응 너도 소세지 먹어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/04p_06.mp3"
+  },
+  {
+    "title": "동화연극하기21",
+    "speechText": "선생님: 오늘 혼분식 안해온 영도와 연이, 공부시간에 떠든 철수, 지각한 영희는 교실과 복도 청소하고 집에 가도록 해~",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_01.mp3"
+  },
+  {
+    "title": "동화연극하기22",
+    "speechText": "영도, 연이, 철수, 영희: 네~~ (시무룩한 표정)",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_02.mp3"
+  },
+  {
+    "title": "동화연극하기23",
+    "speechText": "엄마: 우리 연희 학교 잘 다녀왔어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_03.mp3"
+  },
+  {
+    "title": "동화연극하기24",
+    "speechText": "연이: (퉁명스럽게) 엄마 오늘 왜 쌀밥 싸줬어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_04.mp3"
+  },
+  {
+    "title": "동화연극하기25",
+    "speechText": "엄마: 왜? 학교에서 무슨 일 있었어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_05.mp3"
+  },
+  {
+    "title": "동화연극하기26",
+    "speechText": "연이: 엄마때문에 선생님한테 혼났잖아.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_06.mp3"
+  },
+  {
+    "title": "동화연극하기27",
+    "speechText": "엄마: 왜 혼났어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_07.mp3"
+  },
+  {
+    "title": "동화연극하기28",
+    "speechText": "연이: 쌀밥 싸줘서 선생님한테 혼났어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_08.mp3"
+  },
+  {
+    "title": "동화연극하기29",
+    "speechText": "엄마: 많이 혼났어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_09.mp3"
+  },
+  {
+    "title": "동화연극하기30",
+    "speechText": "연이: 추운데 운동장가서 밥먹었어. 청소도 했단 말이야.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/05p_10.mp3"
+  },
+  {
+    "title": "동화연극하기31",
+    "speechText": "엄마: 아이구 오늘 너 생일이라 쌀밥 쌌는데 이걸 어쩌나...",
+    "speechAudio": "fairytale/꽁당보리밥/voice/06p_01.mp3"
+  },
+  {
+    "title": "동화연극하기32",
+    "speechText": "엄마: 연이야 생일 축하해~~",
+    "speechAudio": "fairytale/꽁당보리밥/voice/06p_02.mp3"
+  },
+  {
+    "title": "동화연극하기33",
+    "speechText": "연이: 엄마, 오늘 내 생일이었어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/06p_03.mp3"
+  },
+  {
+    "title": "동화연극하기34",
+    "speechText": "연이: 엄마, 근데 왜 우리 가족은 꽁당보리밥만 먹었어?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/07p_01.mp3"
+  },
+  {
+    "title": "동화연극하기35",
+    "speechText": "엄마: 연이야, 우리 집은 흰쌀밥을 먹기가 어려워. 그래서 네 생일에는 특별히 흰쌀밥을 먹게 해주고 싶어서 그랬단다.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/07p_02.mp3"
+  },
+  {
+    "title": "동화연극하기36",
+    "speechText": "연이: 그래서 우리 가족이 다 꽁당보리밥을 먹은 거야?",
+    "speechAudio": "fairytale/꽁당보리밥/voice/07p_03.mp3"
+  },
+  {
+    "title": "동화연극하기37",
+    "speechText": "엄마: 그렇단다. 네가 좋아하는 흰쌀밥을 싸주기 위해서 우리 모두가 조금씩 희생한 거야.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/07p_04.mp3"
+  },
+  {
+    "title": "동화연극하기38",
+    "speechText": "연이: 엄마, 고마워. 그리고 미안해. 오늘 도시락 맛있었어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/08p_01.mp3"
+  },
+  {
+    "title": "동화연극하기39",
+    "speechText": "엄마: 우리 연이가 이렇게 예쁘게 고맙다 해 주니, 엄마도 참 행복하구나.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/08p_02.mp3"
+  },
+  {
+    "title": "동화연극하기40",
+    "speechText": "연이: 영도야, 어제 미안했어. 우리 엄마가 내 생일이라 쌀밥 싸주신 거였어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/09p_01.mp3"
+  },
+  {
+    "title": "동화연극하기41",
+    "speechText": "영도: 괜찮아. 사실 나도 부모님의 결혼기념일이라 특별히 쌀밥을 싸주신 거였어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/09p_02.mp3"
+  },
+  {
+    "title": "동화연극하기42",
+    "speechText": "선생님: 얘들아, 어제 연이와 영도가 쌀밥을 싸온 이유를 알게 되었어. 연이는 생일, 영도는 가족행사가 있었거든. 우리 모두 서로의 상황을 이해하며 살아가자.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/09p_03.mp3"
+  },
+  {
+    "title": "동화연극하기43",
+    "speechText": "학생들: 네, 선생님!",
+    "speechAudio": "fairytale/꽁당보리밥/voice/09p_04.mp3"
+  },
+  {
+    "title": "동화연극하기44",
+    "speechText": "연이: 엄마, 오늘 선생님이 모두에게 내 생일 이야기를 해주셨어. 그리고 친구들도 이제 이해해줘서 너무 기뻤어.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/10p_01.mp3"
+  },
+  {
+    "title": "동화연극하기45",
+    "speechText": "엄마: 정말 다행이구나. 우리 연이가 잘 이해해줘서 엄마도 기뻐.",
+    "speechAudio": "fairytale/꽁당보리밥/voice/10p_02.mp3"
+  }
+]
