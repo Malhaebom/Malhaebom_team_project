@@ -1,7 +1,7 @@
 {
 	"어머니와 벙어리장갑": {
 		"id": 0,
-        "video": "fairytale/어머니의벙어리장갑.mp4",
+		"video": "fairytale/어머니의벙어리장갑.mp4",
 		"image": "fairytale/어머니의벙어리장갑.png",
 		"subtitle": "휴전이 된 지 7년이 지날 때쯤이었습니다. 가난한 사람들이 많은 시절이었죠. 까악 까악 유난히 날씨가 춥게 느껴지던 겨울, 3남매 가족의 일입니다.",
 		"exam": "어머니의벙어리장갑-화행검사.json",
@@ -11,7 +11,7 @@
 	},
 	"아버지와 결혼식": {
 		"id": 1,
-        "video": "fairytale/아버지와결혼식.mp4",
+		"video": "fairytale/아버지와결혼식.mp4",
 		"image": "fairytale/아버지와결혼식.png",
 		"subtitle": "부산 남포동에서 있던 일입니다. 전형적인 부산출신의 가부장적인 아버지는 속정은 깊으시나, 무뚝뚝하셔서 남매에게 애정표현을 잘 못하셨습니다.",
 		"exam": "아버지와결혼식-화행검사.json",
@@ -21,7 +21,7 @@
 	},
 	"아들의 호빵": {
 		"id": 2,
-        "video": "fairytale/아들의 호빵.mp4",
+		"video": "fairytale/아들의 호빵.mp4",
 		"image": "fairytale/아들의 호빵.png",
 		"subtitle": "차가운 바람이 옷깃을 스쳐 지나가는 어느 한 겨울날입니다. 아버지와 어머니, 소현이는 할머니의 병문안을 가기 위해 발걸음을 재촉하고 있었습니다.",
 		"exam": "아들의 호빵-화행검사.json",
@@ -31,12 +31,22 @@
 	},
 	"할머니와바나나": {
 		"id": 3,
-        "video": "fairytale/할머니와바나나.mp4",
+		"video": "fairytale/할머니와바나나.mp4",
 		"image": "fairytale/할머니와바나나.png",
 		"subtitle": "부산에 사시는 애자 할머니와 손자 주현이네 가족의 일입니다. 산은 알록달록 단품으로 곱게 물들고 벼가 노랗게 익어 갈 때쯤, 유난히 날씨가 싸늘하게 느껴지던 어느 추석날이었습니다.",
 		"exam": "할머니와바나나-화행검사.json",
 		"workbook": "fairytale/할머니와바나나/workbook.json",
 		"workbookImgPath": "fairytale/할머니와바나나/",
 		"speech": "할머니와바나나-연극.json"
+	},
+	"꽁당보리밥": {
+		"id": 4,
+		"video": "fairytale/꽁당보리밥.mp4",
+		"image": "fairytale/꽁당보리밥.png",
+		"subtitle": "어느 해 새학기가 시작되고 꽃샘추위에 몸이 움츠려드는 이른 봄날이었습니다. 새마을 운동이 한장이었던 그 시절 국민학교 2학년 영도와 연이의 이야기입니다.",
+		"exam": "꽁당보리밥-화행검사.json",
+		"workbook": "fairytale/꽁당보리밥/workbook.json",
+		"workbookImgPath": "fairytale/꽁당보리밥/",
+		"speech": "꽁당보리밥-연극.json"
 	}
 }
