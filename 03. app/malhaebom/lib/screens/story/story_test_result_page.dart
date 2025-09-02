@@ -19,7 +19,7 @@ const String PREF_STORY_COUNT_PREFIX = 'story_attempt_count_v1_';
 
 const TextScaler fixedScale = TextScaler.linear(1.0);
 
-// ✅ 역슬래시 1개가 맞음
+// ✅ 공백 정규화
 String normalizeTitle(String s) => s.replaceAll(RegExp(r'\s+'), ' ').trim();
 
 /// 카테고리 집계용
@@ -41,11 +41,12 @@ class StoryResultPage extends StatefulWidget {
   final DateTime testedAt;
   final String? storyTitle;
   final Map<String, double>? riskBarsByType;
+  final String? kstLabel;
 
   /// true: 실제 테스트 직후(저장+회차증가+옵션 서버전송)
   /// false: 조회용(증가/저장 안 함)
   final bool persist;
-  final int? fixedAttemptOrder; // 👈 추가: 읽기전용 모드에서 표시만 할 회차
+  final int? fixedAttemptOrder; // 읽기전용 모드에서 표시할 회차
 
   const StoryResultPage({
     super.key,
@@ -58,6 +59,7 @@ class StoryResultPage extends StatefulWidget {
     this.persist = true,
     this.fixedAttemptOrder,
     this.riskBarsByType,
+    this.kstLabel,
   });
 
   @override
@@ -95,6 +97,26 @@ class _StoryResultPageState extends State<StoryResultPage> {
     );
   }
 
+  /// 인증/식별 헤더 공통 생성
+  Future<Map<String, String>> _authHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = (prefs.getString('auth_token') ?? '').trim();
+    String userKey = (prefs.getString('user_key') ?? '').trim();
+    final loginId = (prefs.getString('login_id') ?? '').trim();
+
+    // login_id만 있는 경우도 user_key로 동기화
+    if (userKey.isEmpty && loginId.isNotEmpty) {
+      userKey = loginId;
+      await prefs.setString('user_key', userKey);
+    }
+
+    return {
+      'accept': 'application/json',
+      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (userKey.isNotEmpty) 'x-user-key': userKey,
+    };
+  }
+
   // ---- 저장 페이로드 생성 ----
   Map<String, dynamic> _buildPayload({
     required String titleOriginal,
@@ -103,8 +125,9 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }) {
     return {
       'storyTitle': titleOriginal,
-      'storyKey': titleKey, // ← 책 구분용
-      'attemptOrder': attemptOrder, // ← 동화별 회차(클라)
+      'storyKey': titleKey, // 책 구분용
+      'attemptOrder': attemptOrder, // 동화별 회차(클라)
+      'clientAttemptOrder': attemptOrder, // ✅ 호환 키 추가
       'attemptTime': widget.testedAt.toUtc().toIso8601String(),
       'clientKst': _formatKst(widget.testedAt),
       'score': widget.score,
@@ -122,9 +145,6 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   /// ---- 유저 식별자 로드 (user_key 통일) ----
-  /// 로그인 시(예시):
-  ///  - 일반: prefs.setString('user_key', userId)
-  ///  - SNS : prefs.setString('user_key', '${type.toLowerCase()}:$snsUserId')
   Future<Map<String, String>> _identityForApi() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -148,8 +168,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return {'userKey': direct};
     }
 
-    // 2) 로컬 ID 시도
+    // 2) 로컬 ID 시도 (login_id 포함)
     final localId = readAny([
+      'login_id',
+      'loginId',
       'user_id',
       'userId',
       'userid',
@@ -163,15 +185,14 @@ class _StoryResultPageState extends State<StoryResultPage> {
     }
 
     // 3) SNS 시도 (type:id 형태로 userKey 생성)
-    String? snsType =
-        readAny([
-          'sns_login_type',
-          'snsLoginType',
-          'login_provider',
-          'provider',
-          'social_type',
-          'loginType',
-        ])?.toLowerCase();
+    String? snsType = readAny([
+      'sns_login_type',
+      'snsLoginType',
+      'login_provider',
+      'provider',
+      'social_type',
+      'loginType',
+    ])?.toLowerCase();
     final snsId = readAny([
       'sns_user_id',
       'snsUserId',
@@ -189,7 +210,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return {'userKey': key};
     }
 
-    // 4) ★ 최후 fallback: auth_user(JSON)에서 복구
+    // 4) 최후 fallback: auth_user(JSON)에서 복구
     final raw = prefs.getString('auth_user');
     if (raw != null && raw.isNotEmpty) {
       try {
@@ -212,17 +233,24 @@ class _StoryResultPageState extends State<StoryResultPage> {
     return {};
   }
 
-  // ---- 서버 최신 회차 조회 → "다음 회차" 계산 (있으면 우선 사용) ----
+  // ---- 서버 최신 회차 조회 → "다음 회차" 계산 ----
   Future<int?> _serverNextAttempt(
     String titleKey,
     Map<String, String> identity,
   ) async {
-    if (!kUseServer || identity.isEmpty) return null;
+    if (!kUseServer) return null;
     try {
-      final uri = Uri.parse(
-        '$API_BASE/str/latest',
-      ).replace(queryParameters: {...identity, 'storyKey': titleKey});
-      final res = await http.get(uri).timeout(_httpTimeout);
+      final headers = await _authHeaders();
+      final qp = <String, String>{
+        'storyKey': titleKey,
+        if (identity['userKey'] != null && identity['userKey']!.isNotEmpty)
+          'userKey': identity['userKey']!,
+      };
+      final uri = Uri.parse('$API_BASE/str/latest').replace(
+        queryParameters: qp,
+      );
+
+      final res = await http.get(uri, headers: headers).timeout(_httpTimeout);
       if (res.statusCode != 200) return null;
       final j = jsonDecode(res.body);
       if (j is! Map || j['ok'] != true) return null;
@@ -232,15 +260,12 @@ class _StoryResultPageState extends State<StoryResultPage> {
         if (ord is num) {
           final next = ord.toInt() + 1;
           debugPrint(
-            '[STR] serverNextAttempt("$titleKey") -> ${ord.toInt()} + 1 = $next',
-          );
+              '[STR] serverNextAttempt("$titleKey") -> ${ord.toInt()} + 1 = $next');
           return next;
         }
-        // 서버에 기록은 있으나 회차 필드 없으면 1로 시작
-        return 1;
+        return 1; // 서버에 기록 있으나 회차 필드 없으면 1로 시작
       }
-      // 서버 기록 아예 없으면 1회차
-      return 1;
+      return 1; // 서버 기록 아예 없으면 1회차
     } catch (e) {
       debugPrint('[STR] serverNextAttempt error: $e');
       return null;
@@ -292,10 +317,10 @@ class _StoryResultPageState extends State<StoryResultPage> {
     // 1) 서버 기준 "다음 회차"가 있으면 그것을 우선 사용, 없으면 로컬 +1
     int next =
         (await _serverNextAttempt(keyTitle, identity)) ??
-        (await _bumpCount(keyTitle));
+            (await _bumpCount(keyTitle));
 
     // 서버에서 1회차라고 알려줬는데 로컬이 엉켜 있었다면 로컬도 덮어쓰기
-    if (kUseServer && identity.isNotEmpty) {
+    if (kUseServer) {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt('$PREF_STORY_COUNT_PREFIX$keyTitle', next);
@@ -319,31 +344,30 @@ class _StoryResultPageState extends State<StoryResultPage> {
       try {
         final merged = {...payload, ...identity};
 
-        // headers에도 같이 싣기
-        final headers = <String, String>{
-          'Content-Type': 'application/json; charset=utf-8',
-          if (identity['userKey'] != null) 'x-user-key': identity['userKey']!,
-        };
+        // 공통 헤더 사용 + Content-Type
+        final headers = await _authHeaders();
+        headers['Content-Type'] = 'application/json; charset=utf-8';
 
-        // querystring에도 같이 싣기 (프록시/커스텀헤더 차단 대비)
+        // 쿼리스트링 userKey는 identity가 없으면 헤더에서 보강
+        final userKeyForQuery = identity['userKey'] ?? headers['x-user-key'];
         final base = Uri.parse('$API_BASE/str/attempt');
-        final uri =
-            identity.isEmpty
-                ? base
-                : base.replace(
-                  queryParameters: {'userKey': identity['userKey']!},
-                );
+        final uri = (userKeyForQuery == null || userKeyForQuery.isEmpty)
+            ? base
+            : base.replace(queryParameters: {'userKey': userKeyForQuery});
 
         debugPrint('[STR] POST $uri');
-        debugPrint('[STR] headers: $headers');
-        debugPrint('[STR] body.identity.present = ${identity.isNotEmpty}');
+        debugPrint('[STR] headers(x-user-key? ${headers['x-user-key'] != null})');
 
         // (선택) 사전 whoami 확인 (응답 실패여도 무시)
         try {
-          final who = Uri.parse(
-            '$API_BASE/str/whoami',
-          ).replace(queryParameters: identity);
-          final whoRes = await http.get(who).timeout(_httpTimeout);
+          final who = Uri.parse('$API_BASE/str/whoami').replace(
+            queryParameters:
+                (userKeyForQuery == null || userKeyForQuery.isEmpty)
+                    ? {}
+                    : {'userKey': userKeyForQuery},
+          );
+          final whoRes =
+              await http.get(who, headers: headers).timeout(_httpTimeout);
           debugPrint('[STR] whoami -> ${whoRes.statusCode} ${whoRes.body}');
         } catch (_) {}
 
@@ -352,12 +376,14 @@ class _StoryResultPageState extends State<StoryResultPage> {
             .timeout(_httpTimeout);
         debugPrint('[STR] POST /str/attempt -> ${res.statusCode} ${res.body}');
 
-        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화
+        // 서버가 최종 회차를 돌려주면 로컬을 덮어씌워 동기화 (멀티디바이스 보완)
         try {
           final jr = jsonDecode(res.body);
           if (jr is Map) {
             final saved = jr['saved'];
-            final ord = (saved is Map) ? saved['clientAttemptOrder'] : null;
+            final ord = (saved is Map)
+                ? (saved['clientAttemptOrder'] ?? saved['attemptOrder'])
+                : null;
             if (ord is num) {
               final serverOrder = ord.toInt();
               final prefs = await SharedPreferences.getInstance();
@@ -404,6 +430,11 @@ class _StoryResultPageState extends State<StoryResultPage> {
       return kToolbarHeight;
     }
 
+    final formattedKst =
+        (widget.kstLabel != null && widget.kstLabel!.trim().isNotEmpty)
+            ? widget.kstLabel!
+            : _formatKst(widget.testedAt);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -426,7 +457,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
           padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 24.h),
           child: Column(
             children: [
-              _attemptChip(_attemptOrder, _formatKst(widget.testedAt)),
+              _attemptChip(_attemptOrder, formattedKst),
               SizedBox(height: 12.h),
 
               _card(
@@ -506,58 +537,58 @@ class _StoryResultPageState extends State<StoryResultPage> {
 
   // --- 위젯 유틸 ---
   Widget _card({required Widget child}) => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(16.w),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20.r),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.04),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
+        width: double.infinity,
+        padding: EdgeInsets.all(16.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20.r),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
-      ],
-    ),
-    child: child,
-  );
+        child: child,
+      );
 
   Widget _attemptChip(int order, String formattedKst) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16.r),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
-    ),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '${order}회차',
-          textScaler: fixedScale,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 18.sp,
-            color: AppColors.btnColorDark,
-          ),
+        padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 10.h),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16.r),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        SizedBox(width: 10.w),
-        Text(
-          formattedKst,
-          textScaler: fixedScale,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 18.sp,
-            color: const Color(0xFF111827),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '${order}회차',
+              textScaler: fixedScale,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18.sp,
+                color: AppColors.btnColorDark,
+              ),
+            ),
+            SizedBox(width: 10.w),
+            Text(
+              formattedKst,
+              textScaler: fixedScale,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 18.sp,
+                color: const Color(0xFF111827),
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   Widget _scoreCircle(int score, int total) {
     final double d = 140.w;
@@ -639,96 +670,99 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   Widget _riskBar(double position) => SizedBox(
-    height: 16.h,
-    child: LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              width: w,
-              height: 6.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF10B981),
-                    Color(0xFFF59E0B),
-                    Color(0xFFEF4444),
-                  ],
+        height: 16.h,
+        child: LayoutBuilder(
+          builder: (context, c) {
+            final w = c.maxWidth;
+            return Stack(
+              alignment: Alignment.centerLeft,
+              children: [
+                Container(
+                  width: w,
+                  height: 6.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF10B981),
+                        Color(0xFFF59E0B),
+                        Color(0xFFEF4444),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Positioned(
-              left: (w - 18.w) * position,
-              child: Container(
-                width: 18.w,
-                height: 18.w,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                Positioned(
+                  left: (w - 18.w) * position,
+                  child: Container(
+                    width: 18.w,
+                    height: 18.w,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border:
+                          Border.all(color: const Color(0xFF9CA3AF), width: 2),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+  // 상태칩 공용 위젯
+  Widget _statusChip(_EvalView eval) => Container(
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
+        decoration: BoxDecoration(
+          color: eval.badgeBg,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: eval.badgeBorder),
+        ),
+        child: Text(
+          eval.text,
+          textScaler: fixedScale,
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17.sp,
+            color: eval.textColor,
+          ),
+        ),
+      );
+
+  Widget _warnBanner() => Container(
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+        margin: EdgeInsets.only(bottom: 12.h),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF1F2),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+          borderRadius: BorderRadius.circular(14.r),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
+                textScaler: const TextScaler.linear(1.0),
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 19.sp,
+                  color: const Color(0xFF7F1D1D),
                 ),
               ),
             ),
           ],
-        );
-      },
-    ),
-  );
-
-  // 상태칩 공용 위젯
-  Widget _statusChip(_EvalView eval) => Container(
-    padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
-    decoration: BoxDecoration(
-      color: eval.badgeBg,
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: eval.badgeBorder),
-    ),
-    child: Text(
-      eval.text,
-      textScaler: fixedScale,
-      style: TextStyle(
-        fontWeight: FontWeight.w900,
-        fontSize: 17.sp,
-        color: eval.textColor,
-      ),
-    ),
-  );
-
-  Widget _warnBanner() => Container(
-    padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
-    margin: EdgeInsets.only(bottom: 12.h),
-    decoration: BoxDecoration(
-      color: const Color(0xFFFFF1F2),
-      border: Border.all(color: const Color(0xFFFCA5A5)),
-      borderRadius: BorderRadius.circular(14.r),
-    ),
-    child: Row(
-      children: [
-        const Icon(Icons.warning_amber_rounded, color: Color(0xFFB91C1C)),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            '인지 기능 저하가 의심됩니다.\n전문가와 상담을 권장합니다.',
-            textScaler: const TextScaler.linear(1.0),
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 19.sp,
-              color: const Color(0xFF7F1D1D),
-            ),
-          ),
         ),
-      ],
-    ),
-  );
+      );
 
-  List<Widget> _buildEvalItems(Map<String, CategoryStat> _) {
-    final bars = widget.riskBarsByType ?? const {};
+  List<Widget> _buildEvalItems(Map<String, CategoryStat> stats) {
+    // 1) 서버에서 넘어온 riskBarsByType가 있으면 그대로 사용
+    // 2) 없으면 지금 전달된 통계(stats=byType or byCategory)로 즉시 계산
+    final Map<String, double> bars =
+        widget.riskBarsByType ?? _riskMapFrom(stats);
     final items = <Widget>[];
-    double? r(String k) =>
-        bars.containsKey(k) ? bars[k]!.clamp(0.0, 1.0) : null;
+    double? r(String k) => bars[k]?.clamp(0.0, 1.0);
     void add(String key, String title, String mild, String severe) {
       final v = r(key);
       if (v == null) return;
@@ -777,39 +811,39 @@ class _StoryResultPageState extends State<StoryResultPage> {
   }
 
   Widget _evalBlock(String title, String body) => Container(
-    width: double.infinity,
-    padding: EdgeInsets.all(12.w),
-    decoration: BoxDecoration(
-      color: const Color(0xFFF9FAFB),
-      borderRadius: BorderRadius.circular(12.r),
-      border: Border.all(color: const Color(0xFFE5E7EB)),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          textScaler: const TextScaler.linear(1.0),
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 20.sp,
-            color: const Color(0xFF111827),
-          ),
+        width: double.infinity,
+        padding: EdgeInsets.all(12.w),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FAFB),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
         ),
-        SizedBox(height: 6.h),
-        Text(
-          body,
-          textScaler: const TextScaler.linear(1.0),
-          style: TextStyle(
-            fontWeight: FontWeight.w700,
-            fontSize: 19.sp,
-            color: const Color(0xFF4B5563),
-            height: 1.5,
-          ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 20.sp,
+                color: const Color(0xFF111827),
+              ),
+            ),
+            SizedBox(height: 6.h),
+            Text(
+              body,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 19.sp,
+                color: const Color(0xFF4B5563),
+                height: 1.5,
+              ),
+            ),
+          ],
         ),
-      ],
-    ),
-  );
+      );
 
   // CTA
   Widget _brainCta() {
