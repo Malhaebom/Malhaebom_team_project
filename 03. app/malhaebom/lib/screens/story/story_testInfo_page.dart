@@ -66,18 +66,17 @@ class StoryTestinfoPage extends StatelessWidget {
 
             _infoCard(
               title: '검사진행 방법',
-              align: CrossAxisAlignment.start,
+              align: CrossAxisAlignment.center, // ✅ 가운데 정렬
               centerTitle: true,
-              contentInset: EdgeInsets.only(left: 60.w),
+              contentInset: EdgeInsets.zero, // ✅ 왼쪽 인셋 제거
               children: [
                 _stepTitle(
                   icon: Icons.question_answer_outlined,
                   text: '문제 제시',
-                  alignStart: true,
-                ),
+                ), // ✅ alignStart 제거(=가운데)
                 Text(
                   '동화 내용에 기반한 문제를\n제시하는 음성이 나와요.',
-                  textAlign: TextAlign.start,
+                  textAlign: TextAlign.center, // ✅ 가운데
                   textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontSize: 17.5.sp,
@@ -87,14 +86,10 @@ class StoryTestinfoPage extends StatelessWidget {
                 ),
                 SizedBox(height: 14.h),
 
-                _stepTitle(
-                  icon: Icons.check_circle_outline,
-                  text: '답안 선택',
-                  alignStart: true,
-                ),
+                _stepTitle(icon: Icons.check_circle_outline, text: '답안 선택'),
                 Text(
-                  '올바른 답안을 선택한 후, \n다음 버튼을 눌러\n다음 문제로 넘어가세요.',
-                  textAlign: TextAlign.start,
+                  '올바른 답안을 선택한 후,\n다음 버튼을 눌러\n다음 문제로 넘어가세요.',
+                  textAlign: TextAlign.center, // ✅ 가운데
                   textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontSize: 17.5.sp,
@@ -234,30 +229,56 @@ class StoryTestinfoPage extends StatelessWidget {
     required String text,
     bool alignStart = false,
   }) {
+    final double iconBox = 28.w;
+    final double gap = 8.w;
+
+    final iconBubble = Container(
+      width: iconBox,
+      height: iconBox,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFF3F4F6),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 22.sp, color: const Color(0xFF111827)),
+    );
+
+    if (alignStart) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: 8.h, top: 10.h),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            iconBubble,
+            SizedBox(width: gap),
+            Text(
+              text,
+              textAlign: TextAlign.start,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.only(bottom: 8.h, top: 10.h),
-      child: Row(
-        mainAxisAlignment:
-            alignStart ? MainAxisAlignment.start : MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 28.w,
-            height: 28.w,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFF3F4F6),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            iconBubble,
+            SizedBox(width: gap),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
             ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 22.sp, color: Color(0xFF111827)),
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            text,
-            textAlign: alignStart ? TextAlign.start : TextAlign.center,
-            textScaler: const TextScaler.linear(1.0),
-            style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
-          ),
-        ],
+            SizedBox(width: iconBox + gap), // 👈 균형용 더미 공간
+          ],
+        ),
       ),
     );
   }
