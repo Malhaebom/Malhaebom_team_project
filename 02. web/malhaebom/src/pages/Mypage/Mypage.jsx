@@ -5,7 +5,7 @@ import axios from "axios";
 import MypageInterviewHistory from "./MypageInterviewHistory.jsx";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });

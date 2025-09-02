@@ -4,13 +4,13 @@ const mysql = require("mysql2/promise");
 
 const router = express.Router();
 
-// ====== DB 연결 ======
+// ====== DB 연결 (환경변수 사용) ======
 const DB_CONFIG = {
-  host: "project-db-campus.smhrd.com",
-  port: 3307,
-  user: "campus_25SW_BD_p3_3",
-  password: "smhrd3",
-  database: "campus_25SW_BD_p3_3",
+  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
+  port    : Number(process.env.DB_PORT || 3307),
+  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
+  password: process.env.DB_PASSWORD || "smhrd3",
+  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
 };
 const pool = mysql.createPool({
   ...DB_CONFIG,

@@ -4,7 +4,7 @@ import axios from "axios";
 import { useLocation } from "react-router-dom";
 
 const API = axios.create({
-  baseURL: "http://localhost:3001",
+  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -322,7 +322,6 @@ export default function BookHistory() {
       setStatus("loading");
       setErrorMsg("");
       try {
-        // ⚠️ 서버 요구 파라미터명이 user_id/user_key 중 무엇인지에 따라 수정
         const { data } = await API.get("/str/history/all", {
           params: { user_key: userKey },
         });
@@ -736,8 +735,7 @@ export default function BookHistory() {
             로컬 저장 이력
           </h3>
 
-          {/* 아래 로컬 이력 렌더링은 기존 코드 그대로 유지 */}
-          {/* ... (생략 없이 위 원본에서 그대로 사용됨) */}
+          {/* 기존 로컬 이력 렌더링 그대로 유지 */}
         </div>
       </div>
     </div>
