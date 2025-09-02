@@ -13,7 +13,7 @@ const jwt = require("jsonwebtoken");
  * 환경변수
  * ========================= */
 const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38:5137";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
@@ -238,13 +238,13 @@ router.get("/google", (req, res) => {
   const url =
     "https://accounts.google.com/o/oauth2/v2/auth?" +
     qs.stringify({
-      client_id            : GOOGLE.client_id,
-      redirect_uri         : GOOGLE.redirect_uri,
-      response_type        : "code",
-      scope                : "openid email profile",
-      access_type          : "online",
+      client_id             : GOOGLE.client_id,
+      redirect_uri          : GOOGLE.redirect_uri,
+      response_type         : "code",
+      scope                 : "openid email profile",
+      access_type           : "online",
       include_granted_scopes: "true",
-      prompt               : "consent",
+      prompt                : "consent",
     });
   return res.redirect(url);
 });

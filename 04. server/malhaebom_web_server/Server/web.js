@@ -15,46 +15,41 @@ const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 3001);
 
 // 운영/개발 베이스 URL
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001"; // 이 서버
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";      // 운영: 80포트(IP 또는 도메인)
-const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "http://211.188.63.38:5137"; // 개발 vite (원하면 삭제)
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001"; // 이 서버(백엔드)
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";      // 프론트(80, Nginx)
+const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";                          // 개발 vite (선택)
 
 /* =========================
  * CORS 허용 목록
  * ========================= */
-const rawAllowed = [
+const csv = (s) => (s || "").split(",").map(x => x.trim()).filter(Boolean);
+
+const envOrigins = csv(process.env.CORS_ORIGINS); // 예: "http://211.188.63.38,http://211.188.63.38:5137"
+
+const rawAllowed = Array.from(new Set([
   SERVER_BASE_URL,
   FRONTEND_BASE_URL,
   DEV_FRONT_URL,
-  "http://localhost:5173", // 로컬 개발 필요 시
-].filter(Boolean);
+  ...envOrigins,
+].filter(Boolean)));
 
-// 같은 호스트/다른 포트 허용을 위해 호스트 단위 화이트리스트 구성(선택)
 const allowedHosts = new Set(
-  rawAllowed
-    .map(o => {
-      try { return new url.URL(o).host; } catch (e) { return null; }
-    })
-    .filter(Boolean)
+  rawAllowed.map(o => {
+    try { return new url.URL(o).host; } catch { return null; }
+  }).filter(Boolean)
 );
 
-// 원본 문자열 그대로도 허용(정확 매칭)
 const allowedOrigins = new Set(rawAllowed);
 
-/* =========================
- * 미들웨어
- * ========================= */
 app.use(
   cors({
     origin: (origin, cb) => {
       if (!origin) return cb(null, true); // 서버-서버 호출 등
       try {
         const u = new url.URL(origin);
-        // 1) 정확히 등록된 origin 허용
-        if (allowedOrigins.has(origin)) return cb(null, true);
-        // 2) 같은 host면 포트가 달라도 허용 (선택)
-        if (allowedHosts.has(u.host)) return cb(null, true);
-      } catch (e) {}
+        if (allowedOrigins.has(origin)) return cb(null, true); // 1) 완전 일치
+        if (allowedHosts.has(u.host))   return cb(null, true); // 2) 같은 host면 포트 달라도 허용
+      } catch {}
       console.warn("[CORS] blocked origin:", origin);
       return cb(new Error("Not allowed by CORS"), false);
     },
@@ -92,6 +87,7 @@ app.get("/health", (req, res) =>
     server: SERVER_BASE_URL,
     frontend: FRONTEND_BASE_URL,
     origin: req.get("origin") || null,
+    allowedOrigins: Array.from(allowedOrigins),
   })
 );
 
