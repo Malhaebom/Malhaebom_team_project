@@ -177,7 +177,8 @@ class FairytaleData {
         {
           "number": "B-2",
           "type": "질문",
-          "title": "모으기로 약속한 계란이\n없어졌다. 어머니는 누구인지\n알고 싶다. 어머니는 가족들에게\n뭐라고 했을까요?",
+          "title":
+              "모으기로 약속한 계란이\n없어졌다. 어머니는 누구인지\n알고 싶다. 어머니는 가족들에게\n뭐라고 했을까요?",
           "list": ["누구야? 누가 계란을 먹었니?", "계란 맛있었다.", "계란이 없다.", "계란은 어디에 있니?"],
           "answer": 1,
           "sounds": [
@@ -350,7 +351,8 @@ class FairytaleData {
         {
           "number": "D-4",
           "type": "의례화",
-          "title": "어머니는 터서 피가나는 자신의\n손을 보고 계란을 훔쳐 벙어리장갑을\n준비한 막내딸에게\n무엇이라고 할까요?",
+          "title":
+              "어머니는 터서 피가나는 자신의\n손을 보고 계란을 훔쳐 벙어리장갑을\n준비한 막내딸에게\n무엇이라고 할까요?",
           "list": ["생일 축하해", "조심해서 들어가", "미안해", "고마워"],
           "answer": 4,
           "sounds": [
@@ -441,8 +443,7 @@ class FairytaleData {
           "sound": "assets/fairytale/어머니의벙어리/voice/05p_04.mp3",
         },
         "동화연극하기20": {
-          "text":
-              "영희(막내딸): 글쎄요.\n잘 모르겠어요. 저는 아니에요.",
+          "text": "영희(막내딸): 글쎄요.\n잘 모르겠어요. 저는 아니에요.",
           "sound": "assets/fairytale/어머니의벙어리/voice/05p_05.mp3",
         },
         "동화연극하기21": {
@@ -492,7 +493,8 @@ class FairytaleData {
           "sound": "assets/fairytale/어머니의벙어리/voice/09p_04.mp3",
         },
         "동화연극하기32": {
-          "text": "영희(막내딸): 엄마, 그래도\n엄마 손이 너무 차가워요.\n호오- 이불 밑이 따뜻하니까\n손을 빨리 넣어요.",
+          "text":
+              "영희(막내딸): 엄마, 그래도\n엄마 손이 너무 차가워요.\n호오- 이불 밑이 따뜻하니까\n손을 빨리 넣어요.",
           "sound": "assets/fairytale/어머니의벙어리/voice/09p_05.mp3",
         },
         "동화연극하기33": {
@@ -551,12 +553,7 @@ class FairytaleData {
           "number": "A-2",
           "type": "요구-직접화행",
           "title": "오빠는 아버지를\n부끄러워하는 동생이 괘씸하다.\n동생에게 어떻게 했을까요?",
-          "list": [
-            "동생의 손을 잡아 주었다.",
-            "동생의 편을 들어주었다.",
-            "이 나쁜년.",
-            "나도 그래.",
-          ],
+          "list": ["동생의 손을 잡아 주었다.", "동생의 편을 들어주었다.", "이 나쁜년.", "나도 그래."],
           "answer": 3,
           "sounds": [
             "assets/fairytale/아버지와결혼식/test/2/question.mp3",
@@ -840,7 +837,8 @@ class FairytaleData {
         {
           "number": "C-4",
           "type": "단언",
-          "title": "아버지는 민희 결혼식에\n가지 않겠다고 하였다. 그리고는\n민희에게 말했다. 아버지는\n무엇이라고 했을까요?",
+          "title":
+              "아버지는 민희 결혼식에\n가지 않겠다고 하였다. 그리고는\n민희에게 말했다. 아버지는\n무엇이라고 했을까요?",
           "list": [
             "결혼식날 꼭 가겠다.",
             "나는 니가 시집가는\n모습을 보고 싶다.",
@@ -874,7 +872,8 @@ class FairytaleData {
         {
           "number": "D-2",
           "type": "의례화",
-          "title": "민희는 울면서 아버지가\n아닌 큰아버지의 손을 잡고\n입장하겠다고 한다. 아버지에게\n무엇이라고 해야 할까요?",
+          "title":
+              "민희는 울면서 아버지가\n아닌 큰아버지의 손을 잡고\n입장하겠다고 한다. 아버지에게\n무엇이라고 해야 할까요?",
           "list": ["죄송해요.", "고마워요.", "싫어요.", "기다릴게요."],
           "answer": 1,
           "sounds": [
@@ -974,7 +973,8 @@ class FairytaleData {
           "sound": "assets/fairytale/아버지와결혼식/voice/13.mp3",
         },
         "동화연극하기14": {
-          "text": "민희(딸) : 아버지.\n다음엔 이러지 않을게요.\n죄송해요. 이번 한 번만 제발\n제 부탁 좀 들어주세요.",
+          "text":
+              "민희(딸) : 아버지.\n다음엔 이러지 않을게요.\n죄송해요. 이번 한 번만 제발\n제 부탁 좀 들어주세요.",
           "sound": "assets/fairytale/아버지와결혼식/voice/14.mp3",
         },
         "동화연극하기15": {
@@ -1053,7 +1053,8 @@ class FairytaleData {
         {
           "number": "A-1",
           "type": "요구-직접화행",
-          "title": "명절음식재료를 사기 위해서는\n시장에 가야한다. 바나나가 먹고\n싶었던 손자는 할머니에게\n뭐라고 말했을까요?",
+          "title":
+              "명절음식재료를 사기 위해서는\n시장에 가야한다. 바나나가 먹고\n싶었던 손자는 할머니에게\n뭐라고 말했을까요?",
           "list": ["바나나 주세요.", "바나나 먹고 싶어요.", "시장에 가요.", "시장에 가서 바나나 사주세요."],
           "answer": 1,
           "sounds": [
@@ -1126,7 +1127,7 @@ class FairytaleData {
             "기다리라고 말한다.",
             "바나나를 구경만 시켜준다.",
           ],
-          "answer": 1, 
+          "answer": 1,
           "sounds": [
             // 데이터 없음
             "assets/fairytale/할머니와바나나/test/5/question.mp3",
@@ -1301,7 +1302,8 @@ class FairytaleData {
         {
           "number": "C-3",
           "type": "단언",
-          "title": "할머니를 부른 과일가게 아줌마는\n바나나 값을 달라고 했다.\n옆에 있던 손자는 할머니에게\n뭐라고 했을까요?",
+          "title":
+              "할머니를 부른 과일가게 아줌마는\n바나나 값을 달라고 했다.\n옆에 있던 손자는 할머니에게\n뭐라고 했을까요?",
           "list": [
             "할머니! 지갑 어디갔어?",
             "할머니! 바나나 맛있다.",
@@ -1695,7 +1697,8 @@ class FairytaleData {
         {
           "number": "A-6",
           "type": "요구-간접화행",
-          "title": "2023년, 오랜만에 아버지는 직접\n만든 호빵이 먹고 싶습니다. 어머니는\n아버지에게 뭐라고 말했을까요?",
+          "title":
+              "2023년, 오랜만에 아버지는 직접\n만든 호빵이 먹고 싶습니다. 어머니는\n아버지에게 뭐라고 말했을까요?",
           "list": [
             "옛날 호빵이 너무\n맛있을 것 같아요.",
             "요즘 나오는 호빵도 맛있어요.",
@@ -1777,7 +1780,8 @@ class FairytaleData {
         {
           "number": "B-3",
           "type": "질문",
-          "title": "시장에서 돌아온 어머니는\n반죽으로 엉망이 된 집안을\n발견했습니다. 어머니는\n아버지에게 뭐라고 말했을까요?",
+          "title":
+              "시장에서 돌아온 어머니는\n반죽으로 엉망이 된 집안을\n발견했습니다. 어머니는\n아버지에게 뭐라고 말했을까요?",
           "list": ["어디에 다녀왔니?", "아버지는 어디에 갔니?", "왜 이렇게 됐니?", "누가 찾아왔니?"],
           "answer": 3,
           "sounds": [
@@ -2218,6 +2222,528 @@ class FairytaleData {
         "동화연극하기67": {
           "text": "소현: 할아버지, 할머니\n다들 맛있게 드세요!",
           "sound": "fairytale/아들의 호빵/voice/09p_11.mp3",
+        },
+      },
+    },
+
+    "꽁당보리밥": {
+      "image": "assets/fairytale/꽁당보리밥.jpg",
+      "video": "assets/fairytale/꽁당보리밥.mp4",
+
+      "test": [
+        {
+          "number": "A-1",
+          "type": "요구-직접화행",
+          "title": "연이는 도시락에 쌀밥이 있는 것을\n보고 뭐라고 말했을까요?",
+          "list": ["오늘 도시락 반찬은 뭘까?", "어머 뭐야 쌀밥이잖아.", "맛있게 먹겠습니다.", "엄마, 고마워요."],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/1/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/1/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/1/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/1/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/1/4.mp3",
+          ],
+        },
+        {
+          "number": "A-2",
+          "type": "요구-직접화행",
+          "title": "영도는 혼자만 쌀밥 도시락이\n아니어서 안심했습니다. 연이에게\n뭐라고 말했을까요?",
+          "list": [
+            "나만 쌀밥 도시락이네",
+            "연이야 도시락 반찬 맛있겠다.",
+            "연이야! 너도 쌀밥..휴 다행이다.",
+            "밥 맛있게 먹자.",
+          ],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/2/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/2/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/2/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/2/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/2/4.mp3",
+          ],
+        },
+        {
+          "number": "A-3",
+          "type": "요구-직접화행",
+          "title": "선생님은 쌀밥 도시락을 싸온 연이와 영도에게 뭐라고 말했을까요?",
+          "list": [
+            "도시락을 벌써 먹으면 안된다",
+            "조용히 앉아서 먹자.",
+            "어머니께 감사한 마음을 갖자.",
+            "연이!영도! 도시락 들고 일어서서 당장 나가!!",
+          ],
+          "answer": 4,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/3/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/3/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/3/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/3/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/3/4.mp3",
+          ],
+        },
+        {
+          "number": "A-4",
+          "type": "요구-직접화행",
+          "title": "운동장에서 영도의 도시락을 본\n연이는 뭐라고 말했을까요?",
+          "list": ["너는 왜 쌀밥이야?", "너랑 먹기 싫어.", "넌 계란후라이네... 맛있겠다.", "많이 먹어."],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/4/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/4/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/4/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/4/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/4/4.mp3",
+          ],
+        },
+        {
+          "number": "A-5",
+          "type": "요구-간접화행",
+          "title": "엄마는 오늘 연이의 생일이라 쌀밥을 쌌다며 생일 축하 인사를 건냈습니다.",
+          "list": [
+            "연이를 꼭 안아주었다.",
+            "쌀밥이 얼마나 귀한데.",
+            "다시는 쌀밥을 싸지 않을게.",
+            "연이야 미안하구나.",
+          ],
+          "answer": 1,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/5/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/5/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/5/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/5/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/5/4.mp3",
+          ],
+        },
+        {
+          "number": "A-6",
+          "type": "요구-간접화행",
+          "title": "흰쌀밥 도시락이 자신의\n생일 때문이라는 사실을 알고\n생각에 잠겼던 연이는 엄마에게\n뭐라고 말했을까요?",
+          "list": [
+            "꽁당보리밥 맛있었겠다.",
+            "엄마, 오늘 도시락 맛있었어.",
+            "흰쌀밥을 먹지 그랬어.",
+            "누구 생일이야?",
+          ],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/6/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/6/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/6/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/6/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/6/4.mp3",
+          ],
+        },
+        {
+          "number": "A-7",
+          "type": "요구-간접화행",
+          "title": "혼분식 검사를 위해 도시락을\n꺼내보라는 선생님 말씀에 영도는\n어떻게 했을까요?",
+          "list": ["죄송합니다.", "맛있을 것 같아요.", "잘 먹겠습니다.", "뚜껑을 열지 못하고 머뭇거렸다."],
+          "answer": 4,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/7/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/7/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/7/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/7/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/7/4.mp3",
+          ],
+        },
+        {
+          "number": "A-8",
+          "type": "요구-간접화행",
+          "title":
+              "반 친구들은 선생님께 연이와\n영도가 쌀밥을 싸온 이유를 듣고\n상황을 이해했습니다. 친구들은\n어떻게 했을까요?",
+          "list": ["고개를 숙였다.", "서로를 안아주었다.", "서로의 도시락을 보며 웃었다.", "박수를 쳤다."],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/8/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/8/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/8/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/8/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/8/4.mp3",
+          ],
+        },
+        {
+          "number": "B-1",
+          "type": "질문",
+          "title": "운동장에서 점심을 먹게된 영도와\n연이. 도시락을 열고 영도는 연이에게\n뭐라고 말했을까요?",
+          "list": ["계란후라이네. 맛있겠다.", "난 쌀밥이 싫어.", "우와! 분홍소세지야!\n누구 생일이야?", "김치밖에 없어."],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/9/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/9/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/9/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/9/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/9/4.mp3",
+          ],
+        },
+        {
+          "number": "B-2",
+          "type": "질문",
+          "title": "학교에 다녀와 화가 풀리지 않은채\n오늘 왜 쌀밥을 싸줬냐고 물어보는\n연이에게 엄마는 뭐라고 말했을까요?",
+          "list": ["공부는 잘 했니?", "표정이 왜 안좋니?", "왜? 학교에서 무슨 일 있었어?", "맛있게 먹었구나."],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/10/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/10/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/10/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/10/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/10/4.mp3",
+          ],
+        },
+        {
+          "number": "B-3",
+          "type": "질문",
+          "title": "자신을 안아주며 생일축하한다고\n말하는 엄마에게 연이는 뭐라고\n말했을까요?",
+          "list": ["엄마, 오늘 내 생일이었어?", "기분이 좋아요.", "생일날 혼났잖아.", "아빠도 아세요?"],
+          "answer": 1,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/11/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/11/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/11/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/11/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/11/4.mp3",
+          ],
+        },
+        {
+          "number": "B-4",
+          "type": "질문",
+          "title": "쌀밥 도시락을 위해 가족이 3일 동안 꽁당보리밥을 먹었다는 엄마에게\n연이는 뭐라고 말했을까요?",
+          "list": [
+            "흰쌀밥은 비싸?",
+            "왜 우리 가족은 꽁당보리밥만\n먹었어?",
+            "3일이나 먹었구나.",
+            "맛있었다니 다행이야.",
+          ],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/12/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/12/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/12/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/12/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/12/4.mp3",
+          ],
+        },
+        {
+          "number": "C-1",
+          "type": "단언",
+          "title": "혼분식을 검사하겠다는 선생님의\n말씀에 연이는 뭐라고 말했을까요?",
+          "list": ["네!!", "안될 것 같아요.", "죄송해요.", "저는 쌀밥이네요."],
+          "answer": 1,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/13/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/13/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/13/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/13/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/13/4.mp3",
+          ],
+        },
+        {
+          "number": "C-2",
+          "type": "단언",
+          "title": "운동장에 가서 밥을 먹자고 하는\n영도에게 연이는 뭐라고\n말했을까요?",
+          "list": ["난 안 먹을래.", "응. 그럼 가.", "배고파.", "같이 먹자."],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/14/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/14/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/14/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/14/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/14/4.mp3",
+          ],
+        },
+        {
+          "number": "C-3",
+          "type": "단언",
+          "title": "왜 우리 가족은 꽁당보리밥만\n먹었냐는 연이의 질문에 엄마는\n뭐라고 말했을까요?",
+          "list": [
+            "꽁당보리밥이 맛있어.",
+            "돈이 부족해서 그래.",
+            "우리집은 흰쌀밥을 먹기가\n어려워.",
+            "우리는 흰쌀밥을 싫어해.",
+          ],
+          "answer": 3,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/15/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/15/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/15/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/15/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/15/4.mp3",
+          ],
+        },
+        {
+          "number": "C-4",
+          "type": "단언",
+          "title": "연이가 생일 때문에 쌀밥을\n싸온거라고 설명하신 선생님은 반\n친구들에게 뭐라고 말했을까요?",
+          "list": [
+            "오해가 풀렸구나.",
+            "우리 모두 이해하고 서로의\n상황을 이해하며 살아가자.",
+            "생일 축하해.",
+            "혼분식은 금지야.",
+          ],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/16/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/16/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/16/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/16/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/16/4.mp3",
+          ],
+        },
+        {
+          "number": "D-1",
+          "type": "의례화",
+          "title": "혼분식 검사 때 영도는\n자신처럼 쌀밥을 싸온 연이에게\n뭐라고 말했을까요?",
+          "list": ["불쌍하구나.", "정말 고마워.", "맛있겠다.", "다행이다."],
+          "answer": 4,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/17/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/17/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/17/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/17/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/17/4.mp3",
+          ],
+        },
+        {
+          "number": "D-2",
+          "type": "의례화",
+          "title": "자신을 위해 희생한 가족에게\n연이는 뭐라고 말했을까요?",
+          "list": ["다녀오겠습니다.", "고마워. 그리고 미안해.", "잘 먹었습니다.", "고생하셨습니다."],
+          "answer": 2,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/18/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/18/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/18/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/18/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/18/4.mp3",
+          ],
+        },
+        {
+          "number": "D-3",
+          "type": "의례화",
+          "title": "다음날 교실에서 만난 영도에게\n연이는 뭐라고 말했을까요?",
+          "list": [
+            "어제 미안했어.",
+            "같이 밥먹자.",
+            "감기 조심해.",
+            "오늘 반찬은 뭐니?",
+          ],
+          "answer": 1,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/19/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/19/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/19/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/19/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/19/4.mp3",
+          ],
+        },
+        {
+          "number": "D-4",
+          "type": "의례화",
+          "title": "쌀밥을 싸온 이유를 이해해주고\n공감해준 친구들 때문에 기뻤다는\n연이에게 엄마는 뭐라고 말했을까요?",
+          "list": [
+            "공감합니다.",
+            "슬펐겠구나.",
+            "행복해보여.",
+            "정말 다행이구나.",
+          ],
+          "answer": 4,
+          "sounds": [
+            "assets/fairytale/꽁당보리밥/test/20/question.mp3",
+            "assets/fairytale/꽁당보리밥/test/20/1.mp3",
+            "assets/fairytale/꽁당보리밥/test/20/2.mp3",
+            "assets/fairytale/꽁당보리밥/test/20/3.mp3",
+            "assets/fairytale/꽁당보리밥/test/20/4.mp3",
+          ],
+        },
+      ],
+      "rolePlay": {
+        "동화연극하기1": {
+          "text": "선생님: 얘들아, 가져온 도시락 책상 위로 꺼내봐. 지금부터 혼분식을 검사하겠다.",
+          "sound": "fairytale/꽁당보리밥/voice/01p_01.mp3",
+        },
+        "동화연극하기2": {
+          "text": "학생들: 네 선생님",
+          "sound": "fairytale/꽁당보리밥/voice/01p_02.mp3",
+        },
+        "동화연극하기3": {
+          "text": "영도: (머뭇거리며) 네....선생...님",
+          "sound": "fairytale/꽁당보리밥/voice/01p_03.mp3",
+        },
+        "동화연극하기4": {
+          "text": "연이: 어머 뭐야 쌀밥이잖아~~",
+          "sound": "fairytale/꽁당보리밥/voice/02p_01.mp3",
+        },
+        "동화연극하기5": {
+          "text": "영도: 연이야! 너도 쌀밥... 휴.. 다행이다.",
+          "sound": "fairytale/꽁당보리밥/voice/02p_02.mp3",
+        },
+        "동화연극하기6": {
+          "text": "선생님: 연이! 영도! 도시락 들고 일어서서 당장 나가!!",
+          "sound": "fairytale/꽁당보리밥/voice/02p_03.mp3",
+        },
+        "동화연극하기7": {
+          "text": "연이: 저요....? (당황한 표정)",
+          "sound": "fairytale/꽁당보리밥/voice/02p_04.mp3",
+        },
+        "동화연극하기8": {
+          "text": "영도: 연이야 배 안고파?",
+          "sound": "fairytale/꽁당보리밥/voice/03p_01.mp3",
+        },
+        "동화연극하기9": {
+          "text":
+              "연이: 배고파.",
+          "sound": "fairytale/꽁당보리밥/voice/03p_02.mp3",
+        },
+        "동화연극하기10": {
+          "text":
+              "영도: 우리 밥 먹어야 하는데 어디서 밥 먹을까?",
+          "sound": "fairytale/꽁당보리밥/voice/03p_03.mp3",
+        },
+        "동화연극하기11": {
+          "text": "연이: 나 안먹어!!",
+          "sound": "fairytale/꽁당보리밥/voice/03p_04.mp3",
+        },
+        "동화연극하기12": {
+          "text": "영도: 밥 먹자!! 배 고프잖아! 근데 너 왜 쌀밥 싸왔어?",
+          "sound": "fairytale/꽁당보리밥/voice/03p_05.mp3",
+        },
+        "동화연극하기13": {
+          "text": "연이: 아~~몰라!! 왜 우리 엄마는 오늘 쌀밥을 싸줘서 혼나게 하는 거야.",
+          "sound": "fairytale/꽁당보리밥/voice/03p_06.mp3",
+        },
+        "동화연극하기14": {
+          "text": "영도: 괜찮아? 그래도 밥 먹자!1",
+          "sound": "fairytale/꽁당보리밥/voice/03p_07.mp3",
+        },
+        "동화연극하기15": {
+          "text": "연이: 싫어 싫다구",
+          "sound": "fairytale/꽁당보리밥/voice/03p_08.mp3",
+        },
+        "동화연극하기16": {
+          "text": "연이: 우리 운동장가서 먹을꺼.. 가자.. 배고파.",
+          "sound": "fairytale/꽁당보리밥/voice/04p_01.mp3",
+        },
+        "동화연극하기17": {
+          "text": "연이: 응 그럼 가.. 근데 추운데..음... 가자... 배고프니깐.....",
+          "sound": "fairytale/꽁당보리밥/voice/04p_02.mp3",
+        },
+        "동화연극하기18": {
+          "text": "영도: 우와!! 분홍소세지야!! 누구 생일이야?",
+          "sound": "fairytale/꽁당보리밥/voice/04p_03.mp3",
+        },
+        "동화연극하기19": {
+          "text": "연이: 아니.. 넌 계란후라이네.. 맛있겠다.",
+          "sound": "fairytale/꽁당보리밥/voice/04p_04.mp3",
+        },
+        "동화연극하기20": {
+          "text": "영도: 같이먹자!!",
+          "sound": "fairytale/꽁당보리밥/voice/04p_05.mp3",
+        },
+        "동화연극하기21": {
+          "text": "연이: 응 너도 소세지 먹어.",
+          "sound": "fairytale/꽁당보리밥/voice/04p_06.mp3",
+        },
+        "동화연극하기22": {
+          "text": "선생님: 오늘 혼분식 안해온 영도와 연이, 공부시간에 떠든 철수, 지각한 영희는 교실과 복도 청소하고 집에 가도록 해~",
+          "sound": "fairytale/꽁당보리밥/voice/05p_01.mp3",
+        },
+        "동화연극하기23": {
+          "text": "영도, 연이, 철수, 영희: 네~~ (시무룩한 표정)",
+          "sound": "fairytale/꽁당보리밥/voice/05p_02.mp3",
+        },
+        "동화연극하기24": {
+          "text": "엄마: 우리 연희 학교 잘 다녀왔어?",
+          "sound": "fairytale/꽁당보리밥/voice/05p_03.mp3",
+        },
+        "동화연극하기25": {
+          "text": "연이: (퉁명스럽게) 엄마 오늘 왜 쌀밥 싸줬어?",
+          "sound": "fairytale/꽁당보리밥/voice/05p_04.mp3",
+        },
+        "동화연극하기26": {
+          "text": "엄마: 왜? 학교에서 무슨 일 있었어?",
+          "sound": "fairytale/꽁당보리밥/voice/05p_05.mp3",
+        },
+        "동화연극하기27": {
+          "text": "연이: 엄마때문에 선생님한테 혼났잖아.",
+          "sound": "fairytale/꽁당보리밥/voice/05p_06.mp3",
+        },
+        "동화연극하기28": {
+          "text": "엄마: 왜 혼났어?",
+          "sound": "fairytale/꽁당보리밥/voice/05p_07.mp3",
+        },
+        "동화연극하기29": {
+          "text": "연이: 쌀밥 싸줘서 선생님한테 혼났어.",
+          "sound": "fairytale/꽁당보리밥/voice/05p_08.mp3",
+        },
+        "동화연극하기30": {
+          "text": "엄마: 많이 혼났어?",
+          "sound": "fairytale/꽁당보리밥/voice/05p_09.mp3",
+        },
+        "동화연극하기31": {
+          "text": "연이: 추운데 운동장가서 밥먹었어. 청소도 했단 말이야.",
+          "sound": "fairytale/꽁당보리밥/voice/05p_10.mp3",
+        },
+        "동화연극하기32": {
+          "text": "엄마: 아이구 오늘 너 생일이라 쌀밥 쌌는데 이걸 어쩌나...",
+          "sound": "fairytale/꽁당보리밥/voice/06p_01.mp3",
+        },
+        "동화연극하기33": {
+          "text": "엄마: 연이야 생일 축하해~~",
+          "sound": "fairytale/꽁당보리밥/voice/06p_02.mp3",
+        },
+        "동화연극하기34": {
+          "text": "연이: 엄마, 오늘 내 생일이었어?",
+          "sound": "fairytale/꽁당보리밥/voice/06p_03.mp3",
+        },
+        "동화연극하기35": {
+          "text": "연이: 엄마, 근데 왜 우리 가족은 꽁당보리밥만 먹었어?",
+          "sound": "fairytale/꽁당보리밥/voice/07p_01.mp3",
+        },
+        "동화연극하기36": {
+          "text": "엄마: 연이야, 우리 집은 흰쌀밥을 먹기가 어려워. 그래서 네 생일에는 특별히 흰쌀밥을 먹게 해주고 싶어서 그랬단다.",
+          "sound": "fairytale/꽁당보리밥/voice/07p_02.mp3",
+        },
+        "동화연극하기37": {
+          "text": "연이: 그래서 우리 가족이 다 꽁당보리밥을 먹은 거야?",
+          "sound": "fairytale/꽁당보리밥/voice/07p_03.mp3",
+        },
+        "동화연극하기38": {
+          "text": "엄마: 그렇단다. 네가 좋아하는 흰쌀밥을 싸주기 위해서 우리 모두가 조금씩 희생한 거야.",
+          "sound": "fairytale/꽁당보리밥/voice/07p_04.mp3",
+        },
+        "동화연극하기39": {
+          "text": "연이: 엄마, 고마워. 그리고 미안해. 오늘 도시락 맛있었어.",
+          "sound": "fairytale/꽁당보리밥/voice/08p_01.mp3",
+        },
+        "동화연극하기40": {
+          "text": "엄마: 우리 연이가 이렇게 예쁘게 고맙다 해 주니, 엄마도 참 행복하구나.",
+          "sound": "fairytale/꽁당보리밥/voice/08p_02.mp3",
+        },
+        "동화연극하기41": {
+          "text": "연이: 영도야, 어제 미안했어. 우리 엄마가 내 생일이라 쌀밥 싸주신 거였어.",
+          "sound": "fairytale/꽁당보리밥/voice/09p_01.mp3",
+        },
+        "동화연극하기42": {
+          "text": "영도: 괜찮아. 사실 나도 부모님의 결혼기념일이라 특별히 쌀밥을 싸주신 거였어.",
+          "sound": "fairytale/꽁당보리밥/voice/08p_02.mp3",
+        },
+        "동화연극하기43": {
+          "text": "선생님: 얘들아, 어제 연이와 영도가 쌀밥을 싸온 이유를 알게 되었어. 연이는 생일, 영도는 가족행사가 있었거든. 우리 모두 서로의 상황을 이해하며 살아가자.",
+          "sound": "fairytale/꽁당보리밥/voice/08p_03.mp3",
+        },
+        "동화연극하기44": {
+          "text": "학생들: 네, 선생님!",
+          "sound": "fairytale/꽁당보리밥/voice/08p_04.mp3",
+        },
+        "동화연극하기45": {
+          "text": "연이: 엄마, 오늘 선생님이 모두에게 내 생일 이야기를 해주셨어. 그리고 친구들도 이제 이해해줘서 너무 기뻤어.",
+          "sound": "fairytale/꽁당보리밥/voice/09p_01.mp3",
+        },
+        "동화연극하기46": {
+          "text": "엄마: 정말 다행이구나. 우리가 연이가 잘 이해해줘서 엄마도 기뻐.",
+          "sound": "fairytale/꽁당보리밥/voice/09p_02.mp3",
         },
       },
     },

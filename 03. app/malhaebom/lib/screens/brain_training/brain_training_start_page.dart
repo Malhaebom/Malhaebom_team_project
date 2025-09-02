@@ -71,7 +71,8 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                         1.0,
                       ), // 시스템 폰트 크기 설정 무시
                       style: TextStyle(
-                        fontSize: 18.sp,
+                        fontFamily: 'GmarketSans',
+                        fontSize: 24.sp,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -82,7 +83,8 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                         1.0,
                       ), // 시스템 폰트 크기 설정 무시
                       style: TextStyle(
-                        fontSize: 16.sp,
+                        fontFamily: 'GmarketSans',
+                        fontSize: 19.sp,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -92,17 +94,19 @@ class _BrainTrainingStartPageState extends State<BrainTrainingStartPage> {
                         1.0,
                       ), // 시스템 폰트 크기 설정 무시
                       style: TextStyle(
-                        fontSize: 16.sp,
+                        fontFamily: 'GmarketSans',
+                        fontSize: 19.sp,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
                     Text(
-                      "테스트 중 페이지를 나가면 기록이 저장되지 않습니다.",
+                      "테스트 중 페이지를 나가면\n기록이 저장되지 않습니다.",
                       textScaler: const TextScaler.linear(
                         1.0,
                       ), // 시스템 폰트 크기 설정 무시
                       style: TextStyle(
-                        fontSize: 12.sp,
+                        fontFamily: 'GmarketSans',
+                        fontSize: 18.sp,
                         fontWeight: FontWeight.w500,
                         color: AppColors.red,
                       ),
