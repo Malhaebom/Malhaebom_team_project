@@ -4,7 +4,7 @@ import Background from "../Background/Background";
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://211.188.63.38:3001",
+  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -81,7 +81,6 @@ const Join = () => {
       const birthYear = birth.split("-")[0];
       const genderCode = gender === "male" ? "M" : "F";
 
-      // ✅ 새 스키마에 맞춰 전송
       const payload = {
         login_id: phone,
         pwd: password,

@@ -5,7 +5,7 @@ import Logo from "../../components/Logo.jsx";
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://211.188.63.38:3001",
+  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -67,10 +67,10 @@ const Login = () => {
     }
   };
 
-  // SNS 시작 (백엔드 OAuth 시작 URL로 이동)
-  const startKakao  = () => (window.location.href = "http://211.188.63.38:3001/auth/kakao");
-  const startNaver  = () => (window.location.href = "http://211.188.63.38:3001/auth/naver");
-  const startGoogle = () => (window.location.href = "http://211.188.63.38:3001/auth/google");
+  // SNS 시작 (백엔드 OAuth 시작 URL → 상대경로로!)
+  const startKakao  = () => (window.location.href = "/auth/kakao");
+  const startNaver  = () => (window.location.href = "/auth/naver");
+  const startGoogle = () => (window.location.href = "/auth/google");
 
   const socialBtnStyle = (bgColor, color = "#000") => ({
     display: "flex",
