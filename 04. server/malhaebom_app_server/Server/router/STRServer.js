@@ -1,16 +1,16 @@
-// File: src/Server/router/STRServer.js
+// Server/router/STRServer.js
 require("dotenv").config();
 
 const express = require("express");
 const router = express.Router();
-// ✅ 공용 DB 풀만 사용 (개별 풀 생성 금지)
+// ✅ 공용 DB 풀(동일 폴더의 db.js 사용)
 const pool = require("./db");
 const jwt = require("jsonwebtoken");
 
 // ── 설정 ─────────────────────────────────────────────────────────────────────
 const {
   STR_ALLOW_GUEST = "false",                // true면 user_key 없이도 저장(디버깅용)
-  JWT_SECRET = "malhaebom_sns",             // ★ Auther/Login과 통일
+  JWT_SECRET = "malhaebom_sns",             // ★ Auther/Login과 통일 (env에서 덮임)
   JWT_ISS,                                  // 선택: 토큰 발급자
   JWT_AUD,                                  // 선택: 토큰 대상자
 } = process.env;
@@ -193,6 +193,7 @@ router.get("/whoami", (req, res) => {
 });
 
 // ── 저장: POST /str/attempt ──────────────────────────────────────────────────
+// (user_key, story_key) 기준 DB의 최대 회차 + 1을 서버가 "항상" 확정/저장
 router.post("/attempt", async (req, res) => {
   const idn = resolveIdentity(req);
   if (!idn.ok && !ALLOW_GUEST) {
@@ -224,37 +225,47 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok:false, error:"invalid attemptTime (to mysql)" });
     }
 
-    const sql = `
-      INSERT INTO tb_story_result
-      (user_key,
-       story_key, story_title, client_attempt_order, score, total,
-       client_utc, client_kst,
-       by_category, by_type, risk_bars, risk_bars_by_type)
-      VALUES
-      (:user_key,
-       :story_key, :story_title, :client_attempt_order, :score, :total,
-       :client_utc, :client_kst,
-       CAST(:by_category AS JSON), CAST(:by_type AS JSON),
-       CAST(:risk_bars AS JSON), CAST(:risk_bars_by_type AS JSON))
-    `;
-
-    const params = {
-      user_key: idn.ok ? idn.user_key : "guest",
-      story_key: key,
-      story_title: storyTitle || null,
-      client_attempt_order: attemptOrder ?? null,
-      score: Number(score ?? 0),
-      total: Number(total ?? 0),
-      client_utc: mysqlClientUtc,
-      client_kst: clientKst || null,
-      by_category: JSON.stringify(byCategory || {}),
-      by_type: JSON.stringify(byType || {}),
-      risk_bars: JSON.stringify(rbCat || {}),
-      risk_bars_by_type: JSON.stringify(rbTyp || {}),
-    };
-
     const conn = await pool.getConnection();
     try {
+      // ❶ 서버에서 일관되게 "다음 회차" 계산
+      const [maxRows] = await conn.execute(
+        `SELECT COALESCE(MAX(client_attempt_order), 0) AS max_order
+           FROM tb_story_result
+          WHERE user_key = ? AND story_key = ?`,
+        [idn.ok ? idn.user_key : "guest", key]
+      );
+      const prevMax = Number(maxRows?.[0]?.max_order || 0);
+      const nextOrder = Math.max(prevMax + 1, Number(attemptOrder || 0)); // 절대 감소 금지(선택)
+
+      const sql = `
+        INSERT INTO tb_story_result
+        (user_key,
+         story_key, story_title, client_attempt_order, score, total,
+         client_utc, client_kst,
+         by_category, by_type, risk_bars, risk_bars_by_type)
+        VALUES
+        (:user_key,
+         :story_key, :story_title, :client_attempt_order, :score, :total,
+         :client_utc, :client_kst,
+         CAST(:by_category AS JSON), CAST(:by_type AS JSON),
+         CAST(:risk_bars AS JSON), CAST(:risk_bars_by_type AS JSON))
+      `;
+
+      const params = {
+        user_key: idn.ok ? idn.user_key : "guest",
+        story_key: key,
+        story_title: storyTitle || null,
+        client_attempt_order: nextOrder, // ❷ 서버 계산값 사용
+        score: Number(score ?? 0),
+        total: Number(total ?? 0),
+        client_utc: mysqlClientUtc,
+        client_kst: clientKst || null,
+        by_category: JSON.stringify(byCategory || {}),
+        by_type: JSON.stringify(byType || {}),
+        risk_bars: JSON.stringify(rbCat || {}),
+        risk_bars_by_type: JSON.stringify(rbTyp || {}),
+      };
+
       const [ret] = await conn.execute(sql, params);
       const insertedId = ret.insertId;
 
@@ -343,13 +354,11 @@ router.get("/latest", async (req, res) => {
         riskBarsByType: safeParseJSON(row.risk_bars_by_type, {}),
 
         scoreText: `${row.score}/${row.total}`,
-        serverAttemptOrder: 1,
         debugText:
 `=============== [STR Attempt] ===============
 동화 키      : ${row.story_key}
 표시 제목    : ${row.story_title ?? row.story_key}
 클라 회차    : ${row.client_attempt_order ?? ""}
-서버 회차    : 1
 점수/총점    : ${row.score}/${row.total}
 Client KST   : ${row.client_kst ?? ""}
 riskBars(cat): ${JSON.stringify(riskBars)}
@@ -419,13 +428,13 @@ router.get("/story/attempt/list", async (req, res) => {
           riskBarsByType,
 
           scoreText,
-          serverAttemptOrder: idx + 1,
+          serverAttemptOrder: idx + 1, // 정렬 순번 (표시용)
           debugText:
 `=============== [STR Attempt] ===============
 동화 키      : ${row.story_key}
 표시 제목    : ${row.story_title ?? row.story_key}
 클라 회차    : ${row.client_attempt_order ?? ""}
-서버 회차    : ${idx + 1}
+서버 순번    : ${idx + 1}
 점수/총점    : ${scoreText}
 Client KST   : ${row.client_kst ?? ""}
 riskBars(cat): ${JSON.stringify(riskBars)}
