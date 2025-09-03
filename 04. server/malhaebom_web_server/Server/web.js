@@ -15,8 +15,8 @@ const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 3001);
 
 // 운영/개발 베이스 URL
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001"; // 이 서버(백엔드)
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";      // 프론트(80, Nginx)
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";  // 이 서버(백엔드)
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";      // 프론트(80, Nginx)
 const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";                          // 개발 vite (선택)
 
 /* =========================

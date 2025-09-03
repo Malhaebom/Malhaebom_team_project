@@ -8,13 +8,15 @@ const jwt = require("jsonwebtoken");
 /* =========================
  * 환경변수
  * ========================= */
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
 // 현재 배포는 HTTP(80) → 반드시 false (HTTPS 전환 시 true)
-const SECURE_COOKIE     = false;
+const SECURE_COOKIE = /^https:\/\//i.test(
+  process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || ""
+);
 
 /* =========================
  * DB 풀
