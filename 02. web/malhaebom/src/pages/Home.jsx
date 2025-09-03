@@ -2,15 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
-import axios from "axios";
 import Background from "./Background/Background";
 import Logo from "../components/Logo.jsx";
-
-const API = axios.create({
-  baseURL: "/",
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+import API from "../lib/api.js"
 
 export default function Home() {
   const navigate = useNavigate();

@@ -1,14 +1,9 @@
+// 02. web/malhaebom/src/pages/Mypage/Login.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import Logo from "../../components/Logo.jsx";
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+import API from "../../lib/api"; // ✅ 단일 인스턴스 사용
 
 const Login = () => {
   const navigate = useNavigate();
@@ -26,7 +21,7 @@ const Login = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me");
+        const { data } = await API.get("/userLogin/me"); // => /api/userLogin/me
         if (data?.ok && data.isAuthed) {
           setNick(data.nick || "");
           navigate("/");
@@ -49,7 +44,7 @@ const Login = () => {
         return;
       }
 
-      const { data } = await API.post("/userLogin/login", { login_id, pwd });
+      const { data } = await API.post("/userLogin/login", { login_id, pwd }); // => /api/userLogin/login
       if (data?.ok) {
         setNick(data.nick || "");
         navigate("/");
@@ -67,10 +62,10 @@ const Login = () => {
     }
   };
 
-  // SNS 시작 (백엔드 OAuth 시작 URL → 상대경로로!)
-  const startKakao  = () => (window.location.href = "/auth/kakao");
-  const startNaver  = () => (window.location.href = "/auth/naver");
-  const startGoogle = () => (window.location.href = "/auth/google");
+  // SNS 시작 (백엔드 OAuth 시작 URL → 반드시 /api 경로)
+  const startKakao  = () => (window.location.href = "/api/auth/kakao");
+  const startNaver  = () => (window.location.href = "/api/auth/naver");
+  const startGoogle = () => (window.location.href = "/api/auth/google");
 
   const socialBtnStyle = (bgColor, color = "#000") => ({
     display: "flex",
