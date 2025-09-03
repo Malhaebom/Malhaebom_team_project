@@ -27,7 +27,7 @@ export default function ResultExam() {
 
   // URL 파라미터에서 user_key 읽기 (없으면 null → 저장 시 guest로 대체)
   const query = new URLSearchParams(window.location.search);
-  const userKey = query.get("user_key");
+  const userKeyFromUrl = (query.get("user_key") || "").trim();
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
@@ -71,7 +71,7 @@ export default function ResultExam() {
     "A-요구(직접)가 부족합니다.",
     "A-요구(간접)가 부족합니다.",
     "B-질문이 부족합니다.",
-    "C-단언이 부족습니다.",
+    "C-단언이 부족합니다.",
     "D-의례화가 부족합니다.",
   ];
 
@@ -81,11 +81,11 @@ export default function ResultExam() {
       const title = localStorage.getItem("bookTitle") || "동화";
       const storyKey =
         TITLE_TO_KEY[title] ||
-        localStorage.getItem("storyKey") || // 혹시 별도 보관 중이면 사용
+        localStorage.getItem("storyKey") ||
         "unknown_story";
 
       const sessionKey = await getUserKeyFromSession();
-      const targetUserKey = (userKeyFromQuery || sessionKey || "guest").trim();
+      const targetUserKey = (userKeyFromUrl || sessionKey || "guest").trim();
 
       const examResult = {
         storyTitle: title,        // 한글 제목
@@ -113,13 +113,16 @@ export default function ResultExam() {
         riskBarsByType: {},
       };
 
+      // 디버그: 실제 저장 키 확인
+      // console.debug("[ResultExam] save user_key =", targetUserKey, "storyKey =", storyKey);
+
       // user_key를 쿼리로 명시 (없으면 guest)
       const { data } = await API.post("/str/attempt", examResult, {
         params: { user_key: targetUserKey },
       });
 
       if (data?.ok) {
-        console.log("검사 결과 저장 완료:", data);
+        // console.log("검사 결과 저장 완료:", data);
       } else {
         console.error("검사 결과 저장 실패:", data);
       }
