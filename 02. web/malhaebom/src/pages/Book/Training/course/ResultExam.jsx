@@ -1,21 +1,35 @@
+// 02. web/malhaebom/src/pages/Story/Result/ResultExam.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
-import API from "../../../../lib/api.js"
+import API from "../../../../lib/api.js";
+
+/**
+ * 한글 제목 → 영문 키 매핑
+ * 저장 시 storyKey(=DB의 story_key)는 반드시 "영문 키"로 넣습니다.
+ * 화면 표시는 storyTitle(=DB의 story_title)로 한글 제목을 사용합니다.
+ */
+const TITLE_TO_KEY = {
+  "어머니의 병어리 장갑": "mother_gloves",
+  "아버지와 결혼식": "father_wedding",
+  "아들의 호빵": "sons_bread",
+  "할머니와 바나나": "grandma_banana",
+  "꽁당 보리밥": "kkongdang_boribap",
+};
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
 
-  // URL 파라미터에서 user_key 읽기 추가
+  // URL 파라미터에서 user_key 읽기 (없으면 null → 저장 시 guest로 대체)
   const query = new URLSearchParams(window.location.search);
-  const userKey = query.get('user_key');
+  const userKey = query.get("user_key");
 
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
     AOS.init();
@@ -29,9 +43,9 @@ export default function ResultExam() {
   const { total, isPassed, lowIndex } = useMemo(() => {
     const sAD = Number(scoreAD) * 2;
     const sAI = Number(scoreAI) * 2;
-    const sB = Number(scoreB) * 2;
-    const sC = Number(scoreC) * 2;
-    const sD = Number(scoreD) * 2;
+    const sB  = Number(scoreB)  * 2;
+    const sC  = Number(scoreC)  * 2;
+    const sD  = Number(scoreD)  * 2;
 
     const arr = [sAD, sAI, sB, sC, sD];
     const total = arr.reduce((a, b) => a + b, 0);
@@ -57,66 +71,64 @@ export default function ResultExam() {
     "A-요구(직접)가 부족합니다.",
     "A-요구(간접)가 부족합니다.",
     "B-질문이 부족합니다.",
-    "C-단언이 부족합니다.",
+    "C-단언이 부족습니다.",
     "D-의례화가 부족합니다.",
   ];
 
-  // 검사 완료 시 서버에 저장
+  // ✅ 결과 저장
   const saveToBookHistory = async () => {
     try {
-      const bookTitle = localStorage.getItem("bookTitle") || "동화";
-      
-      // 서버가 기대하는 데이터 구조로 변경
+      const title = localStorage.getItem("bookTitle") || "동화";
+      const storyKey =
+        TITLE_TO_KEY[title] ||
+        localStorage.getItem("storyKey") || // 혹시 별도 보관 중이면 사용
+        "unknown_story";
+
       const examResult = {
-        storyTitle: bookTitle,
-        storyKey: bookTitle,
+        storyTitle: title,        // 한글 제목
+        storyKey,                 // ✅ 영문 키 (DB의 story_key)
         attemptTime: new Date().toISOString(),
         clientKst: new Date().toISOString(),
         score: total,
         total: 40,
         byCategory: {
-          A: { correct: Number(scoreAD), total: 4 },
+          A:  { correct: Number(scoreAD), total: 4 },
           AI: { correct: Number(scoreAI), total: 4 },
-          B: { correct: Number(scoreB), total: 4 },
-          C: { correct: Number(scoreC), total: 4 },
-          D: { correct: Number(scoreD), total: 4 }
+          B:  { correct: Number(scoreB),  total: 4 },
+          C:  { correct: Number(scoreC),  total: 4 },
+          D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
+        // 서버에는 0~8 스케일로 저장 (표시는 /2 해서 0~4 사용)
         riskBars: {
           A: Number(scoreAD) * 2,
           AI: Number(scoreAI) * 2,
           B: Number(scoreB) * 2,
           C: Number(scoreC) * 2,
-          D: Number(scoreD) * 2
+          D: Number(scoreD) * 2,
         },
-        riskBarsByType: {}
+        riskBarsByType: {},
       };
 
-      // user_key가 있으면 추가
-      if (userKey) {
-        examResult.user_key = userKey;
-        console.log("테스트용 user_key 추가:", userKey);
-      }
+      // user_key를 쿼리로 명시 (없으면 guest)
+      const targetUserKey = (userKey || "guest").trim();
+      const { data } = await API.post(`/str/attempt?user_key=${encodeURIComponent(targetUserKey)}`, examResult);
 
-      // user_key를 쿼리 파라미터로 전달하여 서버에서 사용자 식별 가능하도록 수정
-      const { data } = await API.post(`/str/attempt?user_key=${userKey || 'guest'}`, examResult);
-      
       if (data?.ok) {
-        console.log("검사 결과가 서버에 저장되었습니다.");
+        console.log("검사 결과 저장 완료:", data);
       } else {
-        console.error("검사 결과 저장 실패:", data?.msg);
+        console.error("검사 결과 저장 실패:", data);
       }
     } catch (error) {
-      console.error("검사 결과 저장 중 오류 발생:", error);
+      console.error("검사 결과 저장 오류:", error);
     }
   };
 
-  // 컴포넌트 마운트 시 자동으로 저장 (중복 저장 방지)
+  // 첫 진입 시 1회 저장 (중복 방지)
   useEffect(() => {
-    if (total > 0) { // 점수가 있을 때만 저장
-      // 이미 저장된 검사인지 확인 (sessionStorage 사용)
-      const examCompleted = sessionStorage.getItem("examCompleted");
-      if (!examCompleted) {
+    if (total > 0) {
+      const flag = sessionStorage.getItem("examCompleted");
+      if (!flag) {
         saveToBookHistory().then(() => {
           sessionStorage.setItem("examCompleted", "true");
         });
@@ -130,7 +142,6 @@ export default function ResultExam() {
 
   return (
     <div className="content">
-      {/* 브라우저 1100px 이상일 때만 Background 렌더링 */}
       {windowWidth > 1100 && <Background />}
       <div className="wrap">
         <Header title={bookTitle} showBack={false} />

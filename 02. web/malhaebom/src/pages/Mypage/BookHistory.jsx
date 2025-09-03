@@ -1,22 +1,26 @@
+// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API from "../../lib/api.js";
 
-// 기준 동화 목록(표시용 타이틀)
+// ✅ 화면 표시에 사용할 "기준 동화 목록" (영문 키 고정 + 한글 타이틀)
 const baseStories = [
-  { story_key: "mother_gloves",    story_title: "어머니의 병어리 장갑" },
-  { story_key: "father_wedding",   story_title: "아버지와 결혼식" },
-  { story_key: "sons_bread",       story_title: "아들의 호빵" },
-  { story_key: "grandma_banana",   story_title: "할머니와 바나나" },
-  { story_key: "kkongdang_boribap",story_title: "꽁당 보리밥" },
+  { story_key: "mother_gloves",     story_title: "어머니의 병어리 장갑" },
+  { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
+  { story_key: "sons_bread",        story_title: "아들의 호빵" },
+  { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
+  { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-// DB 행을 카드가 요구하는 형태로 변환 (risk_bars 우선 → by_category 보조)
+/**
+ * 서버 row → 카드 데이터로 정규화
+ * - risk_bars(0~8)를 /2 해서 0~4로 맞춥니다.
+ * - risk_bars가 없을 경우 by_category.correct(0~4)를 사용합니다.
+ */
 function rowToCardData(row) {
   const rb = row?.risk_bars || {};
   const bc = row?.by_category || {};
 
-  // risk_bars가 {A, AI, B, C, D} (0~8) 형식이면 절반으로 환산
   const getHalf = (val) => {
     const n = Number(val);
     if (Number.isFinite(n) && n >= 0) return Math.round(n / 2);
@@ -29,14 +33,12 @@ function rowToCardData(row) {
   let scoreC  = getHalf(rb.C);
   let scoreD  = getHalf(rb.D);
 
-  // 없으면 by_category의 correct 사용 (총 4문항 기준)
   if (scoreAD === null && bc.A?.correct != null)  scoreAD = Number(bc.A.correct);
   if (scoreAI === null && bc.AI?.correct != null) scoreAI = Number(bc.AI.correct);
   if (scoreB  === null && bc.B?.correct != null)  scoreB  = Number(bc.B.correct);
   if (scoreC  === null && bc.C?.correct != null)  scoreC  = Number(bc.C.correct);
   if (scoreD  === null && bc.D?.correct != null)  scoreD  = Number(bc.D.correct);
 
-  // 최종 fallback
   scoreAD = Number.isFinite(scoreAD) ? scoreAD : 0;
   scoreAI = Number.isFinite(scoreAI) ? scoreAI : 0;
   scoreB  = Number.isFinite(scoreB)  ? scoreB  : 0;
@@ -158,25 +160,38 @@ export default function BookHistory() {
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
-  // user_key 우선순위: URL ?user_key=... → 없으면 'guest'
+  // URL 쿼리에서 user_key 추출 (없으면 guest)
   const query = new URLSearchParams(window.location.search);
   const userKey = (query.get("user_key") || "guest").trim();
 
-  // 서버에서 가져온 전체 그룹 결과
-  const [groups, setGroups] = useState([]); // [{story_key, story_title, records: [{...}]}]
+  // 서버에서 받은 그룹 결과
+  const [groups, setGroups] = useState([]); // [{story_key, story_title, records:[...]}]
   const [loading, setLoading] = useState(true);
 
-  // baseStories와 서버 결과를 머지하여 표시 순서/타이틀 유지
+  // 기준 목록 + 서버 결과 병합 (기준 외 키도 뒤에 추가)
   const mergedStories = useMemo(() => {
     const map = new Map(groups.map(g => [g.story_key, g]));
-    return baseStories.map(b => {
+
+    const ordered = baseStories.map(b => {
       const g = map.get(b.story_key);
       return {
         story_key: b.story_key,
         story_title: g?.story_title || b.story_title,
-        records: (g?.records || []).map(rowToCardData)
+        records: (g?.records || []).map(rowToCardData),
       };
     });
+
+    for (const [k, g] of map.entries()) {
+      const exists = baseStories.some(b => b.story_key === k);
+      if (!exists) {
+        ordered.push({
+          story_key: g.story_key,
+          story_title: g.story_title || g.story_key,
+          records: (g.records || []).map(rowToCardData),
+        });
+      }
+    }
+    return ordered;
   }, [groups]);
 
   useEffect(() => {
@@ -185,11 +200,11 @@ export default function BookHistory() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  // DB에서 전체 이력 조회
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
+        // ✅ 반드시 /api 프리픽스가 붙은 Axios 인스턴스를 사용
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
         if (data?.ok) {
           setGroups(data.data || []);
