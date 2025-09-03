@@ -5,7 +5,7 @@ import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
-import API from "../../../../lib/api.js";
+import API, { getUserKeyFromSession } from "../../../../lib/api.js";
 
 /**
  * 한글 제목 → 영문 키 매핑
@@ -84,6 +84,9 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") || // 혹시 별도 보관 중이면 사용
         "unknown_story";
 
+      const sessionKey = await getUserKeyFromSession();
+      const targetUserKey = (userKeyFromQuery || sessionKey || "guest").trim();
+
       const examResult = {
         storyTitle: title,        // 한글 제목
         storyKey,                 // ✅ 영문 키 (DB의 story_key)
@@ -111,8 +114,9 @@ export default function ResultExam() {
       };
 
       // user_key를 쿼리로 명시 (없으면 guest)
-      const targetUserKey = (userKey || "guest").trim();
-      const { data } = await API.post(`/str/attempt?user_key=${encodeURIComponent(targetUserKey)}`, examResult);
+      const { data } = await API.post("/str/attempt", examResult, {
+        params: { user_key: targetUserKey },
+      });
 
       if (data?.ok) {
         console.log("검사 결과 저장 완료:", data);

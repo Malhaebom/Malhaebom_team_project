@@ -1,7 +1,7 @@
 // 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
-import API from "../../lib/api.js";
+import API, { getUserKeyFromSession } from "../../lib/api.js";
 
 // ✅ 화면 표시에 사용할 "기준 동화 목록" (영문 키 고정 + 한글 타이틀)
 const baseStories = [
@@ -162,7 +162,7 @@ export default function BookHistory() {
 
   // URL 쿼리에서 user_key 추출 (없으면 guest)
   const query = new URLSearchParams(window.location.search);
-  const userKey = (query.get("user_key") || "guest").trim();
+  const userKeyFromQuery = (query.get("user_key") || "").trim();
 
   // 서버에서 받은 그룹 결과
   const [groups, setGroups] = useState([]); // [{story_key, story_title, records:[...]}]
@@ -205,6 +205,9 @@ export default function BookHistory() {
       try {
         setLoading(true);
         // ✅ 반드시 /api 프리픽스가 붙은 Axios 인스턴스를 사용
+        const sessionKey = await getUserKeyFromSession();
+        const userKey = (userKeyFromQuery || sessionKey || "guest").trim();
+
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
         if (data?.ok) {
           setGroups(data.data || []);
@@ -219,7 +222,7 @@ export default function BookHistory() {
         setLoading(false);
       }
     })();
-  }, [userKey]);
+  }, [userKeyFromQuery]);
 
   return (
     <div className="content">
