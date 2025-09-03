@@ -35,6 +35,7 @@ class StoryTestinfoPage extends StatelessWidget {
         toolbarHeight: _appBarH(context),
         title: Text(
           '화행 인지검사',
+          textScaler: const TextScaler.linear(1.0),
           style: TextStyle(
             fontFamily: 'GmarketSans',
             fontWeight: FontWeight.w700,
