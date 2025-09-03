@@ -18,17 +18,20 @@ const Login = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // 이미 로그인돼 있으면 홈으로
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me"); // => /api/userLogin/me
+        const { data } = await API.get("/userLogin/me");
+        console.debug("[Login] /me (mount) =>", data);
         if (data?.ok && data.isAuthed) {
           setNick(data.nick || "");
-          navigate("/");
+          navigate("/", { replace: true });
         } else {
           setNick("");
         }
-      } catch {
+      } catch (e) {
+        console.warn("[Login] /me error:", e);
         setNick("");
       }
     })();
@@ -44,12 +47,23 @@ const Login = () => {
         return;
       }
 
-      const { data } = await API.post("/userLogin/login", { login_id, pwd }); // => /api/userLogin/login
-      if (data?.ok) {
-        setNick(data.nick || "");
-        navigate("/");
-      } else {
+      const { data } = await API.post("/userLogin/login", { login_id, pwd });
+      console.debug("[Login] /login =>", data);
+
+      if (!data?.ok) {
         alert(data?.msg || "로그인 실패");
+        return;
+      }
+
+      // ✅ 로그인 직후 쿠키 기반으로 /me 재검증 (캐시 무력화는 api 인터셉터가 자동 처리)
+      const me = await API.get("/userLogin/me");
+      console.debug("[Login] /me (after login) =>", me?.data);
+
+      if (me?.data?.ok && me.data.isAuthed) {
+        setNick(me.data.nick || "");
+        navigate("/", { replace: true });
+      } else {
+        alert("로그인 세션 확인에 실패했습니다.");
       }
     } catch (err) {
       const msg =

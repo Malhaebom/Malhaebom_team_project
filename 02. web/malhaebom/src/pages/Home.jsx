@@ -22,10 +22,12 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me"); // /api/userLogin/me
+        const { data } = await API.get("/userLogin/me"); // 인터셉터가 캐시 버스터 부착
+        console.debug("[Home] /me =>", data);
         if (data?.ok && data.isAuthed) setNick(data.nick || "");
         else setNick("");
-      } catch {
+      } catch (e) {
+        console.warn("[Home] /me error:", e);
         setNick("");
       }
     })();
