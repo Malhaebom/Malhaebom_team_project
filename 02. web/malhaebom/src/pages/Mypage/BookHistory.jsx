@@ -1,7 +1,7 @@
 // 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
-import API from "../../lib/api.js";
+import API, { getUserKeyFromSession } from "../../lib/api.js";
 
 // ✅ 화면 표시에 사용할 "기준 동화 목록" (영문 키 고정 + 한글 타이틀)
 const baseStories = [
@@ -12,6 +12,20 @@ const baseStories = [
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
+/** 간단한 날짜 포맷터 (UTC 문자열 → KST 표시) */
+function toKstString(utcStr) {
+  try {
+    if (!utcStr) return "";
+    const d = new Date(utcStr + "Z"); // 'YYYY-MM-DD HH:mm:ss'를 UTC로 해석
+    if (isNaN(d.getTime())) return utcStr; // ISO가 아닐 수도 있으니 원본 리턴
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${kst.getFullYear()}-${pad(kst.getMonth() + 1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}:${pad(kst.getSeconds())}`;
+  } catch {
+    return utcStr || "";
+  }
+}
+
 /**
  * 서버 row → 카드 데이터로 정규화
  * - risk_bars(0~8)를 /2 해서 0~4로 맞춥니다.
@@ -21,6 +35,10 @@ function rowToCardData(row) {
   const rb = row?.risk_bars || {};
   const bc = row?.by_category || {};
 
+  const toInt = (v, d = 0) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : d;
+  };
   const getHalf = (val) => {
     const n = Number(val);
     if (Number.isFinite(n) && n >= 0) return Math.round(n / 2);
@@ -33,22 +51,28 @@ function rowToCardData(row) {
   let scoreC  = getHalf(rb.C);
   let scoreD  = getHalf(rb.D);
 
-  if (scoreAD === null && bc.A?.correct != null)  scoreAD = Number(bc.A.correct);
-  if (scoreAI === null && bc.AI?.correct != null) scoreAI = Number(bc.AI.correct);
-  if (scoreB  === null && bc.B?.correct != null)  scoreB  = Number(bc.B.correct);
-  if (scoreC  === null && bc.C?.correct != null)  scoreC  = Number(bc.C.correct);
-  if (scoreD  === null && bc.D?.correct != null)  scoreD  = Number(bc.D.correct);
+  if (scoreAD === null && bc.A?.correct != null)  scoreAD = toInt(bc.A.correct, 0);
+  if (scoreAI === null && bc.AI?.correct != null) scoreAI = toInt(bc.AI.correct, 0);
+  if (scoreB  === null && bc.B?.correct != null)  scoreB  = toInt(bc.B.correct, 0);
+  if (scoreC  === null && bc.C?.correct != null)  scoreC  = toInt(bc.C.correct, 0);
+  if (scoreD  === null && bc.D?.correct != null)  scoreD  = toInt(bc.D.correct, 0);
 
-  scoreAD = Number.isFinite(scoreAD) ? scoreAD : 0;
-  scoreAI = Number.isFinite(scoreAI) ? scoreAI : 0;
-  scoreB  = Number.isFinite(scoreB)  ? scoreB  : 0;
-  scoreC  = Number.isFinite(scoreC)  ? scoreC  : 0;
-  scoreD  = Number.isFinite(scoreD)  ? scoreD  : 0;
+  scoreAD = toInt(scoreAD, 0);
+  scoreAI = toInt(scoreAI, 0);
+  scoreB  = toInt(scoreB, 0);
+  scoreC  = toInt(scoreC, 0);
+  scoreD  = toInt(scoreD, 0);
+
+  // 날짜 표시 — client_kst 우선, 없으면 client_utc를 KST 변환
+  const client_kst = row?.client_kst || "";
+  const displayTime = client_kst?.trim()
+    ? client_kst
+    : toKstString(row?.client_utc || "");
 
   return {
     id: row.id,
     client_attempt_order: row.client_attempt_order,
-    client_kst: row.client_kst || row.client_utc || "",
+    client_kst: displayTime,
     story_title: row.story_title,
     scores: { scoreAD, scoreAI, scoreB, scoreC, scoreD },
   };
@@ -162,7 +186,7 @@ export default function BookHistory() {
 
   // URL 쿼리에서 user_key 추출 (없으면 guest)
   const query = new URLSearchParams(window.location.search);
-  const userKey = (query.get("user_key") || "guest").trim();
+  const userKeyFromQuery = (query.get("user_key") || "").trim();
 
   // 서버에서 받은 그룹 결과
   const [groups, setGroups] = useState([]); // [{story_key, story_title, records:[...]}]
@@ -204,7 +228,14 @@ export default function BookHistory() {
     (async () => {
       try {
         setLoading(true);
-        // ✅ 반드시 /api 프리픽스가 붙은 Axios 인스턴스를 사용
+
+        const sessionKey = await getUserKeyFromSession();
+        const userKey = (userKeyFromQuery || sessionKey || "guest").trim();
+
+        // 디버그: 실제 조회 키 확인
+        // console.debug("[BookHistory] query user_key =", userKey);
+
+        // ✅ 반드시 /api 프리픽스가 붙은 Axios 인스턴스를 사용 (api.js에서 baseURL=/api 권장)
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
         if (data?.ok) {
           setGroups(data.data || []);
@@ -219,7 +250,7 @@ export default function BookHistory() {
         setLoading(false);
       }
     })();
-  }, [userKey]);
+  }, [userKeyFromQuery]);
 
   return (
     <div className="content">
@@ -267,7 +298,11 @@ export default function BookHistory() {
                   }}
                 >
                   <div
-                    onClick={() => setOpenStoryId(opened ? null : storyId)}
+                    onClick={() => {
+                      // 스토리를 전환하면 선택된 기록 초기화
+                      setOpenStoryId(opened ? null : storyId);
+                      setOpenRecordId(null);
+                    }}
                     style={{
                       padding: "18px 20px",
                       fontSize: 18,
@@ -306,7 +341,7 @@ export default function BookHistory() {
                                 }}
                               >
                                 <span style={{ fontSize: 15, color: "#333" }}>
-                                  {r.client_kst || r.client_utc || ""}
+                                  {r.client_kst || ""}
                                   <span
                                     style={{
                                       background: "#eee",
