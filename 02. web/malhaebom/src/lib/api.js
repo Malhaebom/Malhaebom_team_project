@@ -2,8 +2,8 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "/api",               // ← 무조건 /api (Nginx가 /api → 3001 로 프록시)
-  withCredentials: true,         // ← HttpOnly 쿠키 전송 필수
+  baseURL: "/api",               // ← Nginx 프록시 (/api → 3001)
+  withCredentials: true,         // ← HttpOnly 쿠키 전송
   headers: { "Content-Type": "application/json" },
 });
 
@@ -49,19 +49,49 @@ function methodOf(cfg) {
 
 /**
  * 현재 로그인 세션으로부터 user_key를 가져온다.
- * - 우선순위: loginId(이메일/로그인ID) → userId → 'guest'
- * - 저장/조회 모두 이 값을 사용하면 DB 키가 일치한다.
+ * - 우선순위: data.user.user_key → data.user.phone → data.loginId → data.userId
+ * - 성공 시 localStorage('user_key')에 캐시
+ * - 실패 시 null 반환 (※ guest는 여기서 반환하지 않음)
  */
 export async function getUserKeyFromSession() {
   try {
+    // 캐시 우선
+    const cached = localStorage.getItem("user_key");
+    if (cached && cached !== "guest") return cached;
+
     const { data } = await API.get("/userLogin/me");
-    if (data?.ok && data?.isAuthed) {
-      return (data.loginId || data.userId || "guest").toString().trim();
+    const key =
+      data?.user?.user_key ||
+      data?.user?.phone ||
+      data?.loginId ||
+      data?.userId ||
+      null;
+
+    if (key) {
+      const k = String(key).trim();
+      if (k) {
+        localStorage.setItem("user_key", k);
+        return k;
+      }
     }
   } catch (_e) {
-    // 무시하고 guest 반환
+    // 무시하고 null 반환
   }
-  return "guest";
+  return null;
+}
+
+/**
+ * user_key를 반드시 확보하려고 시도 (짧은 재시도 포함)
+ * - 성공: 실제 키 문자열(guest 아님)
+ * - 실패: null
+ */
+export async function ensureUserKey({ retries = 3, delayMs = 200 } = {}) {
+  for (let i = 0; i <= retries; i++) {
+    const k = await getUserKeyFromSession();
+    if (k && k !== "guest") return k;
+    if (i < retries) await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return null;
 }
 
 export default API;

@@ -1,7 +1,7 @@
 // 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
-import API, { getUserKeyFromSession } from "../../lib/api.js";
+import API, { ensureUserKey } from "../../lib/api.js";
 
 // ✅ 화면 표시에 사용할 "기준 동화 목록" (영문 키 고정 + 한글 타이틀)
 const baseStories = [
@@ -184,7 +184,7 @@ export default function BookHistory() {
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
-  // URL 쿼리에서 user_key 추출 (없으면 guest)
+  // URL 쿼리에서 user_key 추출 (없으면 세션 확보)
   const query = new URLSearchParams(window.location.search);
   const userKeyFromQuery = (query.get("user_key") || "").trim();
 
@@ -229,13 +229,22 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        const sessionKey = await getUserKeyFromSession();
-        const userKey = (userKeyFromQuery || sessionKey || "guest").trim();
+        // 1) URL 우선
+        let userKey = userKeyFromQuery && userKeyFromQuery !== "guest" ? userKeyFromQuery : null;
 
-        // 디버그: 실제 조회 키 확인
-        // console.debug("[BookHistory] query user_key =", userKey);
+        // 2) 없으면 세션에서 확보
+        if (!userKey) {
+          userKey = await ensureUserKey({ retries: 3, delayMs: 200 });
+        }
 
-        // ✅ 반드시 /api 프리픽스가 붙은 Axios 인스턴스를 사용 (api.js에서 baseURL=/api 권장)
+        if (!userKey) {
+          // 로그인 전: 빈 목록 표시
+          setGroups([]);
+          setLoading(false);
+          return;
+        }
+
+        // ✅ /api 프리픽스 인스턴스 사용
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
         if (data?.ok) {
           setGroups(data.data || []);
