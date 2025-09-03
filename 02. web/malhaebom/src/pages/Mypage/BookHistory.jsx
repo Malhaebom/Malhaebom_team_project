@@ -1,9 +1,7 @@
-// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
-// ✅ 화면 표시에 사용할 "기준 동화 목록" (영문 키 고정 + 한글 타이틀)
 const baseStories = [
   { story_key: "mother_gloves",     story_title: "어머니의 병어리 장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
@@ -12,12 +10,11 @@ const baseStories = [
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 간단한 날짜 포맷터 (UTC 문자열 → KST 표시) */
 function toKstString(utcStr) {
   try {
     if (!utcStr) return "";
-    const d = new Date(utcStr + "Z"); // 'YYYY-MM-DD HH:mm:ss'를 UTC로 해석
-    if (isNaN(d.getTime())) return utcStr; // ISO가 아닐 수도 있으니 원본 리턴
+    const d = new Date(utcStr + "Z");
+    if (isNaN(d.getTime())) return utcStr;
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
     const pad = (n) => String(n).padStart(2, "0");
     return `${kst.getFullYear()}-${pad(kst.getMonth() + 1)}-${pad(kst.getDate())} ${pad(kst.getHours())}:${pad(kst.getMinutes())}:${pad(kst.getSeconds())}`;
@@ -26,11 +23,6 @@ function toKstString(utcStr) {
   }
 }
 
-/**
- * 서버 row → 카드 데이터로 정규화
- * - risk_bars(0~8)를 /2 해서 0~4로 맞춥니다.
- * - risk_bars가 없을 경우 by_category.correct(0~4)를 사용합니다.
- */
 function rowToCardData(row) {
   const rb = row?.risk_bars || {};
   const bc = row?.by_category || {};
@@ -63,7 +55,6 @@ function rowToCardData(row) {
   scoreC  = toInt(scoreC, 0);
   scoreD  = toInt(scoreD, 0);
 
-  // 날짜 표시 — client_kst 우선, 없으면 client_utc를 KST 변환
   const client_kst = row?.client_kst || "";
   const displayTime = client_kst?.trim()
     ? client_kst
@@ -184,15 +175,12 @@ export default function BookHistory() {
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
-  // URL 쿼리에서 user_key 추출 (없으면 세션 확보)
   const query = new URLSearchParams(window.location.search);
   const userKeyFromQuery = (query.get("user_key") || "").trim();
 
-  // 서버에서 받은 그룹 결과
-  const [groups, setGroups] = useState([]); // [{story_key, story_title, records:[...]}]
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 기준 목록 + 서버 결과 병합 (기준 외 키도 뒤에 추가)
   const mergedStories = useMemo(() => {
     const map = new Map(groups.map(g => [g.story_key, g]));
 
@@ -229,22 +217,17 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        // 1) URL 우선
         let userKey = userKeyFromQuery && userKeyFromQuery !== "guest" ? userKeyFromQuery : null;
-
-        // 2) 없으면 세션에서 확보
         if (!userKey) {
           userKey = await ensureUserKey({ retries: 3, delayMs: 200 });
         }
 
         if (!userKey) {
-          // 로그인 전: 빈 목록 표시
           setGroups([]);
           setLoading(false);
           return;
         }
 
-        // ✅ /api 프리픽스 인스턴스 사용
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
         if (data?.ok) {
           setGroups(data.data || []);
@@ -308,7 +291,6 @@ export default function BookHistory() {
                 >
                   <div
                     onClick={() => {
-                      // 스토리를 전환하면 선택된 기록 초기화
                       setOpenStoryId(opened ? null : storyId);
                       setOpenRecordId(null);
                     }}

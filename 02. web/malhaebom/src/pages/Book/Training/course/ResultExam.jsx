@@ -1,4 +1,3 @@
-// 02. web/malhaebom/src/pages/Story/Result/ResultExam.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
@@ -7,11 +6,6 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-/**
- * 한글 제목 → 영문 키 매핑
- * 저장 시 storyKey(=DB의 story_key)는 반드시 "영문 키"로 넣습니다.
- * 화면 표시는 storyTitle(=DB의 story_title)로 한글 제목을 사용합니다.
- */
 const TITLE_TO_KEY = {
   "어머니의 병어리 장갑": "mother_gloves",
   "아버지와 결혼식": "father_wedding",
@@ -25,7 +19,6 @@ export default function ResultExam() {
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
 
-  // URL 파라미터에서 user_key 읽기 (없으면 null → 저장 시 ensureUserKey 로 대체)
   const query = new URLSearchParams(window.location.search);
   const userKeyFromUrl = (query.get("user_key") || "").trim();
 
@@ -84,23 +77,18 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
-      // 1) URL 우선 사용
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
-
-      // 2) 없으면 세션에서 확보(재시도)
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
       }
-
-      // 3) 그래도 없으면 저장 중단(guest 방지)
       if (!targetUserKey) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
       }
 
       const examResult = {
-        storyTitle: title,        // 화면 표시는 한글
-        storyKey,                 // DB 저장은 영문 키
+        storyTitle: title,
+        storyKey,
         attemptTime: new Date().toISOString(),
         clientKst: new Date().toISOString(),
         score: total,
@@ -113,7 +101,6 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
-        // 서버에는 0~8 스케일로 저장 (표시는 /2 해서 0~4 사용)
         riskBars: {
           A:  Number(scoreAD) * 2,
           AI: Number(scoreAI) * 2,
@@ -122,6 +109,7 @@ export default function ResultExam() {
           D:  Number(scoreD)  * 2,
         },
         riskBarsByType: {},
+        user_key: targetUserKey
       };
 
       const { data } = await API.post("/str/attempt", examResult, {
@@ -129,13 +117,11 @@ export default function ResultExam() {
       });
 
       if (!data?.ok) console.error("검사 결과 저장 실패:", data);
-      // 성공 시에는 별도 처리 없이 결과 화면 유지
     } catch (error) {
       console.error("검사 결과 저장 오류:", error);
     }
   };
 
-  // 첫 진입 시 1회 저장 (중복 방지)
   useEffect(() => {
     if (total > 0) {
       const flag = sessionStorage.getItem("examCompleted");
