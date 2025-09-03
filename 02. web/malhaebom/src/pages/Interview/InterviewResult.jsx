@@ -42,6 +42,10 @@ const InterviewResult = () => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   };
 
+  const goHome = () => {
+    location.href = "/"; // 또는 navigate("/") 
+  };
+
   if (interviewData.length === 0 || !config) {
     return (
       <div className="content">
@@ -140,6 +144,11 @@ const InterviewResult = () => {
               })}
             </div>
           </div>
+        </div>
+        <div style={{ marginTop: "20px", textAlign: "center" }}>
+          <button className="question_bt" type="button" onClick={goHome}>
+            홈으로
+          </button>
         </div>
       </div>
     </div>
