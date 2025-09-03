@@ -57,10 +57,15 @@ router.post("/attempt", async (req, res) => {
       user_key: bodyUserKey
     } = req.body || {};
 
-    const user_key = (req.query.user_key || bodyUserKey || "guest").trim();
+    // user_key를 명확하게 받음 (query > body > 없음)
+    const user_key = (req.query.user_key || bodyUserKey || "").trim();
 
-    if (!storyKey || !attemptTime || !user_key) {
-      return res.status(400).json({ ok: false, error: "missing storyKey or attemptTime or user_key" });
+    // user_key가 없거나 guest면 저장하지 않음
+    if (!user_key || user_key === "guest") {
+      return res.status(400).json({ ok: false, error: "로그인된 사용자만 저장 가능합니다." });
+    }
+    if (!storyKey || !attemptTime) {
+      return res.status(400).json({ ok: false, error: "missing storyKey or attemptTime" });
     }
 
     const [r] = await conn.query(
