@@ -8,14 +8,15 @@ const jwt = require("jsonwebtoken");
 /* =========================
  * 환경변수
  * ========================= */
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
-// 현재 배포는 HTTP(80) → 반드시 false
-// (HTTPS 전환 시 true로 바꾸면 됩니다)
-const SECURE_COOKIE     = false; // ⚠️ 중요
+// 현재 배포는 HTTP(80) → 반드시 false (HTTPS 전환 시 true)
+const SECURE_COOKIE = /^https:\/\//i.test(
+  process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || ""
+);
 
 /* =========================
  * DB 풀
@@ -34,6 +35,21 @@ const pool = mysql.createPool({
 });
 
 /* =========================
+ * 캐시 방지(이 라우터 전역)
+ * ========================= */
+router.use((req, res, next) => {
+  // 홈/마이페이지의 /me 결과가 304로 굳지 않도록 절대 캐시 금지
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store",
+    "Vary": "Cookie", // 쿠키 유무에 따라 응답 달라짐
+  });
+  next();
+});
+
+/* =========================
  * 유틸
  * ========================= */
 function sign(payload) {
@@ -43,7 +59,7 @@ function sign(payload) {
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : SECURE_COOKIE,   // ← 통일
+    secure  : SECURE_COOKIE,
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
@@ -53,7 +69,7 @@ function setAuthCookie(res, token) {
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure  : SECURE_COOKIE,   // ← 통일
+    secure  : SECURE_COOKIE,
     sameSite: "lax",
     path    : "/",
   });
@@ -93,7 +109,7 @@ router.post("/login", async (req, res) => {
     const token = sign({ uid: u.user_id, typ: "local" });
     setAuthCookie(res, token);
 
-    // (선택) 디버그: 응답에 secure/samesite 힌트 제공
+    // 로그인 응답도 캐시되면 안 됨(전역 미들웨어로 이미 설정됨)
     return res.json({
       ok: true,
       userId: u.user_id,
@@ -125,8 +141,7 @@ router.get("/me", async (req, res) => {
     const token = req.cookies?.[COOKIE_NAME];
 
     if (!token) {
-      // (선택) 디버그 로그: 왜 없는지 추적
-      // console.warn("[/userLogin/me] no cookie:", COOKIE_NAME, "origin:", req.get("origin"));
+      // 쿠키 없으면 비인증
       return res.json({ ok: false, isAuthed: false });
     }
 

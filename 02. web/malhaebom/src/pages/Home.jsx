@@ -1,5 +1,5 @@
 // 02. web/malhaebom/src/pages/Home.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
@@ -19,17 +19,39 @@ export default function Home() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await API.get("/userLogin/me"); // /api/userLogin/me
-        if (data?.ok && data.isAuthed) setNick(data.nick || "");
-        else setNick("");
-      } catch {
-        setNick("");
-      }
-    })();
+  const fetchMe = useCallback(async (label = "") => {
+    try {
+      const { data } = await API.get("/userLogin/me"); // 인터셉터가 캐시 버스터 부착
+      console.debug(`[Home] /me ${label} =>`, data);
+      if (data?.ok && data.isAuthed) setNick(data.nick || "");
+      else setNick("");
+    } catch (e) {
+      console.warn(`[Home] /me ${label} error:`, e);
+      setNick("");
+    }
   }, []);
+
+  useEffect(() => {
+    // 1) 마운트 즉시 호출
+    fetchMe("mount");
+
+    // 2) 최초 비로그인 캐시/타이밍 대비 짧은 재시도
+    const retry = setTimeout(() => fetchMe("retry"), 400);
+
+    // 3) 탭 포커스/가시성 복귀 시 다시 확인
+    const onFocus = () => fetchMe("focus");
+    const onVisible = () => {
+      if (document.visibilityState === "visible") fetchMe("visible");
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearTimeout(retry);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [fetchMe]);
 
   const boxStyle = { borderRadius: "20px", overflow: "hidden" };
   const wrapStyle = {

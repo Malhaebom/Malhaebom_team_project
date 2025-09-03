@@ -11,10 +11,12 @@ const Mypage = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me"); // /api/userLogin/me
+        const { data } = await API.get("/userLogin/me"); // 인터셉터가 캐시 버스터 부착
+        console.debug("[Mypage] /me =>", data);
         if (data?.ok && data.isAuthed) setNick(data.nick || "");
         else setNick("");
-      } catch {
+      } catch (e) {
+        console.warn("[Mypage] /me error:", e);
         setNick("");
       }
     })();
@@ -52,8 +54,14 @@ const Mypage = () => {
 
   const logout = async () => {
     try {
-      await API.post("/userLogin/logout"); // /api/userLogin/logout
+      const res = await API.post("/userLogin/logout");
+      console.debug("[Mypage] /logout =>", res?.data);
+      // ✅ 로그아웃 직후 상태 재확인
+      const me = await API.get("/userLogin/me");
+      console.debug("[Mypage] /me (after logout) =>", me?.data);
       setNick("");
+      // (선택) 로그인 페이지로 이동
+      // navigate("/login", { replace: true });
     } catch (e) {
       console.error("로그아웃 오류:", e);
     }
