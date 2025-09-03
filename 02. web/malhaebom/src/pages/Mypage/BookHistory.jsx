@@ -1,45 +1,56 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
+import API from "../../lib/api.js";
 
-
-
+// 기준 동화 목록(표시용 타이틀)
 const baseStories = [
-  { story_key: "mother_gloves", story_title: "어머니의 병어리 장갑" },
-  { story_key: "father_wedding", story_title: "아버지와 결혼식" },
-  { story_key: "sons_bread", story_title: "아들의 호빵" },
-  { story_key: "grandma_banana", story_title: "할머니와 바나나" },
-  { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
+  { story_key: "mother_gloves",    story_title: "어머니의 병어리 장갑" },
+  { story_key: "father_wedding",   story_title: "아버지와 결혼식" },
+  { story_key: "sons_bread",       story_title: "아들의 호빵" },
+  { story_key: "grandma_banana",   story_title: "할머니와 바나나" },
+  { story_key: "kkongdang_boribap",story_title: "꽁당 보리밥" },
 ];
 
-// 임시 더미 기록
-const dummyRecordsForStory = (b) => [
-  {
-    id: `${b.story_key}_1`,
-    client_attempt_order: 1,
-    client_kst: "2025-09-02 10:00",
-    story_title: b.story_title,
-    scores: {
-      scoreAD: 3,
-      scoreAI: 2,
-      scoreB: 3,
-      scoreC: 2,
-      scoreD: 1,
-    },
-  },
-  {
-    id: `${b.story_key}_2`,
-    client_attempt_order: 2,
-    client_kst: "2025-09-03 14:30",
-    story_title: b.story_title,
-    scores: {
-      scoreAD: 4,
-      scoreAI: 3,
-      scoreB: 2,
-      scoreC: 3,
-      scoreD: 2,
-    },
-  },
-];
+// DB 행을 카드가 요구하는 형태로 변환 (risk_bars 우선 → by_category 보조)
+function rowToCardData(row) {
+  const rb = row?.risk_bars || {};
+  const bc = row?.by_category || {};
+
+  // risk_bars가 {A, AI, B, C, D} (0~8) 형식이면 절반으로 환산
+  const getHalf = (val) => {
+    const n = Number(val);
+    if (Number.isFinite(n) && n >= 0) return Math.round(n / 2);
+    return null;
+  };
+
+  let scoreAD = getHalf(rb.A);
+  let scoreAI = getHalf(rb.AI);
+  let scoreB  = getHalf(rb.B);
+  let scoreC  = getHalf(rb.C);
+  let scoreD  = getHalf(rb.D);
+
+  // 없으면 by_category의 correct 사용 (총 4문항 기준)
+  if (scoreAD === null && bc.A?.correct != null)  scoreAD = Number(bc.A.correct);
+  if (scoreAI === null && bc.AI?.correct != null) scoreAI = Number(bc.AI.correct);
+  if (scoreB  === null && bc.B?.correct != null)  scoreB  = Number(bc.B.correct);
+  if (scoreC  === null && bc.C?.correct != null)  scoreC  = Number(bc.C.correct);
+  if (scoreD  === null && bc.D?.correct != null)  scoreD  = Number(bc.D.correct);
+
+  // 최종 fallback
+  scoreAD = Number.isFinite(scoreAD) ? scoreAD : 0;
+  scoreAI = Number.isFinite(scoreAI) ? scoreAI : 0;
+  scoreB  = Number.isFinite(scoreB)  ? scoreB  : 0;
+  scoreC  = Number.isFinite(scoreC)  ? scoreC  : 0;
+  scoreD  = Number.isFinite(scoreD)  ? scoreD  : 0;
+
+  return {
+    id: row.id,
+    client_attempt_order: row.client_attempt_order,
+    client_kst: row.client_kst || row.client_utc || "",
+    story_title: row.story_title,
+    scores: { scoreAD, scoreAI, scoreB, scoreC, scoreD },
+  };
+}
 
 function ResultDetailCard({ data }) {
   if (!data) return null;
@@ -48,9 +59,9 @@ function ResultDetailCard({ data }) {
 
   const sAD = Number(scoreAD) * 2;
   const sAI = Number(scoreAI) * 2;
-  const sB = Number(scoreB) * 2;
-  const sC = Number(scoreC) * 2;
-  const sD = Number(scoreD) * 2;
+  const sB  = Number(scoreB)  * 2;
+  const sC  = Number(scoreC)  * 2;
+  const sD  = Number(scoreD)  * 2;
 
   const arr = [sAD, sAI, sB, sC, sD];
   const total = arr.reduce((a, b) => a + b, 0);
@@ -147,11 +158,53 @@ export default function BookHistory() {
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
+  // user_key 우선순위: URL ?user_key=... → 없으면 'guest'
+  const query = new URLSearchParams(window.location.search);
+  const userKey = (query.get("user_key") || "guest").trim();
+
+  // 서버에서 가져온 전체 그룹 결과
+  const [groups, setGroups] = useState([]); // [{story_key, story_title, records: [{...}]}]
+  const [loading, setLoading] = useState(true);
+
+  // baseStories와 서버 결과를 머지하여 표시 순서/타이틀 유지
+  const mergedStories = useMemo(() => {
+    const map = new Map(groups.map(g => [g.story_key, g]));
+    return baseStories.map(b => {
+      const g = map.get(b.story_key);
+      return {
+        story_key: b.story_key,
+        story_title: g?.story_title || b.story_title,
+        records: (g?.records || []).map(rowToCardData)
+      };
+    });
+  }, [groups]);
+
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // DB에서 전체 이력 조회
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
+        if (data?.ok) {
+          setGroups(data.data || []);
+        } else {
+          console.error("history/all 실패:", data);
+          setGroups([]);
+        }
+      } catch (err) {
+        console.error("history/all 에러:", err);
+        setGroups([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userKey]);
 
   return (
     <div className="content">
@@ -177,88 +230,100 @@ export default function BookHistory() {
           동화 화행검사 결과
         </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 15, marginTop: 10 }}>
-          {baseStories.map((b, idx) => {
-            const storyId = b.story_key || idx;
-            const opened = openStoryId === storyId;
-            const records = dummyRecordsForStory(b);
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "#666" }}>
+            불러오는 중...
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 15, marginTop: 10 }}>
+            {mergedStories.map((b, idx) => {
+              const storyId = b.story_key || idx;
+              const opened = openStoryId === storyId;
+              const records = b.records || [];
 
-            return (
-              <div
-                key={storyId}
-                style={{
-                  background: "#fff",
-                  borderRadius: 12,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  overflow: "hidden",
-                }}
-              >
+              return (
                 <div
-                  onClick={() => setOpenStoryId(opened ? null : storyId)}
+                  key={storyId}
                   style={{
-                    padding: "18px 20px",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    background: "#fff",
+                    borderRadius: 12,
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                    overflow: "hidden",
                   }}
                 >
-                  <span>{b.story_title}</span>
-                  <span style={{ fontSize: 20 }}>{opened ? "▲" : "▼"}</span>
-                </div>
+                  <div
+                    onClick={() => setOpenStoryId(opened ? null : storyId)}
+                    style={{
+                      padding: "18px 20px",
+                      fontSize: 18,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span>{b.story_title}</span>
+                    <span style={{ fontSize: 20 }}>{opened ? "▲" : "▼"}</span>
+                  </div>
 
-                {opened && (
-                  <div style={{ padding: "14px 20px", borderTop: "1px solid #eee" }}>
-                    {records.map((r) => {
-                      const selected = openRecordId === r.id;
-                      return (
-                        <div key={r.id}>
-                          <div
-                            onClick={() => setOpenRecordId(selected ? null : r.id)}
-                            style={{
-                              background: "#fafafa",
-                              borderRadius: 8,
-                              padding: "12px 16px",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span style={{ fontSize: 15, color: "#333" }}>
-                              {r.client_kst}
-                              <span
+                  {opened && (
+                    <div style={{ padding: "14px 20px", borderTop: "1px solid #eee" }}>
+                      {records.length === 0 ? (
+                        <div style={{ color: "#888", padding: "8px 0" }}>
+                          아직 결과가 없습니다.
+                        </div>
+                      ) : (
+                        records.map((r) => {
+                          const selected = openRecordId === r.id;
+                          return (
+                            <div key={r.id}>
+                              <div
+                                onClick={() => setOpenRecordId(selected ? null : r.id)}
                                 style={{
-                                  background: "#eee",
-                                  padding: "2px 8px",
+                                  background: "#fafafa",
                                   borderRadius: 8,
-                                  fontSize: 13,
-                                  marginLeft: 8,
-                                  fontWeight: 600,
-                                  color: "#333",
+                                  padding: "12px 16px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  cursor: "pointer",
                                 }}
                               >
-                                {r.client_attempt_order}회차
-                              </span>
-                            </span>
-                          </div>
+                                <span style={{ fontSize: 15, color: "#333" }}>
+                                  {r.client_kst || r.client_utc || ""}
+                                  <span
+                                    style={{
+                                      background: "#eee",
+                                      padding: "2px 8px",
+                                      borderRadius: 8,
+                                      fontSize: 13,
+                                      marginLeft: 8,
+                                      fontWeight: 600,
+                                      color: "#333",
+                                    }}
+                                  >
+                                    {r.client_attempt_order ?? "?"}회차
+                                  </span>
+                                </span>
+                              </div>
 
-                          {selected && (
-                            <div style={{ marginTop: 12 }}>
-                              <ResultDetailCard data={r} />
+                              {selected && (
+                                <div style={{ marginTop: 12 }}>
+                                  <ResultDetailCard data={r} />
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

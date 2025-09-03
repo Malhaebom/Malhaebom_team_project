@@ -4,13 +4,7 @@ import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "http://localhost:3001",
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+import API from "../../../../lib/api.js"
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
