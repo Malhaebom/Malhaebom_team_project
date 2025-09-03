@@ -1,0 +1,134 @@
+// lib/data/interview_assets.dart
+class InterviewAssets {
+  static const String base = 'assets/interview';
+
+  /// 인터뷰 항목(텍스트 + 매칭되는 mp3 경로)
+  /// audio_0.mp3 ~ audio_24.mp3 순서로 매핑
+  static const List<Map<String, String>> items = [
+    {
+      "title": "인터뷰하기1",
+      "speechText": "오늘은 무슨 요일이고,\n지금 계신 곳은 어디인가요?",
+      "sound": "$base/audio_0.mp3",
+    },
+    {
+      "title": "인터뷰하기2",
+      "speechText": "나의 학창시절은 어땠나요?",
+      "sound": "$base/audio_1.mp3",
+    },
+    {
+      "title": "인터뷰하기3",
+      "speechText": "기억에 남는\n특별한 사건이 있나요?",
+      "sound": "$base/audio_2.mp3",
+    },
+    {
+      "title": "인터뷰하기4",
+      "speechText": "옛날 부산과 지금 부산은\n어떻게 달라졌나요?",
+      "sound": "$base/audio_3.mp3",
+    },
+    {
+      "title": "인터뷰하기5",
+      "speechText": "최근에 가족이나 친구와\n나눈 대화 중 가장 기억에 남는\n내용은 무엇인가요?",
+      "sound": "$base/audio_4.mp3",
+    },
+    {
+      "title": "인터뷰하기6",
+      "speechText": "오늘 아침 날씨가\n어땠는지 기억하시나요?",
+      "sound": "$base/audio_5.mp3",
+    },
+    {
+      "title": "인터뷰하기7",
+      "speechText": "나한테 아버지, 어머니는\n어떤 분이셨나요?",
+      "sound": "$base/audio_6.mp3",
+    },
+    {
+      "title": "인터뷰하기8",
+      "speechText": "살아오면서 가장 좋았던\n기억은 무엇이었나요?",
+      "sound": "$base/audio_7.mp3",
+    },
+    {
+      "title": "인터뷰하기9",
+      "speechText": "살아오면서 힘들었던\n일은 무엇인가요?",
+      "sound": "$base/audio_8.mp3",
+    },
+    {
+      "title": "인터뷰하기10",
+      "speechText": "오늘 하루를 돌아보면\n어떤 점이 가장 의미 있었다고\n생각하시나요?",
+      "sound": "$base/audio_9.mp3",
+    },
+    {
+      "title": "인터뷰하기11",
+      "speechText": "제가 말씀드리는 세 가지 단어를 듣고 다시 말씀해 주시겠어요?\n사과, 시계, 책",
+      "sound": "$base/audio_10.mp3",
+    },
+    {
+      "title": "인터뷰하기12",
+      "speechText": "학창시절 소풍 가셨을 때\n기억나는 점심 도시락이 있나요?\n어떤 음식이었나요?",
+      "sound": "$base/audio_11.mp3",
+    },
+    {
+      "title": "인터뷰하기13",
+      "speechText": "소풍은 어디로 자주 가셨나요?\n기억에 남는 놀이가 있었나요?",
+      "sound": "$base/audio_12.mp3",
+    },
+    {
+      "title": "인터뷰하기14",
+      "speechText": "부산에서 추천해주고 싶은\n장소가 있나요?",
+      "sound": "$base/audio_13.mp3",
+    },
+    {
+      "title": "인터뷰하기15",
+      "speechText": "최근에 보신\nTV 프로그램이나 책 내용을\n하나 말씀해 주시겠어요?",
+      "sound": "$base/audio_14.mp3",
+    },
+    {
+      "title": "인터뷰하기16",
+      "speechText": "오늘 하루를 되돌아보면\n가장 기분이 좋았던 순간은\n언제였나요?",
+      "sound": "$base/audio_15.mp3",
+    },
+    {
+      "title": "인터뷰하기17",
+      "speechText": "당신의 삶에서 제일 기뻤던\n순간은 언제였나요?",
+      "sound": "$base/audio_16.mp3",
+    },
+    {
+      "title": "인터뷰하기18",
+      "speechText": "당신의 삶에서 후회스러운\n순간은 언제인가요?",
+      "sound": "$base/audio_17.mp3",
+    },
+    {
+      "title": "인터뷰하기19",
+      "speechText": "자녀분이 어렸을 적 좋았던\n순간을 말씀해 주시겠어요?",
+      "sound": "$base/audio_18.mp3",
+    },
+    {
+      "title": "인터뷰하기20",
+      "speechText": "지난주에 기억에 남는\n일이 있으셨나요?",
+      "sound": "$base/audio_19.mp3",
+    },
+    {
+      "title": "인터뷰하기21",
+      "speechText": "오늘 저와 이렇게\n대화를 나누시면서\n어떤 기분이 드셨나요?",
+      "sound": "$base/audio_20.mp3",
+    },
+    {
+      "title": "인터뷰하기22",
+      "speechText": "마지막으로 자녀분께 하고 싶은 말씀이 있다면 무엇인가요?",
+      "sound": "$base/audio_21.mp3",
+    },
+    {
+      "title": "인터뷰하기23",
+      "speechText": "내가 가고 난 후\n자녀들에게 남기고 싶은\n말이 있다면 무엇인가요?",
+      "sound": "$base/audio_22.mp3",
+    },
+    {
+      "title": "인터뷰하기24",
+      "speechText": "내일 날씨가 좋다면\n어떤 일을 하고 싶으신가요?",
+      "sound": "$base/audio_23.mp3",
+    },
+    {
+      "title": "인터뷰하기25",
+      "speechText": "오늘 하루를 마무리하면서\n하고 싶은 말씀이 있으신가요?",
+      "sound": "$base/audio_24.mp3",
+    },
+  ];
+}
