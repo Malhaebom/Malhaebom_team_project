@@ -24,7 +24,7 @@ const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";                  
  * ========================= */
 const csv = (s) => (s || "").split(",").map(x => x.trim()).filter(Boolean);
 
-const envOrigins = csv(process.env.CORS_ORIGINS); // 예: "http://211.188.63.38,http://211.188.63.38:5137"
+const envOrigins = csv(process.env.CORS_ORIGINS); // 예: "http://211.188.63.38,http://211.188.63.38:5173"
 
 const rawAllowed = Array.from(new Set([
   SERVER_BASE_URL,
@@ -73,15 +73,22 @@ const JoinServer  = require("./router/JoinServer");
 const Auther      = require("./router/Auther");
 const W_STRServer = require("./router/W_STRServer");
 
+// ✅ 기존 경로 유지 (레거시/직접호출 호환)
 app.use("/userLogin", LoginServer);
 app.use("/userJoin",  JoinServer);
 app.use("/auth",      Auther);
 app.use("/str",       W_STRServer);
 
+// ✅ 새로운 권장 경로: /api 프리픽스 (프론트는 항상 /api만 호출)
+app.use("/api/userLogin", LoginServer);
+app.use("/api/userJoin",  JoinServer);
+app.use("/api/auth",      Auther);
+app.use("/api/str",       W_STRServer);
+
 /* =========================
  * 헬스체크
  * ========================= */
-app.get("/health", (req, res) =>
+app.get(["/health", "/api/health"], (req, res) =>
   res.json({
     ok: true,
     server: SERVER_BASE_URL,
