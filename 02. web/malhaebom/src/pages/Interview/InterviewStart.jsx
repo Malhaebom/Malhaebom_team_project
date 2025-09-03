@@ -447,6 +447,15 @@ function InterviewStart() {
                 {currentQuestion?.speechText ?? "로딩 중..."}
               </p>
 
+              {/* 질문에 음성이 있으면 자동 재생 */}
+              {currentQuestion?.sound && (
+                <audio
+                  src={currentQuestion.sound}
+                  autoPlay
+                  style={{ display: "none" }}
+                />
+              )}
+
               {/* 에러 메시지 표시 */}
               {localRecordingError && (
                 <div style={{
