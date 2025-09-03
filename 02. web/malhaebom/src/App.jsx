@@ -14,10 +14,11 @@ import Login from "./pages/Mypage/Login.jsx"
 import Join from "./pages/Mypage/Join.jsx"
 import BookHistory from "./pages/Mypage/BookHistory.jsx"
 import InterviewHistory from "./pages/Mypage/InterviewHistory.jsx"
-import MypageInterviewHistory from "./pages/Mypage/MypageInterviewHistory.jsx"
 
 // Interview 추가
-import Interview from "./pages/Interview/InterviewStart.jsx";
+import InterviewStart from "./pages/Interview/InterviewStart.jsx";
+import InterviewResult from "./pages/Interview/InterviewResult.jsx";
+
 
 // Book > Training
 import Course from "./pages/Book/Training/Course.jsx";
@@ -105,236 +106,236 @@ export default function App() {
     <ScoreProvider>
       <MicrophoneProvider>
         <Routes>
-        {/* 홈 */}
-        <Route
-          path="/"
-          element={
-            <ErrorBoundary name="Home">
-              <Home />
-            </ErrorBoundary>
-          }
-        />
+          {/* 홈 */}
+          <Route
+            path="/"
+            element={
+              <ErrorBoundary name="Home">
+                <Home />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 로그인 */}
-        <Route
-          path="/login"
-          element={
-            <ErrorBoundary name="login">
-              <Login />
-            </ErrorBoundary>
-          }
-        />
+          {/* 로그인 */}
+          <Route
+            path="/login"
+            element={
+              <ErrorBoundary name="login">
+                <Login />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 인터뷰 */}
-        <Route
-          path="/interview/interviewstart"
-          element={
-            <ErrorBoundary name="interview">
-              <Interview />
-            </ErrorBoundary>
-          }
-        />
+          {/* 인터뷰 */}
+          <Route
+            path="/interview/interviewstart"
+            element={
+              <ErrorBoundary name="InterviewStart">
+                <InterviewStart />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 회상동화 진입 */}
-        <Route
-          path="/book/library"
-          element={
-            <ErrorBoundary name="BookLibrary">
-              <BookLibrary />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training"
-          element={
-            <ErrorBoundary name="Course">
-              <Course />
-            </ErrorBoundary>
-          }
-        />
+          {/* 인터뷰 결과 */}
+          <Route
+            path="/InterviewResult"
+            element={
+              <ErrorBoundary name="InterviewResult">
+                <InterviewResult />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 화행검사 */}
-        <Route
-          path="/book/training/course/exam"
-          element={
-            <ErrorBoundary name="ExamTut">
-              <ExamTut />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training/course/exam/start"
-          element={
-            <ErrorBoundary name="StartExam">
-              <StartExam />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training/course/exam/result"
-          element={
-            <ErrorBoundary name="ResultExam">
-              <ResultExam />
-            </ErrorBoundary>
-          }
-        />
+          {/* 회상동화 진입 */}
+          <Route
+            path="/book/library"
+            element={
+              <ErrorBoundary name="BookLibrary">
+                <BookLibrary />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training"
+            element={
+              <ErrorBoundary name="Course">
+                <Course />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 동화 연극/시청 */}
-        <Route
-          path="/book/training/course/read"
-          element={
-            <ErrorBoundary name="Read">
-              <Read />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training/course/play"
-          element={
-            <ErrorBoundary name="PlayList">
-              <PlayList />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training/course/play/start"
-          element={
-            <ErrorBoundary name="PlayStart">
-              <PlayStart />
-            </ErrorBoundary>
-          }
-        />
+          {/* 화행검사 */}
+          <Route
+            path="/book/training/course/exam"
+            element={
+              <ErrorBoundary name="ExamTut">
+                <ExamTut />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training/course/exam/start"
+            element={
+              <ErrorBoundary name="StartExam">
+                <StartExam />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training/course/exam/result"
+            element={
+              <ErrorBoundary name="ResultExam">
+                <ResultExam />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 워크북 */}
-        <Route
-          path="/book/training/course/workbook"
-          element={
-            <ErrorBoundary name="Workbook">
-              <Workbook />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/book/training/course/workbook/start"
-          element={
-            <ErrorBoundary name="WorkbookStart">
-              <WorkbookStart />
-            </ErrorBoundary>
-          }
-        />
+          {/* 동화 연극/시청 */}
+          <Route
+            path="/book/training/course/read"
+            element={
+              <ErrorBoundary name="Read">
+                <Read />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training/course/play"
+            element={
+              <ErrorBoundary name="PlayList">
+                <PlayList />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training/course/play/start"
+            element={
+              <ErrorBoundary name="PlayStart">
+                <PlayStart />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 신체 단련 */}
-        <Route
-          path="/exercise"
-          element={
-            <ErrorBoundary name="ExerciseList">
-              <ExerciseList />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/exercise/do"
-          element={
-            <ErrorBoundary name="ExerciseDo">
-              <ExerciseDo />
-            </ErrorBoundary>
-          }
-        />
+          {/* 워크북 */}
+          <Route
+            path="/book/training/course/workbook"
+            element={
+              <ErrorBoundary name="Workbook">
+                <Workbook />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/book/training/course/workbook/start"
+            element={
+              <ErrorBoundary name="WorkbookStart">
+                <WorkbookStart />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 두뇌 단련 */}
-        <Route
-          path="/quiz/library"
-          element={
-            <ErrorBoundary name="QuizLibrary">
-              <QuizLibrary />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/quiz/library/list"
-          element={
-            <ErrorBoundary name="QuizList">
-              <QuizList />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/quiz/play"
-          element={
-            <ErrorBoundary name="QuizPlay">
-              <QuizPlay />
-            </ErrorBoundary>
-          }
-        />
-        <Route
-          path="/quiz/result"
-          element={
-            <ErrorBoundary name="QuizResult">
-              <QuizResult />
-            </ErrorBoundary>
-          }
-        />
+          {/* 신체 단련 */}
+          <Route
+            path="/exercise"
+            element={
+              <ErrorBoundary name="ExerciseList">
+                <ExerciseList />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/exercise/do"
+            element={
+              <ErrorBoundary name="ExerciseDo">
+                <ExerciseDo />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 마이페이지 */}
-        <Route
-          path="/mypage"
-          element={
-            <ErrorBoundary name="mypage">
-              <Mypage />
-            </ErrorBoundary>
-          }
-        />
-        {/* 로그인 */}
-        <Route
-          path="/login"
-          element={
-            <ErrorBoundary name="login">
-              <Login />
-            </ErrorBoundary>
-          }
-        />
-        {/* 회원가입 */}
-        <Route
-          path="/Join"
-          element={
-            <ErrorBoundary name="Join">
-              <Join />
-            </ErrorBoundary>
-          }
-        />
-        {/* 동화 화행 검사 이력 */}
-        <Route
-          path="/BookHistory"
-          element={
-            <ErrorBoundary name="BookHistory">
-              <BookHistory />
-            </ErrorBoundary>
-          }
-        />
+          {/* 두뇌 단련 */}
+          <Route
+            path="/quiz/library"
+            element={
+              <ErrorBoundary name="QuizLibrary">
+                <QuizLibrary />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/quiz/library/list"
+            element={
+              <ErrorBoundary name="QuizList">
+                <QuizList />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/quiz/play"
+            element={
+              <ErrorBoundary name="QuizPlay">
+                <QuizPlay />
+              </ErrorBoundary>
+            }
+          />
+          <Route
+            path="/quiz/result"
+            element={
+              <ErrorBoundary name="QuizResult">
+                <QuizResult />
+              </ErrorBoundary>
+            }
+          />
 
-             {/* 인지 검사 이력 관리 */}
-        <Route
-          path="/InterviewHistory"
-          element={
-            <ErrorBoundary name="InterviewHistory">
-              <InterviewHistory />
-            </ErrorBoundary>
-          }
-        />
+          {/* 마이페이지 */}
+          <Route
+            path="/mypage"
+            element={
+              <ErrorBoundary name="mypage">
+                <Mypage />
+              </ErrorBoundary>
+            }
+          />
+          {/* 로그인 */}
+          <Route
+            path="/login"
+            element={
+              <ErrorBoundary name="login">
+                <Login />
+              </ErrorBoundary>
+            }
+          />
+          {/* 회원가입 */}
+          <Route
+            path="/Join"
+            element={
+              <ErrorBoundary name="Join">
+                <Join />
+              </ErrorBoundary>
+            }
+          />
+          {/* 동화 화행 검사 이력 */}
+          <Route
+            path="/BookHistory"
+            element={
+              <ErrorBoundary name="BookHistory">
+                <BookHistory />
+              </ErrorBoundary>
+            }
+          />
 
-        {/* 마이페이지 인지능력검사 결과 */}
-        <Route
-          path="/mypage-interview-history"
-          element={
-            <ErrorBoundary name="MypageInterviewHistory">
-              <MypageInterviewHistory />
-            </ErrorBoundary>
-          }
-        />
+          {/* 인지 능력 검사 이력 */}
+          <Route
+            path="/InterviewHistory"
+            element={
+              <ErrorBoundary name="InterviewHistory">
+                <InterviewHistory />
+              </ErrorBoundary>
+            }
+          />
 
 
-        {/* fallback */}
-        <Route path="*" element={<Navigate to="/book/library" replace />} />
+          {/* fallback */}
+          <Route path="*" element={<Navigate to="/book/library" replace />} />
         </Routes>
       </MicrophoneProvider>
     </ScoreProvider>

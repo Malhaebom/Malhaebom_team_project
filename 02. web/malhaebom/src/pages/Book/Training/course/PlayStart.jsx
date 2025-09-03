@@ -84,7 +84,7 @@ export default function PlayStart() {
     });
   }, [audioSrc]);
 
-  // MediaRecorder 생성
+  // MediaRecorder 생성 및 녹음 시작
   const startRecording = async () => {
     if (!navigator.mediaDevices) {
       alert("마이크를 사용할 수 없는 환경입니다!");
@@ -110,7 +110,7 @@ export default function PlayStart() {
         const playUrl = URL.createObjectURL(blob);
         setRecordingUrl(playUrl);
 
-        // 🔹 자동 다운로드 파일명: 책제목_문항1.mp3
+        // 자동 다운로드 파일명: 책제목_문항n.mp3
         const fileName = `${bookTitle}_문항${speechId + 1}.mp3`;
         const a = document.createElement("a");
         a.href = playUrl;
@@ -145,13 +145,13 @@ export default function PlayStart() {
       setIsRecording(true);
       setRecordingCompleted(false);
       setLocalRecordingError(null);
-
     } catch (err) {
       console.error("마이크 접근 실패:", err);
       alert("마이크를 사용할 수 없는 환경입니다!");
     }
   };
 
+  // 녹음 정지
   const stopRecording = () => {
     if (!mediaRecorderRef.current) return;
     if (mediaRecorderRef.current.state === "recording") {
@@ -159,6 +159,7 @@ export default function PlayStart() {
     }
   };
 
+  // 다음 연극 문장 이동
   const goToNextSpeech = () => {
     const nextSpeechId = speechId + 1;
     navigate(`/book/training/course/play/start?speechId=${nextSpeechId}`);
@@ -188,32 +189,85 @@ export default function PlayStart() {
                 <div style={{ color: "red", marginBottom: 10 }}>{localRecordingError}</div>
               )}
 
+              {/* 녹음/정지/다음 버튼 */}
               <div className="bt_flex" style={{ gap: "10px", marginTop: 10 }}>
                 <button
                   className="question_bt"
                   onClick={startRecording}
                   disabled={isRecording}
+                  style={{
+                    flex: 1,
+                    opacity: isRecording ? 0.6 : 1,
+                    cursor: isRecording ? "not-allowed" : "pointer",
+                    background: (isRecording || recordingCompleted) ? '#4a85d1' : '#3f51b5',
+                    color: "white",
+                    border: "none",
+                    borderRadius: 5,
+                    padding: "12px",
+                    fontWeight: "bold",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px"
+                  }}
                 >
+                  {isRecording && (
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        backgroundColor: "#ff0000",
+                        animation: "pulse 1s ease-in-out infinite"
+                      }}
+                    />
+                  )}
                   {isRecording ? "녹음 중" : "녹음 시작"}
                 </button>
+
                 <button
                   className="question_bt"
                   onClick={stopRecording}
                   disabled={!isRecording}
-                  style={{ backgroundColor: "red", color: "white" }}
+                  style={{
+                    flex: 1,
+                    opacity: !isRecording ? 0.6 : 1,
+                    cursor: !isRecording ? "not-allowed" : "pointer",
+                    backgroundColor: "red",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 5,
+                    padding: "12px",
+                    fontWeight: "bold",
+                    transition: "all 0.2s"
+                  }}
                 >
                   녹음 정지
                 </button>
+
                 <button
                   className="question_bt"
                   onClick={goToNextSpeech}
-                  style={{ backgroundColor: "#4CAF50", color: "white" }} // 시작 버튼 색상과 동일
+                  disabled={!recordingCompleted || isRecording}
+                  style={{
+                    flex: 1,
+                    opacity: !recordingCompleted || isRecording ? 0.6 : 1,
+                    cursor: !recordingCompleted || isRecording ? "not-allowed" : "pointer",
+                    backgroundColor: "#4CAF50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 5,
+                    padding: "12px",
+                    fontWeight: "bold",
+                    transition: "all 0.2s"
+                  }}
                 >
                   다음
                 </button>
               </div>
 
-              {/* 🔹 녹음 완료 후 재생바 스타일 */}
+              {/* 녹음 완료 후 재생바 */}
               {recordingCompleted && recordingUrl && (
                 <audio
                   controls
