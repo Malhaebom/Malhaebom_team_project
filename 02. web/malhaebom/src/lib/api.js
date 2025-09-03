@@ -2,7 +2,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "/",                 // 운영: 같은 호스트(80) → Nginx 프록시가 3001로 전달
+  baseURL: "/api",            // 🔴 핵심: 운영에선 무조건 /api 로
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });

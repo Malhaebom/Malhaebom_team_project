@@ -35,6 +35,7 @@ class StoryTestinfoPage extends StatelessWidget {
         toolbarHeight: _appBarH(context),
         title: Text(
           '화행 인지검사',
+          textScaler: const TextScaler.linear(1.0),
           style: TextStyle(
             fontFamily: 'GmarketSans',
             fontWeight: FontWeight.w700,
@@ -290,7 +291,7 @@ class _ChoiceButton extends StatelessWidget {
   final String bottom;
   final Color background;
   final Color foreground;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ChoiceButton({
     required this.top,
@@ -302,7 +303,7 @@ class _ChoiceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const fixedScale = TextScaler.linear(1.0); // 버튼 내부 글씨 스케일 고정
+    const fixedScale = TextScaler.linear(1.0);
 
     return Material(
       color: background,
@@ -310,38 +311,70 @@ class _ChoiceButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14.r),
-        child: Container(
-          height: 64.h,
+        child: AnimatedSize(
+          // 폰트 로딩 후 크기 변화도 부드럽게
+          duration: const Duration(milliseconds: 120),
           alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                top,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: fixedScale,
-                style: TextStyle(
-                  fontFamily: _kFont,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20.sp,
-                  color: foreground,
-                ),
+          clipBehavior: Clip.hardEdge,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: 64.h), // ← 최소 높이만 보장
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    top,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    textScaler: fixedScale,
+                    // 폰트가 아직 안 떠도 동일한 행높이를 강제
+                    strutStyle: StrutStyle(
+                      forceStrutHeight: true,
+                      height: 1.1,
+                      fontFamily: _kFont,
+                      fontSize: 20.sp,
+                    ),
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
+                    style: TextStyle(
+                      fontFamily: _kFont,
+                      fontWeight: FontWeight.w800, // 가능하면 w700 사용 권장
+                      fontSize: 20.sp,
+                      color: foreground,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    bottom,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    textScaler: fixedScale,
+                    strutStyle: StrutStyle(
+                      forceStrutHeight: true,
+                      height: 1.1,
+                      fontFamily: _kFont,
+                      fontSize: 13.sp,
+                    ),
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                    ),
+                    style: TextStyle(
+                      fontFamily: _kFont,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.sp,
+                      color: foreground.withOpacity(.9),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(height: 2.h),
-              Text(
-                bottom,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: fixedScale,
-                style: TextStyle(
-                  fontFamily: _kFont,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13.sp,
-                  color: foreground.withOpacity(.9),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

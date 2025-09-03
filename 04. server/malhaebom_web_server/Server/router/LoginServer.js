@@ -12,7 +12,10 @@ const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
-const IS_HTTPS          = /^https:\/\//i.test(SERVER_BASE_URL);
+
+// 현재 배포는 HTTP(80) → 반드시 false
+// (HTTPS 전환 시 true로 바꾸면 됩니다)
+const SECURE_COOKIE     = false; // ⚠️ 중요
 
 /* =========================
  * DB 풀
@@ -36,19 +39,21 @@ const pool = mysql.createPool({
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
+
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : IS_HTTPS,    // HTTPS일 때만 true
+    secure  : SECURE_COOKIE,   // ← 통일
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
   });
 }
+
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure  : IS_HTTPS,
+    secure  : SECURE_COOKIE,   // ← 통일
     sameSite: "lax",
     path    : "/",
   });
@@ -60,7 +65,7 @@ function clearAuthCookie(res) {
 router.post("/login", async (req, res) => {
   try {
     const { login_id, user_id, phone, pwd } = req.body || {};
-    const id = login_id || user_id || phone;
+    const id = (login_id || user_id || phone || "").trim();
 
     if (!id || !pwd) {
       return res.status(400).json({ ok: false, msg: "아이디/비밀번호를 입력하세요." });
@@ -79,10 +84,24 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(String(pwd), String(u.pwd || ""));
     if (!ok) return res.status(401).json({ ok: false, msg: "비밀번호가 올바르지 않습니다." });
 
+    console.log("[LOGIN SUCCESS] user:", {
+      user_id: u.user_id,
+      login_id: u.login_id,
+      nick: u.nick,
+    });
+
     const token = sign({ uid: u.user_id, typ: "local" });
     setAuthCookie(res, token);
 
-    return res.json({ ok: true, userId: u.user_id, loginId: u.login_id, nick: u.nick, loginType: "local" });
+    // (선택) 디버그: 응답에 secure/samesite 힌트 제공
+    return res.json({
+      ok: true,
+      userId: u.user_id,
+      loginId: u.login_id,
+      nick: u.nick,
+      loginType: "local",
+      cookie: { name: COOKIE_NAME, secure: SECURE_COOKIE, sameSite: "lax" },
+    });
   } catch (err) {
     console.error("[/userLogin/login] error:", err);
     return res.status(500).json({ ok: false, msg: "로그인 중 오류가 발생했습니다." });
@@ -90,7 +109,7 @@ router.post("/login", async (req, res) => {
 });
 
 /* 로그아웃 */
-router.post("/logout", async (req, res) => {
+router.post("/logout", async (_req, res) => {
   try {
     clearAuthCookie(res);
     return res.json({ ok: true });
@@ -104,12 +123,17 @@ router.post("/logout", async (req, res) => {
 router.get("/me", async (req, res) => {
   try {
     const token = req.cookies?.[COOKIE_NAME];
-    if (!token) return res.json({ ok: false, isAuthed: false });
+
+    if (!token) {
+      // (선택) 디버그 로그: 왜 없는지 추적
+      // console.warn("[/userLogin/me] no cookie:", COOKIE_NAME, "origin:", req.get("origin"));
+      return res.json({ ok: false, isAuthed: false });
+    }
 
     let decoded;
     try {
       decoded = jwt.verify(token, JWT_SECRET);
-    } catch (e) {
+    } catch (_e) {
       clearAuthCookie(res);
       return res.json({ ok: false, isAuthed: false });
     }
@@ -125,6 +149,7 @@ router.get("/me", async (req, res) => {
       clearAuthCookie(res);
       return res.json({ ok: false, isAuthed: false });
     }
+
     const u = rows[0];
     return res.json({
       ok: true,

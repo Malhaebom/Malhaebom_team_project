@@ -1,13 +1,8 @@
+// 02. web/malhaebom/src/pages/Mypage/Mypage.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+import API from "../../lib/api"; // ✅ 공용 API 사용
 
 const Mypage = () => {
   const navigate = useNavigate();
@@ -16,7 +11,7 @@ const Mypage = () => {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me");
+        const { data } = await API.get("/userLogin/me"); // /api/userLogin/me
         if (data?.ok && data.isAuthed) setNick(data.nick || "");
         else setNick("");
       } catch {
@@ -57,7 +52,7 @@ const Mypage = () => {
 
   const logout = async () => {
     try {
-      await API.post("/userLogin/logout");
+      await API.post("/userLogin/logout"); // /api/userLogin/logout
       setNick("");
     } catch (e) {
       console.error("로그아웃 오류:", e);
