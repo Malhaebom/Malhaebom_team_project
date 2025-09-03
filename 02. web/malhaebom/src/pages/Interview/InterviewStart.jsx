@@ -277,7 +277,7 @@ function InterviewStart() {
       setQuestionId((prev) => prev + 1);
     } else {
       alert("모든 인터뷰가 완료되었습니다!");
-      navigate("/InterviewHistory");
+      navigate("/InterviewResult");
     }
   };
 
@@ -373,7 +373,7 @@ function InterviewStart() {
                     flex: 1,
                     opacity: !isRecording ? 0.6 : 1,
                     cursor: !isRecording ? 'not-allowed' : 'pointer',
-                    background: '#4a85d1',
+                    background: 'red',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
@@ -383,7 +383,7 @@ function InterviewStart() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  녹음 끝내기
+                  녹음 정지
                 </button>
                 <button 
                   className="question_bt" 
