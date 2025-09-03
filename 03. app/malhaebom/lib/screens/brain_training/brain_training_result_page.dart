@@ -6,6 +6,8 @@ import 'package:malhaebom/widgets/liquid_circle_progress_widget.dart';
 import 'package:malhaebom/screens/brain_training/brain_training_test_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class BrainTrainingResultPage extends StatefulWidget {
   const BrainTrainingResultPage({
@@ -32,10 +34,36 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
   late int originalCorrectAnswers; // 기존 정답 수
   late double originalCorrectPercentage; // 기존 정답률
 
+  String? _nick;
+
   @override
   void initState() {
     super.initState();
     calculateResults();
+    _loadNickFromLocal();
+  }
+
+  Future<void> _loadNickFromLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // 1) auth_user(JSON) → nick
+      String? nick;
+      final raw = prefs.getString('auth_user');
+      if (raw != null && raw.isNotEmpty) {
+        final map = jsonDecode(raw) as Map<String, dynamic>;
+        nick = (map['nick'] as String?)?.trim();
+      }
+
+      // 2) fallback: login_id
+      nick ??= (prefs.getString('login_id') ?? '').trim();
+
+      // 표시 가능하면 세팅
+      if (nick.isEmpty) nick = null;
+      if (mounted) setState(() => _nick = nick);
+    } catch (_) {
+      if (mounted) setState(() => _nick = null);
+    }
   }
 
   void calculateResults() {
@@ -224,7 +252,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
         // 오른쪽에 왼쪽과 같은 폭의 더미 공간을 넣어 균형 맞추기
         actions: [SizedBox(width: _appBarH(context))],
       ),
-      
+
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         child: Padding(
@@ -243,7 +271,7 @@ class _BrainTrainingResultPageState extends State<BrainTrainingResultPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "레벤님의",
+                        '${(_nick ?? '회원')}님의',
                         textScaler: const TextScaler.linear(
                           1.0,
                         ), // 시스템 폰트 크기 설정 무시

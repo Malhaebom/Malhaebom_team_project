@@ -67,18 +67,17 @@ class StoryTestinfoPage extends StatelessWidget {
 
             _infoCard(
               title: '검사진행 방법',
-              align: CrossAxisAlignment.start,
+              align: CrossAxisAlignment.center, // ✅ 가운데 정렬
               centerTitle: true,
-              contentInset: EdgeInsets.only(left: 60.w),
+              contentInset: EdgeInsets.zero, // ✅ 왼쪽 인셋 제거
               children: [
                 _stepTitle(
                   icon: Icons.question_answer_outlined,
                   text: '문제 제시',
-                  alignStart: true,
-                ),
+                ), // ✅ alignStart 제거(=가운데)
                 Text(
                   '동화 내용에 기반한 문제를\n제시하는 음성이 나와요.',
-                  textAlign: TextAlign.start,
+                  textAlign: TextAlign.center, // ✅ 가운데
                   textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontSize: 17.5.sp,
@@ -88,14 +87,10 @@ class StoryTestinfoPage extends StatelessWidget {
                 ),
                 SizedBox(height: 14.h),
 
-                _stepTitle(
-                  icon: Icons.check_circle_outline,
-                  text: '답안 선택',
-                  alignStart: true,
-                ),
+                _stepTitle(icon: Icons.check_circle_outline, text: '답안 선택'),
                 Text(
-                  '올바른 답안을 선택한 후, \n다음 버튼을 눌러\n다음 문제로 넘어가세요.',
-                  textAlign: TextAlign.start,
+                  '올바른 답안을 선택한 후,\n다음 버튼을 눌러\n다음 문제로 넘어가세요.',
+                  textAlign: TextAlign.center, // ✅ 가운데
                   textScaler: const TextScaler.linear(1.0),
                   style: TextStyle(
                     fontSize: 17.5.sp,
@@ -235,30 +230,56 @@ class StoryTestinfoPage extends StatelessWidget {
     required String text,
     bool alignStart = false,
   }) {
+    final double iconBox = 28.w;
+    final double gap = 8.w;
+
+    final iconBubble = Container(
+      width: iconBox,
+      height: iconBox,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0xFFF3F4F6),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 22.sp, color: const Color(0xFF111827)),
+    );
+
+    if (alignStart) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: 8.h, top: 10.h),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            iconBubble,
+            SizedBox(width: gap),
+            Text(
+              text,
+              textAlign: TextAlign.start,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.only(bottom: 8.h, top: 10.h),
-      child: Row(
-        mainAxisAlignment:
-            alignStart ? MainAxisAlignment.start : MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 28.w,
-            height: 28.w,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Color(0xFFF3F4F6),
+      child: Center(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            iconBubble,
+            SizedBox(width: gap),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              textScaler: const TextScaler.linear(1.0),
+              style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
             ),
-            alignment: Alignment.center,
-            child: Icon(icon, size: 22.sp, color: Color(0xFF111827)),
-          ),
-          SizedBox(width: 8.w),
-          Text(
-            text,
-            textAlign: alignStart ? TextAlign.start : TextAlign.center,
-            textScaler: const TextScaler.linear(1.0),
-            style: TextStyle(fontSize: 21.5.sp, fontWeight: FontWeight.w800),
-          ),
-        ],
+            SizedBox(width: iconBox + gap), // 👈 균형용 더미 공간
+          ],
+        ),
       ),
     );
   }
@@ -270,7 +291,7 @@ class _ChoiceButton extends StatelessWidget {
   final String bottom;
   final Color background;
   final Color foreground;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ChoiceButton({
     required this.top,
@@ -282,7 +303,7 @@ class _ChoiceButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const fixedScale = TextScaler.linear(1.0); // 버튼 내부 글씨 스케일 고정
+    const fixedScale = TextScaler.linear(1.0);
 
     return Material(
       color: background,
@@ -290,38 +311,70 @@ class _ChoiceButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14.r),
-        child: Container(
-          height: 64.h,
+        child: AnimatedSize(
+          // 폰트 로딩 후 크기 변화도 부드럽게
+          duration: const Duration(milliseconds: 120),
           alignment: Alignment.center,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                top,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: fixedScale,
-                style: TextStyle(
-                  fontFamily: _kFont,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 20.sp,
-                  color: foreground,
-                ),
+          clipBehavior: Clip.hardEdge,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: 64.h), // ← 최소 높이만 보장
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 10.h, horizontal: 12.w),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    top,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    textScaler: fixedScale,
+                    // 폰트가 아직 안 떠도 동일한 행높이를 강제
+                    strutStyle: StrutStyle(
+                      forceStrutHeight: true,
+                      height: 1.1,
+                      fontFamily: _kFont,
+                      fontSize: 20.sp,
+                    ),
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                      leadingDistribution: TextLeadingDistribution.even,
+                    ),
+                    style: TextStyle(
+                      fontFamily: _kFont,
+                      fontWeight: FontWeight.w800, // 가능하면 w700 사용 권장
+                      fontSize: 20.sp,
+                      color: foreground,
+                    ),
+                  ),
+                  SizedBox(height: 4.h),
+                  Text(
+                    bottom,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    textScaler: fixedScale,
+                    strutStyle: StrutStyle(
+                      forceStrutHeight: true,
+                      height: 1.1,
+                      fontFamily: _kFont,
+                      fontSize: 13.sp,
+                    ),
+                    textHeightBehavior: const TextHeightBehavior(
+                      applyHeightToFirstAscent: false,
+                      applyHeightToLastDescent: false,
+                    ),
+                    style: TextStyle(
+                      fontFamily: _kFont,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13.sp,
+                      color: foreground.withOpacity(.9),
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(height: 2.h),
-              Text(
-                bottom,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textScaler: fixedScale,
-                style: TextStyle(
-                  fontFamily: _kFont,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13.sp,
-                  color: foreground.withOpacity(.9),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

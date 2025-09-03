@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
 import axios from "axios";
-import MypageInterviewHistory from "./MypageInterviewHistory.jsx";
 
 const API = axios.create({
   baseURL: "/",                // ← 상대경로 (Nginx 프록시)
@@ -54,7 +53,7 @@ const Mypage = () => {
 
   const goLogin = () => navigate("/login");
   const goBookHistory = () => navigate("/bookHistory");
-  const goInterviewHistory = () => navigate("/mypage-interview-history");
+  const goInterviewHistory = () => navigate("/InterviewHistory");
 
   const logout = async () => {
     try {

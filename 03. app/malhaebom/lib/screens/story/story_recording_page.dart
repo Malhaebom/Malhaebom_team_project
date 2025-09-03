@@ -194,9 +194,7 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
 
     return Scaffold(
       backgroundColor: kBg,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: AppBar(
+      appBar: AppBar(
           backgroundColor: AppColors.btnColorDark,
           elevation: 0.5,
           centerTitle: true,
@@ -213,7 +211,6 @@ class _StoryRecordingPageState extends State<StoryRecordingPage>
             ),
           ),
         ),
-      ),
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 420.w),

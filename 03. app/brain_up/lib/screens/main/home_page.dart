@@ -1,5 +1,5 @@
 import 'package:brain_up/screens/brain_training/brain_training_main_page.dart';
-import 'package:brain_up/screens/main/brain_test.dart';
+import 'package:brain_up/screens/interview/interview_info_page.dart';
 import 'package:brain_up/screens/physical_training/physical_training_main_page.dart';
 import 'package:brain_up/screens/story/story_main_page.dart';
 import 'package:brain_up/theme/colors.dart';
@@ -133,7 +133,7 @@ class _HomePageState extends State<HomePage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => BrainTestPage(),
+                                builder: (context) => InterviewInfoPage(),
                               ),
                             );
                           },
@@ -163,7 +163,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   SizedBox(height: 10.h),
                                   Text(
-                                    "두뇌건강 점검",
+                                    "인지 검사",
                                     style: TextStyle(
                                       fontFamily: 'GmarketSans',
                                       fontWeight: FontWeight.w600,

@@ -65,6 +65,14 @@ class _StoryTestPageState extends State<StoryTestPage>
   String? _currentSrc;
   Duration _lastPos = Duration.zero;
 
+  // ====== 공용 AppBar 높이 헬퍼 ======
+  double _appBarH() {
+    final shortest = MediaQuery.sizeOf(context).shortestSide;
+    if (shortest >= 840) return 88; // 큰 태블릿
+    if (shortest >= 600) return 72; // 일반 태블릿
+    return kToolbarHeight;          // 폰(기본 56)
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,28 +121,25 @@ class _StoryTestPageState extends State<StoryTestPage>
   void didChangeAppLifecycleState(AppLifecycleState state) async {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused) {
-      // 재생 중이었는지 기록 + 현재 위치 저장
       _resumeAfterResume = _isPlaying || (_currentSrc != null);
       try {
         final pos = await _player.getCurrentPosition();
         if (pos != null) _lastPos = pos;
       } catch (_) {}
-      await _player.pause(); // 백그라운드에서 소리 안 나게
+      await _player.pause();
       return;
     }
 
     if (state == AppLifecycleState.resumed) {
       if (_resumeAfterResume && _currentSrc != null) {
-        // resume() 대신 명시적 시퀀스로 확실하게 이어듣기
         try {
-          await _player.stop(); // 세션 초기화
+          await _player.stop();
           await _player.setSource(_toSource(_currentSrc!));
           if (_lastPos > Duration.zero) {
             await _player.seek(_lastPos);
           }
           await _player.resume();
         } catch (_) {
-          // 실패 시 fallback: play → (가능하면) seek
           try {
             await _player.play(_toSource(_currentSrc!));
             if (_lastPos > Duration.zero) {
@@ -315,15 +320,14 @@ class _StoryTestPageState extends State<StoryTestPage>
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder:
-            (_) => StoryResultPage(
-              score: _pointScore,
-              total: totalPoints,
-              byCategory: byCategory,
-              byType: byType,
-              testedAt: DateTime.now(),
-              storyTitle: widget.title,
-            ),
+        builder: (_) => StoryResultPage(
+          score: _pointScore,
+          total: totalPoints,
+          byCategory: byCategory,
+          byType: byType,
+          testedAt: DateTime.now(),
+          storyTitle: widget.title,
+        ),
       ),
     );
   }
@@ -333,20 +337,12 @@ class _StoryTestPageState extends State<StoryTestPage>
 
   @override
   Widget build(BuildContext context) {
-    // 기종에 맞는 상단바 크기 설정
-    double _appBarH(BuildContext context) {
-      final shortest = MediaQuery.sizeOf(context).shortestSide;
-      if (shortest >= 840) return 88; // 큰 태블릿
-      if (shortest >= 600) return 72; // 일반 태블릿
-      return kToolbarHeight; // 폰(기본 56)
-    }
-
     if (_questions.isEmpty) {
       return Scaffold(
         appBar: AppBar(
           backgroundColor: AppColors.btnColorDark,
           centerTitle: true,
-          toolbarHeight: _appBarH(context),
+          toolbarHeight: _appBarH(),
           title: Text(
             widget.title,
             style: TextStyle(
@@ -384,6 +380,7 @@ class _StoryTestPageState extends State<StoryTestPage>
       backgroundColor: AppColors.btnColorDark,
       elevation: 0,
       centerTitle: true,
+      toolbarHeight: _appBarH(),
       title: Text(
         '화행 인지검사',
         style: TextStyle(
@@ -519,20 +516,19 @@ class _StoryTestPageState extends State<StoryTestPage>
             child: SizedBox(
               height: 10.h,
               child: LayoutBuilder(
-                builder:
-                    (context, c) => Stack(
-                      children: [
-                        Container(
-                          width: c.maxWidth,
-                          color: const Color(0xFFE5E7EB),
-                        ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 220),
-                          width: c.maxWidth * _progress,
-                          color: AppColors.btnColorDark,
-                        ),
-                      ],
+                builder: (context, c) => Stack(
+                  children: [
+                    Container(
+                      width: c.maxWidth,
+                      color: const Color(0xFFE5E7EB),
                     ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      width: c.maxWidth * _progress,
+                      color: AppColors.btnColorDark,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
