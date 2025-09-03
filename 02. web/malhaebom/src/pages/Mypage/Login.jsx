@@ -18,7 +18,7 @@ const Login = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 이미 로그인돼 있으면 홈으로
+  // 이미 로그인되어 있으면 홈으로
   useEffect(() => {
     (async () => {
       try {
@@ -55,13 +55,13 @@ const Login = () => {
         return;
       }
 
-      // ✅ 로그인 직후 쿠키 기반으로 /me 재검증 (캐시 무력화는 api 인터셉터가 자동 처리)
+      // ✅ 로그인 직후 쿠키 기반으로 /me 재검증 (여기서 성공을 확인해야 함)
       const me = await API.get("/userLogin/me");
       console.debug("[Login] /me (after login) =>", me?.data);
 
       if (me?.data?.ok && me.data.isAuthed) {
         setNick(me.data.nick || "");
-        navigate("/", { replace: true });
+        navigate("/", { replace: true }); // 이제 홈으로 이동
       } else {
         alert("로그인 세션 확인에 실패했습니다.");
       }
