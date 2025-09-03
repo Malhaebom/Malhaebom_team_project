@@ -1,13 +1,8 @@
+// 02. web/malhaebom/src/pages/Mypage/Join.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Background from "../Background/Background";
-import axios from "axios";
-
-const API = axios.create({
-  baseURL: "/",                // ← 상대경로 (Nginx 프록시)
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+import API from "../../lib/api"; // ✅ 공용 API 사용
 
 const Join = () => {
   const [nick, setNick] = useState("");
@@ -89,7 +84,7 @@ const Join = () => {
         gender: genderCode,
       };
 
-      const { data } = await API.post("/userJoin/register", payload);
+      const { data } = await API.post("/userJoin/register", payload); // /api/userJoin/register
       if (data?.ok) {
         alert("회원가입이 완료되었습니다. 로그인해 주세요.");
         navigate("/login");

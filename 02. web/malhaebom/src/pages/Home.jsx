@@ -1,10 +1,11 @@
+// 02. web/malhaebom/src/pages/Home.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AOS from "aos";
 import "aos/dist/aos.css";
 import Background from "./Background/Background";
 import Logo from "../components/Logo.jsx";
-import API from "../lib/api.js"
+import API from "../lib/api"; // ✅ 공용 API 사용
 
 export default function Home() {
   const navigate = useNavigate();
@@ -21,7 +22,7 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await API.get("/userLogin/me");
+        const { data } = await API.get("/userLogin/me"); // /api/userLogin/me
         if (data?.ok && data.isAuthed) setNick(data.nick || "");
         else setNick("");
       } catch {
