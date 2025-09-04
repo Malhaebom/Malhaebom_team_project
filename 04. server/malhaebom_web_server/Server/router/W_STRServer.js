@@ -108,11 +108,13 @@ async function deriveUserKeyFromAuth(req) {
 
 // 요청에서 user_key 추출: 쿼리, 헤더, 쿠키 인증 순
 async function resolveUserKey(req) {
-  const fromQuery = (req.query.user_key || req.query.userKey || "").trim();
+  const fromQuery  = (req.query.user_key || req.query.userKey || "").toString().trim();
   const fromHeader = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
-  const authed = await deriveUserKeyFromAuth(req);
-  const k = fromQuery || fromHeader || authed || "";
-  if (k === "guest" || !k) return null;
+  const fromBody   = (req.body?.user_key || req.body?.userKey || "").toString().trim();
+  const authed     = await deriveUserKeyFromAuth(req);
+
+  const k = fromQuery || fromHeader || fromBody || authed || "";
+  if (!k || k.toLowerCase() === "guest") return null;
   return k;
 }
 

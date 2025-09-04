@@ -7,21 +7,48 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-// 영문 키/오타 → 표준 한글 제목
-const TITLE_ALIASES = {
-  mother_gloves: "어머니의 벙어리 장갑",
-  father_wedding: "아버지와 결혼식",
-  sons_bread: "아들의 호빵",
-  grandma_banana: "할머니와 바나나",
-  kkongdang_boribap: "꽁당 보리밥",
-  "어머니와 벙어리장갑": "어머니의 벙어리 장갑",
-  "어머니와 벙어리 장갑": "어머니의 벙어리 장갑",
-  "공동보리밥": "꽁당 보리밥",
-  "꽁당보리밥": "꽁당 보리밥",
-};
-const normalizeTitle = (s) => String(s || "").replace(/\s+/g, " ").trim();
-const toCanonical = (keyOrTitle) =>
-  normalizeTitle(TITLE_ALIASES[keyOrTitle] || keyOrTitle);
+/* ─────────────────────────────────────────────────────────
+ * 제목 정규화
+ *  - 병어리/벙어리 혼용, '의/와' 혼용, 공백/띄어쓰기 정리
+ *  - 저장/조회 모두 이 표준 제목으로 통일시켜야 회차가 정상 증가
+ * ───────────────────────────────────────────────────────── */
+const normalizeSpaces = (s) => String(s || "").replace(/\s+/g, " ").trim();
+function canonicalizeTitle(raw) {
+  let t = normalizeSpaces(raw || "동화");
+
+  // 맞춤법/오탈자 교정 (병어리 → 벙어리)
+  t = t.replace(/병어리/g, "벙어리");
+
+  // '어머니와/어머니의' 혼용 정리: ‘어머니의 벙어리 장갑’이 표준
+  // 뒤에 '벙어리 장갑'이 붙어있다면 앞 키워드를 '어머니의'로 통일
+  t = t.replace(/어머니(?:와|에)\s*벙어리\s*장갑/g, "어머니의 벙어리 장갑");
+
+  // 전체 표준 타이틀 매핑(필요시 확장)
+  const TABLE = {
+    "어머니의 벙어리 장갑": "어머니의 벙어리 장갑",
+    "아버지와 결혼식": "아버지와 결혼식",
+    "아들의 호빵": "아들의 호빵",
+    "할머니와 바나나": "할머니와 바나나",
+    "꽁당 보리밥": "꽁당 보리밥",
+  };
+
+  // 부분 일치 보정 (오탈자/공백이 조금 달라도 흡수)
+  const candidates = Object.keys(TABLE);
+  for (const k of candidates) {
+    const rx = new RegExp("^" + k.replace(/\s+/g, "\\s*") + "$");
+    if (rx.test(t)) return TABLE[k];
+  }
+
+  // 대표 패턴들
+  if (/벙어리\s*장갑/.test(t)) return "어머니의 벙어리 장갑";
+  if (/결혼식/.test(t) && /아버지/.test(t)) return "아버지와 결혼식";
+  if (/호빵/.test(t)) return "아들의 호빵";
+  if (/바나나/.test(t)) return "할머니와 바나나";
+  if (/꽁당\s*보리밥|공동보리밥|꽁당보리밥/.test(t)) return "꽁당 보리밥";
+
+  // 모르면 원문 정리본
+  return t;
+}
 
 function nowKstString() {
   const d = new Date();
@@ -33,29 +60,32 @@ function nowKstString() {
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
-  const navigate = useNavigate();
-
-  const query = new URLSearchParams(window.location.search);
-  const userKeyFromUrl = (query.get("user_key") || query.get("userKey") || "").trim();
-
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const savedOnceRef = useRef(false);
+  const navigate = useNavigate();
+
+  // URL 쿼리 user_key (guest는 무시)
+  const urlUserKey = (() => {
+    const qs = new URLSearchParams(window.location.search);
+    const v = (qs.get("user_key") || qs.get("userKey") || "").trim();
+    return v && v.toLowerCase() !== "guest" ? v : "";
+  })();
 
   useEffect(() => {
     AOS.init();
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // 점수 요약
   const { total, isPassed, lowIndex } = useMemo(() => {
     const sAD = Number(scoreAD) * 2;
     const sAI = Number(scoreAI) * 2;
     const sB  = Number(scoreB)  * 2;
     const sC  = Number(scoreC)  * 2;
     const sD  = Number(scoreD)  * 2;
-
     const arr = [sAD, sAI, sB, sC, sD];
     const total = arr.reduce((a, b) => a + b, 0);
     const minScore = Math.min(...arr);
@@ -83,28 +113,31 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // 저장(이 렌더에서 정확히 1회)
+  // 저장: 표준 제목으로 storyKey/Title을 통일하여 전송
   const saveToBookHistory = async () => {
-    try {
-      const title = localStorage.getItem("bookTitle") || "동화";
-      // 앱과 동일: storyKey는 정규화된 한글 제목
-      const storyKey = toCanonical(title || localStorage.getItem("storyKey") || "동화");
-      const storyTitle = storyKey; // title도 통일
+    if (savedOnceRef.current) return;
+    savedOnceRef.current = true;
 
-      const sanitize = (k) => (k && k !== "guest" ? k : null);
+    try {
+      const rawTitle = localStorage.getItem("bookTitle") || "동화";
+      const canonical = canonicalizeTitle(rawTitle);
+
+      // user_key 확보(guest 금지)
       let targetUserKey =
-        sanitize(userKeyFromUrl) ||
-        sanitize(await ensureUserKey({ retries: 3, delayMs: 200 }));
-      if (!targetUserKey) {
+        urlUserKey ||
+        (await ensureUserKey({ retries: 3, delayMs: 200 })) ||
+        "";
+
+      if (!targetUserKey || targetUserKey.toLowerCase() === "guest") {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
       }
 
       const examResult = {
-        storyTitle,
-        storyKey,
-        attemptTime: new Date().toISOString(), // 서버가 DATETIME으로 변환
-        clientKst: nowKstString(),
+        storyTitle: canonical,
+        storyKey:   canonical,                 // ★ 앱과 동일하게 한글 제목을 key로 사용
+        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환(없어도 now로 보정)
+        clientKst:   nowKstString(),
         score: total,
         total: 40,
         byCategory: {
@@ -115,7 +148,7 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
-        // 참고: 서버가 riskBars 없어도 byCategory로 계산 가능하지만 웹 표시 보정을 위해 함께 전송
+        // 앱과 같은 포맷(0~8 점수)을 riskBars에 동봉
         riskBars: {
           A:  Number(scoreAD) * 2,
           AI: Number(scoreAI) * 2,
@@ -126,26 +159,33 @@ export default function ResultExam() {
         riskBarsByType: {},
       };
 
-      const cfg = {
-        params: { user_key: targetUserKey },
+      // params + header 둘 다 user_key 명시 (쿠키 불안정 대비)
+      const { data } = await API.post("/str/attempt", examResult, {
+        params:  { user_key: targetUserKey },
         headers: { "x-user-key": targetUserKey },
-      };
+      });
 
-      const { data } = await API.post("/str/attempt", examResult, cfg);
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
         alert("검사 결과 저장에 실패했습니다.");
+        return;
       }
     } catch (error) {
-      console.error("검사 결과 저장 중 오류:", error);
+      console.error("검사 결과 저장 오류:", error);
       alert("검사 결과 저장 중 오류가 발생했습니다.");
     }
   };
 
+  // 첫 렌더에서 한 번만 저장
   useEffect(() => {
-    if (total > 0 && !savedOnceRef.current) {
-      savedOnceRef.current = true;
-      saveToBookHistory();
+    if (total > 0) {
+      const onceFlag = sessionStorage.getItem("examCompleted");
+      if (!onceFlag) {
+        (async () => {
+          await saveToBookHistory();
+          sessionStorage.setItem("examCompleted", "true");
+        })();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
@@ -158,7 +198,7 @@ export default function ResultExam() {
     <div className="content">
       {windowWidth > 1100 && <Background />}
       <div className="wrap">
-        <Header title={bookTitle} showBack={false} />
+        <Header title={canonicalizeTitle(bookTitle)} showBack={false} />
         <div className="inner">
           <div className="ct_banner">화행검사 결과화면</div>
           <div className="ct_inner">
@@ -196,6 +236,7 @@ export default function ResultExam() {
                     src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
                     className="container"
                     style={{ width: "15%" }}
+                    alt=""
                   />
                 </div>
               </div>
@@ -205,9 +246,13 @@ export default function ResultExam() {
                 <div className="sub_tit">
                   <div className="num_tit">
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
-                      {isPassed ? "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다." : opinions_result[lowIndex]}
+                      {isPassed ? okOpinion : opinions_result[lowIndex]}
                     </p>
-                    {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
+                    {!isPassed && (
+                      <p className="num" id="opinions_guide">
+                        {opinions_guide[lowIndex]}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
