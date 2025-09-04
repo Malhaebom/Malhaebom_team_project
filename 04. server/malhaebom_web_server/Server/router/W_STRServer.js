@@ -92,7 +92,7 @@ router.post("/attempt", async (req, res) => {
     const {
       storyTitle,
       storyKey,
-      attemptTime,     // ISO string 기대 (없을 수 있음)
+      attemptTime,     // ISO string 기대 (없어도 됨: 서버가 now로 보정)
       clientKst,       // 표시용 문자열 (선택)
       score,
       total,
@@ -101,13 +101,23 @@ router.post("/attempt", async (req, res) => {
       riskBars = {},
       riskBarsByType = {},
       user_key: bodyUserKey,
+      userKey: camelBodyUserKey,           // ← 앱/기타 호환
     } = req.body || {};
 
     // 1) 인증 쿠키로 우선 도출
     const authedKey = await deriveUserKeyFromAuth(req);
 
-    // 2) 하위호환: 쿼리/바디에 온 값 (하지만 authedKey가 있으면 반드시 같아야 함)
-    const claimedKey = (req.query.user_key || bodyUserKey || "").trim() || null;
+    // 2) 하위호환: 쿼리/바디/헤더 어디로 와도 읽는다
+    const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
+    const claimedKey =
+      (
+        req.query.user_key ||
+        req.query.userKey ||
+        bodyUserKey ||
+        camelBodyUserKey ||
+        headerUserKey ||
+        ""
+      ).toString().trim() || null;
 
     const user_key = authedKey || claimedKey;
 
@@ -121,11 +131,13 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // ★ 핵심: client_utc는 NOT NULL → attemptTime이 없거나 파싱 실패면 '지금'으로 보정
+    // ★ client_utc는 NOT NULL → attemptTime이 없거나 파싱 실패면 '지금'으로 보정
     let clientUtcStr;
     if (attemptTime) {
       const utc = new Date(attemptTime);
-      clientUtcStr = isNaN(utc.getTime()) ? toUtcSqlDatetime(new Date()) : toUtcSqlDatetime(utc);
+      clientUtcStr = isNaN(utc.getTime())
+        ? toUtcSqlDatetime(new Date())
+        : toUtcSqlDatetime(utc);
     } else {
       clientUtcStr = toUtcSqlDatetime(new Date());
     }
@@ -140,6 +152,16 @@ router.post("/attempt", async (req, res) => {
     const nextAttempt = Number(lastRows?.[0]?.last_order || 0) + 1;
 
     const story_title = storyTitle || storyKey;
+
+    // 디버깅용 로그
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[W_STR] INSERT payload", {
+        user_key, storyKey, story_title, nextAttempt,
+        score, total, clientUtcStr, clientKst,
+        byCategoryKeys: Object.keys(byCategory || {}),
+        riskBarsKeys: Object.keys(riskBars || {})
+      });
+    }
 
     // INSERT
     await conn.query(
@@ -180,9 +202,10 @@ router.post("/attempt", async (req, res) => {
 router.get("/history/all", async (req, res) => {
   try {
     // 1) 쿼리 우선(관리용), 없으면 2) 인증 쿠키에서 도출
-    let user_key = (req.query.user_key || "").trim();
+    let user_key = (req.query.user_key || req.query.userKey || "").trim();
     if (!user_key) {
-      user_key = await deriveUserKeyFromAuth(req);
+      const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
+      user_key = headerUserKey || (await deriveUserKeyFromAuth(req));
     }
     if (!user_key) {
       return res.status(401).json({ ok: false, error: "not_authed" });
