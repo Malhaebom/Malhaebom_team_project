@@ -35,7 +35,6 @@ export default function ResultExam() {
   useEffect(() => {
     AOS.init();
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
-
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -76,7 +75,7 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // ✅ 결과 저장 (항상 params로 user_key 넘김: 쿠키 의존 최소화)
+  // 저장
   const saveToBookHistory = async () => {
     try {
       const title = localStorage.getItem("bookTitle") || "동화";
@@ -85,6 +84,7 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
+      // user_key 확보(쿼리 우선 → 세션 보장)
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
@@ -97,8 +97,8 @@ export default function ResultExam() {
       const examResult = {
         storyTitle: title,
         storyKey,
-        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환
-        clientKst: nowKstString(),             // 사람이 읽기 좋은 KST 문자열
+        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환 (없어도 서버가 now로 보정)
+        clientKst: nowKstString(),             // 표시용
         score: total,
         total: 40,
         byCategory: {
@@ -119,7 +119,7 @@ export default function ResultExam() {
         riskBarsByType: {},
       };
 
-      // ★ 핵심: 서버에 user_key를 명시적으로 보냄 (쿼리)
+      // ★ 반드시 user_key를 params로 명시: 쿠키 불안정 환경 커버
       const { data } = await API.post("/str/attempt", examResult, {
         params: { user_key: targetUserKey },
       });
@@ -161,38 +161,15 @@ export default function ResultExam() {
             <div className="ct_question" data-aos="fade-up" data-aos-duration="1000">
               <div>
                 <div className="tit">총점</div>
-                <div
-                  className="sub_tit"
-                  id="score"
-                  style={{
-                    margin: "0 auto",
-                    textAlign: "center",
-                    borderRadius: "10px",
-                    backgroundColor: "white",
-                    padding: "20px 0",
-                  }}
-                >
+                <div className="sub_tit" id="score" style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
                   <p>{total} / 40</p>
                 </div>
               </div>
 
               <div>
                 <div className="tit">인지능력</div>
-                <div
-                  style={{
-                    margin: "0 auto",
-                    textAlign: "center",
-                    borderRadius: "10px",
-                    backgroundColor: "white",
-                    padding: "20px 0",
-                  }}
-                >
-                  <img
-                    id="isPassed"
-                    src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
-                    className="container"
-                    style={{ width: "15%" }}
-                  />
+                <div style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
+                  <img id="isPassed" src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} className="container" style={{ width: "15%" }} />
                 </div>
               </div>
 
@@ -203,18 +180,12 @@ export default function ResultExam() {
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
                       {isPassed ? okOpinion : opinions_result[lowIndex]}
                     </p>
-                    {!isPassed && (
-                      <p className="num" id="opinions_guide">
-                        {opinions_guide[lowIndex]}
-                      </p>
-                    )}
+                    {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
                   </div>
                 </div>
               </div>
 
-              <button className="question_bt" type="button" onClick={goHome}>
-                홈으로
-              </button>
+              <button className="question_bt" type="button" onClick={goHome}>홈으로</button>
             </div>
           </div>
         </div>

@@ -107,65 +107,27 @@ function ResultDetailCard({ data }) {
   ];
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: "10px",
-        padding: "20px",
-        marginTop: 12,
-        marginBottom: 12,
-        boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-      }}
-    >
+    <div style={{ background: "#fff", borderRadius: "10px", padding: "20px", marginTop: 12, marginBottom: 12, boxShadow: "0 6px 18px rgba(0,0,0,0.08)" }}>
       <div style={{ marginBottom: 20 }}>
         <div className="tit">총점</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: "10px",
-            backgroundColor: "white",
-            padding: "20px 0",
-            fontSize: 18,
-            fontWeight: 700,
-          }}
-        >
+        <div style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0", fontSize: 18, fontWeight: 700 }}>
           {total} / 40
         </div>
       </div>
 
       <div style={{ marginBottom: 20 }}>
         <div className="tit">인지능력</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: "10px",
-            backgroundColor: "white",
-            padding: "20px 0",
-          }}
-        >
-          <img
-            src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
-            style={{ width: "15%" }}
-          />
+        <div style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
+          <img src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} style={{ width: "15%" }} />
         </div>
       </div>
 
       <div>
         <div className="tit">검사 결과 평가</div>
-        <div
-          style={{
-            padding: "12px 0",
-            lineHeight: 1.6,
-            whiteSpace: "pre-line",
-          }}
-        >
+        <div style={{ padding: "12px 0", lineHeight: 1.6, whiteSpace: "pre-line" }}>
           {isPassed ? okOpinion : opinions_result[lowIndex]}
         </div>
-        {!isPassed && (
-          <div style={{ fontWeight: 700, marginTop: 6 }}>{opinions_guide[lowIndex]}</div>
-        )}
+        {!isPassed && <div style={{ fontWeight: 700, marginTop: 6 }}>{opinions_guide[lowIndex]}</div>}
       </div>
     </div>
   );
@@ -216,7 +178,7 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        // 1) 쿼리 우선, 없으면 세션에서 도출
+        // user_key 확보
         let userKey = userKeyFromQuery && userKeyFromQuery !== "guest"
           ? userKeyFromQuery
           : await ensureUserKey({ retries: 2, delayMs: 150 });
@@ -227,7 +189,7 @@ export default function BookHistory() {
           return;
         }
 
-        // ★ 핵심: 항상 user_key를 파라미터로 명시 전달하여 쿠키 의존 최소화
+        // ★ 항상 user_key를 파라미터로 명시 전달
         const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
 
         if (data?.ok) {
@@ -249,23 +211,8 @@ export default function BookHistory() {
     <div className="content">
       {windowWidth > 1100 && <Background />}
 
-      <div
-        className="wrap"
-        style={{
-          maxWidth: 520,
-          margin: "0 auto",
-          padding: "80px 20px",
-          fontFamily: "Pretendard-Regular",
-        }}
-      >
-        <h2
-          style={{
-            textAlign: "center",
-            marginBottom: 10,
-            fontFamily: "ONE-Mobile-Title",
-            fontSize: 32,
-          }}
-        >
+      <div className="wrap" style={{ maxWidth: 520, margin: "0 auto", padding: "80px 20px", fontFamily: "Pretendard-Regular" }}>
+        <h2 style={{ textAlign: "center", marginBottom: 10, fontFamily: "ONE-Mobile-Title", fontSize: 32 }}>
           동화 화행검사 결과
         </h2>
 
@@ -281,29 +228,13 @@ export default function BookHistory() {
               const records = b.records || [];
 
               return (
-                <div
-                  key={storyId}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    overflow: "hidden",
-                  }}
-                >
+                <div key={storyId} style={{ background: "#fff", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", overflow: "hidden" }}>
                   <div
                     onClick={() => {
                       setOpenStoryId(opened ? null : storyId);
                       setOpenRecordId(null);
                     }}
-                    style={{
-                      padding: "18px 20px",
-                      fontSize: 18,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
+                    style={{ padding: "18px 20px", fontSize: 18, fontWeight: 700, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
                   >
                     <span>{b.story_title}</span>
                     <span style={{ fontSize: 20 }}>{opened ? "▲" : "▼"}</span>
@@ -322,29 +253,11 @@ export default function BookHistory() {
                             <div key={r.id}>
                               <div
                                 onClick={() => setOpenRecordId(selected ? null : r.id)}
-                                style={{
-                                  background: "#fafafa",
-                                  borderRadius: 8,
-                                  padding: "12px 16px",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  cursor: "pointer",
-                                }}
+                                style={{ background: "#fafafa", borderRadius: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
                               >
                                 <span style={{ fontSize: 15, color: "#333" }}>
                                   {r.client_kst || ""}
-                                  <span
-                                    style={{
-                                      background: "#eee",
-                                      padding: "2px 8px",
-                                      borderRadius: 8,
-                                      fontSize: 13,
-                                      marginLeft: 8,
-                                      fontWeight: 600,
-                                      color: "#333",
-                                    }}
-                                  >
+                                  <span style={{ background: "#eee", padding: "2px 8px", borderRadius: 8, fontSize: 13, marginLeft: 8, fontWeight: 600, color: "#333" }}>
                                     {r.client_attempt_order ?? "?"}회차
                                   </span>
                                 </span>
