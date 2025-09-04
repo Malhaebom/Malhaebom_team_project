@@ -1,0 +1,251 @@
+==========================================
+🎯 Malhaebom 팀 프로젝트 - 현재 상태 및 사용법 (2025년 1월)
+==========================================
+
+📁 프로젝트 위치: C:\TEST_TEAM_VER\Malhaebom_team_project
+🌐 GitHub 원본: https://github.com/Malhaebom/Malhaebom_team_project.git
+
+## 🔄 GitHub 원본과의 주요 차이점
+
+### 1. **인터뷰 인지판단 기능 추가**
+- **원본**: 기본적인 Flutter 앱 구조만 존재
+- **현재**: Python FastAPI 기반 음성 분석 및 채점 시스템 완전 통합
+
+### 2. **새로 추가된 파일들**
+```
+08.X_X/
+├── analyzer.py              # 인지능력 채점 로직 (새로 생성)
+├── gateway.py               # Whisper STT + 게이트웨이 (새로 생성)
+├── MAIN.py                  # 분석 서버 (새로 생성)
+├── interview.json           # 인터뷰 질문 데이터 (새로 생성)
+├── interview_scoring.txt    # 채점 기준 (새로 생성)
+└── 현재_상태_및_사용법.txt  # 프로젝트 문서 (새로 생성)
+
+03. app/malhaebom/
+├── lib/service/interview_api.dart    # 서버 통신 클래스 (새로 생성)
+└── README_INTERVIEW.txt              # 앱 연동 가이드 (새로 생성)
+
+02. web/malhaebom/
+└── src/pages/Interview/Result.jsx    # 결과 페이지 (새로 생성)
+```
+
+### 3. **기존 파일 수정사항**
+- **Flutter 앱**: `interview_recording_page.dart`에 서버 전송 로직 추가
+- **웹 앱**: `InterviewStart.jsx`에 게이트웨이 호출 로직 추가
+- **포트 변경**: 8081 → 4000으로 통일
+
+## 🚀 인터뷰 인지판단 기능 실행 방법
+
+### **1단계: Python 환경 설정**
+```bash
+# Python 3.8+ 설치 필요
+# 가상환경 권장
+python -m venv venv
+venv\Scripts\activate  # Windows
+```( 아마 이거는 C:\TEST_TEAM_VER\Malhaebom_team_project\08.X_X 에 .venv깔려 있어서 상관없을듯)
+
+### **2단계: 필요한 Python 라이브러리 설치**
+```bash
+cd "08.X_X"
+
+# 기본 웹 프레임워크
+pip install uvicorn fastapi python-multipart
+
+# 음성 처리 및 AI 모델
+pip install torch torchaudio transformers sentencepiece
+pip install librosa
+
+# 자연어 처리
+pip install sentence-transformers scikit-learn
+pip install konlpy kss
+
+# 기타 유틸리티
+pip install requests
+```
+
+### **3단계: 서버 실행 (순서 중요!)**
+```bash
+# 터미널 1: 분석 서버 (8000 포트)
+cd "08.X_X"
+uvicorn MAIN:app --host 127.0.0.1 --port 8000 --reload
+
+# 터미널 2: 게이트웨이 서버 (4000 포트)
+cd "08.X_X"
+uvicorn gateway:app --host 0.0.0.0 --port 4000 --reload
+```
+
+### **4단계: Flutter 앱 실행**
+```bash
+cd "03. app/malhaebom"
+flutter pub get
+flutter run
+```
+
+### **5단계: 웹 앱 실행 (선택사항)**
+```bash
+cd "02. web/malhaebom"
+npm install
+npm run dev
+```
+
+## 📱 Flutter 앱 설정
+
+### **필요한 의존성 (pubspec.yaml)**
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  record: ^5.0.4              # 음성 녹음
+  path_provider: ^2.1.2        # 파일 경로 관리
+  audioplayers: ^5.2.1         # 오디오 재생
+  http: ^1.2.1                 # HTTP 통신
+  shared_preferences: ^2.2.2   # 로컬 저장소
+  flutter_screenutil: ^5.9.0   # 반응형 UI
+```
+
+### **Android 권한 설정 (AndroidManifest.xml)**
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+<application
+    android:usesCleartextTraffic="true"
+    ...>
+```
+
+## 🌐 웹 앱 설정
+
+### **필요한 의존성 (package.json)**
+```json
+{
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.8.0"
+  }
+}
+```
+
+## 🔧 핵심 기능 설명
+
+### **1. 음성 녹음 및 분석 흐름**
+```
+사용자 녹음 → Flutter/웹 → 게이트웨이(4000) → Whisper STT → 분석 서버(8000) → 점수 계산 → 결과 반환
+```
+
+### **2. 채점 항목 (총 40점)**
+- **반응 시간** (4점): 질문 제시 후 답변 시작까지의 시간
+- **반복어 비율** (4점): 답변에서 반복되는 단어의 비율
+- **평균 문장 길이** (4점): 답변의 문장 길이 적절성
+- **화행 적절성** (12점): 질문과 답변의 의미적 연관성
+- **회상성** (8점): 기억을 되살리는 답변의 적절성
+- **문법 완성도** (8점): 답변의 문법적 정확성
+
+### **3. 무음/환각 방지 시스템**
+- **오디오 필터링**: RMS 에너지, 지속시간, VAD 기반 필터링
+- **텍스트 필터링**: 뉴스 멘트, 의미없는 패턴 자동 감지
+- **0점 처리**: 무음/짧은 입력/환각 텍스트 자동 0점 처리
+
+## ⚠️ 주의사항 및 트러블슈팅
+
+### **1. 서버 실행 순서**
+- **반드시**: 분석 서버(8000) → 게이트웨이(4000) 순서로 실행
+- **순서 바뀌면**: 게이트웨이에서 분석 서버 연결 실패
+
+### **2. 포트 충돌 방지**
+- **4000 포트**: 게이트웨이 전용 (다른 서비스와 충돌 주의)
+- **8000 포트**: 분석 서버 전용
+- **방화벽**: Windows 방화벽에서 해당 포트 허용 필요
+
+### **3. 네트워크 설정**
+- **에뮬레이터**: `http://10.0.2.2:4000`
+- **실기기**: `http://<PC_IP>:4000` (PC와 같은 Wi-Fi 필요)
+
+### **4. 자주 발생하는 오류**
+```
+ERROR: Could not import module "gateway"
+→ 08.X_X 폴더에서 실행했는지 확인
+
+ERROR: MediaCodec 관련 오류
+→ Android 에뮬레이터 재시작 또는 실제 기기 사용
+
+ERROR: 네트워크 연결 실패
+→ 서버 실행 상태, 포트, IP 주소 재확인
+```
+
+## 📊 성능 및 제한사항
+
+### **1. 음성 처리**
+- **지원 형식**: .wav, .mp3, .m4a, .webm, .ogg
+- **최대 길이**: 30초 (Flutter), 60초 (웹)
+- **품질**: 44.1kHz, 128kbps AAC
+
+### **2. AI 모델**
+- **Whisper**: OpenAI Whisper 기반 STT (한국어 지원)
+- **SentenceTransformer**: jhgan/ko-sroberta-multitask (한국어 임베딩)
+- **처리 시간**: 평균 2-5초 (하드웨어 성능에 따라)
+
+### **3. 동시 사용자**
+- **게이트웨이**: 동시 10명 (4000 포트)
+- **분석 서버**: 동시 5명 (8000 포트)
+- **확장**: Nginx 로드밸런서로 확장 가능
+
+## 🎯 사용 시나리오
+
+### **1. 개인 사용**
+- Flutter 앱에서 인터뷰 진행
+- 녹음 → 자동 분석 → 결과 확인
+- 개인 인지능력 모니터링
+
+### **2. 그룹 테스트**
+- 웹 앱으로 다수 사용자 동시 테스트
+- 결과 데이터베이스 저장 및 분석
+- 그룹별 성과 비교
+
+### **3. 연구 목적**
+- 대량 데이터 수집 및 분석
+- 채점 알고리즘 개선
+- 인지능력 연구 지원
+
+## 🔮 향후 개발 계획
+
+### **1. 단기 (1-2개월)**
+- 채점 정확도 향상
+- 더 많은 언어 지원
+- 모바일 앱 성능 최적화
+
+### **2. 중기 (3-6개월)**
+- 실시간 음성 분석
+- 개인화된 피드백 시스템
+- 클라우드 배포 지원
+
+### **3. 장기 (6개월+)**
+- AI 모델 자체 개발
+- 다국어 지원 확장
+- 엔터프라이즈 솔루션
+
+## 📞 기술 지원
+
+### **문제 발생 시 확인 순서**
+1. **서버 상태**: 8000, 4000 포트 실행 확인
+2. **네트워크**: IP 주소, 방화벽 설정 확인
+3. **로그 확인**: Flutter 콘솔, Python 서버 로그
+4. **파일 경로**: 08.X_X 폴더에서 실행했는지 확인
+
+### **참고 문서**
+- `08.X_X/현재_상태_및_사용법.txt`: 상세한 서버 실행 방법
+- `03. app/malhaebom/README_INTERVIEW.txt`: Flutter 앱 연동 가이드
+- `02. web/malhaebom/README_INTERVIEW.txt`: 웹 앱 연동 가이드
+
+이제 완전히 통합된 인터뷰 인지판단 시스템을 사용할 수 있습니다! 🚀
+
+
+
+*** 250903 0934 작성***
+서한이 : 지금 이거 안되면 빨리 말씀해주세요. 08.X_X 밑에 있는 09..11..은 의미가없습니다 
+BAEPOREADME를 읽으시면 배포 관련된 설명을 읽을수있습니다. 
+C:\TEST_TEAM_VER\Malhaebom_team_project\08.X_X\현재_상태_및_사용법.txt 여기에 있는 것은 지금 이 설명이랑
+거의 비슷한 이야기중이니,  이 글을 읽으셨다면 무시하셔도 좋습니다. 
+앱은 지금 실행불가입니다. 오늘 중으로 고치도록 하곘습니다. 

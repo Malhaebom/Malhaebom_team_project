@@ -1,0 +1,190 @@
+250901 1048 
+➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+오전 10:48:05 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+오전 10:48:05 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+오전 10:48:05 [vite] Internal server error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 4)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)
+오전 10:48:05 [vite] Internal server error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)
+
+
+      //오전 10:48:05 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+오전 10:48:05 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+오전 10:48:05 [vite] Internal server error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 4)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)
+오전 10:48:05 [vite] Internal server error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)
+// 25 0901 1058 
+[plugin:vite:import-analysis] Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+23 |  import { useNavigate } from 'react-router-dom';
+24 |  import ProgressBar from './ProgressBar';
+25 |  import styles from '../../css/InterviewStart.module.css';
+   |                      ^
+26 |  const questions = [
+27 |      {
+
+
+    // 크롬에 뜬거 
+
+    InterviewHistory.jsx:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)Understand this error
+InterviewStart.jsx:1  Failed to load resource: the server responded with a status of 500 (Internal Server Error)
+
+
+
+
+
+
+///
+오전 10:57:43 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+오전 10:57:43 [vite] (client) Pre-transform error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+오전 10:57:43 [vite] Internal server error: Failed to resolve import "../../css/InterviewHistory.module.css" from "src/pages/Mypage/InterviewHistory.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Mypage/InterviewHistory.jsx:2:19
+  21 |  var _s = $RefreshSig$();
+  22 |  import React, { useState, useEffect } from 'react';
+  23 |  import styles from '../../css/InterviewHistory.module.css';
+     |                      ^
+  24 |  function InterviewHistory() {
+  25 |      _s();
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 4)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)
+오전 10:57:43 [vite] Internal server error: Failed to resolve import "../../css/InterviewStart.module.css" from "src/pages/Interview/InterviewStart.jsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: D:/test_XXX_ver/Malhaebom_team_project/02. web/malhaebom/src/pages/Interview/InterviewStart.jsx:4:19
+  23 |  import { useNavigate } from 'react-router-dom';
+  24 |  import ProgressBar from './ProgressBar';
+  25 |  import styles from '../../css/InterviewStart.module.css';
+     |                      ^
+  26 |  const questions = [
+  27 |      {
+      at TransformPluginContext._formatLog (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42499:41)
+      at TransformPluginContext.error (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42496:16)
+      at normalizeUrl (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40475:23)
+      at async file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40594:37
+      at async Promise.all (index 6)
+      at async TransformPluginContext.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:40521:7)
+      at async EnvironmentPluginContainer.transform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:42294:18)
+      at async loadAndTransform (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:35735:27)
+      at async viteTransformMiddleware (file:///D:/test_XXX_ver/Malhaebom_team_project/02.%20web/malhaebom/node_modules/vite/dist/node/chunks/dep-DBxKXgDP.js:37250:24)

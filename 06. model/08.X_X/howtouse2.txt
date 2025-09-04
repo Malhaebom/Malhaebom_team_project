@@ -1,0 +1,60 @@
+음성 기반 인지 능력 분석 시스템: 기술 명세서 (v2 - Whisper 모델 적용)
+
+1. 시스템 개요 (v2)
+본 시스템은 사용자의 음성 답변을 기반으로 인지 능력을 분석하는 AI 파이프라인 시스템입니다.
+v2에서는 기존의 복잡한 마이크로서비스 구조를 단순화했습니다. 외부 도커(Docker)에 의존하던 STT(음성 텍스트 변환) 및 사투리 번역 기능이 `gateway.py` 내에 OpenAI의 `Whisper` 모델로 통합되었습니다.
+이를 통해 별도의 STT/번역 서버 없이, 더 적은 리소스로 간편하게 시스템을 실행할 수 있습니다.
+
+전체 작업 흐름 (Simplified Pipeline)
+1.  **클라이언트 (Flutter 앱):** 사용자의 음성을 녹음하여 게이트웨이 서버로 전송합니다.
+2.  **게이트웨이 서버 (`gateway.py`):**
+    *   `Whisper` 모델을 사용해 음성 파일을 텍스트로 직접 변환합니다. (STT + 표준어 변환 동시 처리)
+    *   변환된 텍스트를 분석 서버로 전달하여 분석을 요청합니다.
+    *   최종 결과를 클라이언트에 응답합니다.
+3.  **분석 서버 (`MAIN.py`):** 기존과 동일하게, 텍스트를 기반으로 인지 지표를 분석하고 점수를 산출합니다.
+
+2. 시스템 작동 방법 (v2)
+단순화된 구조에 맞춰 시스템 실행 방법이 변경되었습니다. 더 이상 Docker가 필요하지 않습니다.
+
+사전 준비사항
+*   **Python:** 3.9 이상 버전이 설치되어 있어야 합니다.
+*   **프로젝트 코드:** `gateway.py`, `MAIN.py`, `analyzer.py`, `custom_spell_checker.py` 파일이 모두 한 폴더에 있어야 합니다.
+*   **(필요 시) CUDA:** GPU를 사용한 빠른 음성 인식을 원할 경우, NVIDIA 그래픽카드와 CUDA 환경이 설정되어 있어야 합니다. (없을 경우 CPU로 자동 실행)
+
+서버 실행 순서
+총 2개의 터미널(PowerShell 또는 cmd) 창만 필요합니다.
+
+[터미널 1] 분석 서버 실행:
+프로젝트 폴더로 이동하여 필요한 라이브러리를 설치한 뒤, 아래 명령어로 서버를 실행합니다.
+
+# (최초 1회) 라이브러리 설치
+pip install uvicorn fastapi python-multipart sentence-transformers scikit-learn konlpy kss requests
+
+# 분석 서버 실행
+uvicorn MAIN:app --reload --host 0.0.0.0 --port 8000
+
+주의: 최초 실행 시 AI 모델 예열 과정으로 인해 `Application startup complete.` 메시지가 뜨기까지 시간이 소요될 수 있습니다.
+
+[터미널 2] 게이트웨이 서버 실행:
+프로젝트 폴더로 이동하여 새로운 STT 라이브러리를 포함하여 설치한 뒤, 서버를 실행합니다.
+
+# (최초 1회) 신규 라이브러리 설치 (Whisper 및 오디오 처리용)
+pip install torch torchaudio
+pip install transformers sentencepiece librosa
+
+# 게이트웨이 서버 실행
+uvicorn gateway:app --reload --port 8081
+
+주의: 최초 실행 시 `Whisper` 모델 파일을 다운로드하므로 인터넷 연결이 필요하며, 수 분 정도의 시간이 소요될 수 있습니다.
+
+테스트 방법
+1.  모든 서버가 정상적으로 실행된 것을 각 터미널에서 확인합니다.
+2.  웹 브라우저에서 게이트웨이 서버의 테스트 페이지 주소 `http://127.0.0.1:8081/docs` 로 접속합니다.
+3.  `/process-audio` 엔드포인트를 열고 `Try it out`을 클릭합니다.
+4.  테스트할 `.wav` 음성 파일과 `question_text`, `response_time`, `audio_duration` 값을 입력한 후 `Execute` 버튼을 누르면 전체 파이프라인이 동작하고 최종 결과를 확인할 수 있습니다.
+
+3. 주요 변경 사항 (v1 -> v2)
+*   **STT/번역 서버 제거:** Docker 기반의 `dialect.stt.kyeongsang` 및 `dialect-nmt-gyeongsang` 서버를 더 이상 사용하지 않습니다.
+*   **Whisper 모델 통합:** `gateway.py`가 `openai/whisper-small` 모델을 직접 사용하여 음성 인식을 수행합니다. 이 과정에서 사투리가 어느 정도 표준어로 변환되는 효과가 있습니다.
+*   **의존성 변경:** `torch`, `torchaudio`, `transformers`, `sentencepiece`, `librosa` 라이브러리가 새롭게 필요합니다. `Docker`는 더 이상 필요하지 않습니다.
+*   **아키텍처 단순화:** 전체 시스템이 2개의 Python 서버(게이트웨이, 분석)로 간소화되어 유지보수가 용이해졌습니다.
