@@ -1,4 +1,4 @@
-// Server/router/STRouter.js
+// Server/router/W_STRServer.js
 const express = require("express");
 const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
@@ -38,7 +38,18 @@ const toStrOrNull = (s) => {
   const v = String(s).trim();
   return v.length ? v : null;
 };
-function pad(n) { return String(n).padStart(2, "0"); }
+const pad2 = (n) => String(n).padStart(2, "0");
+
+/** Date → 'YYYY-MM-DD HH:mm:ss' (UTC 기준) */
+function toUtcSqlDatetime(date) {
+  const y = date.getUTCFullYear();
+  const m = pad2(date.getUTCMonth() + 1);
+  const d = pad2(date.getUTCDate());
+  const hh = pad2(date.getUTCHours());
+  const mm = pad2(date.getUTCMinutes());
+  const ss = pad2(date.getUTCSeconds());
+  return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
+}
 
 function composeUserKey(login_type, login_id) {
   if (!login_type || !login_id) return null;
@@ -60,27 +71,29 @@ async function deriveUserKeyFromAuth(req) {
     if (!rows.length) return null;
     const { login_id, login_type } = rows[0];
     return composeUserKey(login_type, login_id);
-  } catch (e) {
+  } catch (_e) {
     return null;
   }
 }
 
 router.use((req, _res, next) => {
   if (process.env.NODE_ENV !== "production") {
-    console.log(`[STR] ${req.method} ${req.originalUrl}`);
+    console.log(`[W_STR] ${req.method} ${req.originalUrl}`);
   }
   next();
 });
 
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
-  const conn = await pool.getConnection();
+  let conn;
   try {
+    conn = await pool.getConnection();
+
     const {
       storyTitle,
       storyKey,
-      attemptTime,
-      clientKst,
+      attemptTime,     // ISO string 기대 (없을 수 있음)
+      clientKst,       // 표시용 문자열 (선택)
       score,
       total,
       byCategory = {},
@@ -96,7 +109,7 @@ router.post("/attempt", async (req, res) => {
     // 2) 하위호환: 쿼리/바디에 온 값 (하지만 authedKey가 있으면 반드시 같아야 함)
     const claimedKey = (req.query.user_key || bodyUserKey || "").trim() || null;
 
-    let user_key = authedKey || claimedKey;
+    const user_key = authedKey || claimedKey;
 
     if (!user_key || user_key === "guest") {
       return res.status(401).json({ ok: false, error: "not_authed", detail: "로그인된 사용자만 저장 가능합니다." });
@@ -104,26 +117,31 @@ router.post("/attempt", async (req, res) => {
     if (authedKey && claimedKey && authedKey !== claimedKey) {
       return res.status(403).json({ ok: false, error: "mismatched_user_key" });
     }
-    if (!storyKey || !attemptTime) {
-      return res.status(400).json({ ok: false, error: "missing storyKey or attemptTime" });
+    if (!storyKey) {
+      return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    const [r] = await conn.query(
+    // ★ 핵심: client_utc는 NOT NULL → attemptTime이 없거나 파싱 실패면 '지금'으로 보정
+    let clientUtcStr;
+    if (attemptTime) {
+      const utc = new Date(attemptTime);
+      clientUtcStr = isNaN(utc.getTime()) ? toUtcSqlDatetime(new Date()) : toUtcSqlDatetime(utc);
+    } else {
+      clientUtcStr = toUtcSqlDatetime(new Date());
+    }
+
+    // 동일 story_key의 다음 회차 계산
+    const [lastRows] = await conn.query(
       `SELECT COALESCE(MAX(client_attempt_order), 0) AS last_order
          FROM tb_story_result
         WHERE TRIM(user_key)=TRIM(?) AND story_key=?`,
       [user_key, storyKey]
     );
-    const nextAttempt = Number(r?.[0]?.last_order || 0) + 1;
-
-    const utc = new Date(attemptTime);
-    const client_utc =
-      isNaN(utc.getTime())
-        ? null
-        : `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())} ${pad(utc.getUTCHours())}:${pad(utc.getUTCMinutes())}:${pad(utc.getUTCSeconds())}`;
+    const nextAttempt = Number(lastRows?.[0]?.last_order || 0) + 1;
 
     const story_title = storyTitle || storyKey;
 
+    // INSERT
     await conn.query(
       `INSERT INTO tb_story_result
        (user_key, story_key, story_title, client_attempt_order, score, total, client_utc, client_kst,
@@ -136,21 +154,25 @@ router.post("/attempt", async (req, res) => {
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
-        client_utc,                          // DATETIME 'YYYY-MM-DD HH:mm:ss'
-        toStrOrNull(clientKst),              // 문자열(KST 표기 저장 원하면 여기 사용)
+        clientUtcStr,                      // DATETIME 'YYYY-MM-DD HH:mm:ss' (NOT NULL 보장)
+        toStrOrNull(clientKst),            // 사람이 읽기 좋은 KST 문자열(선택)
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
-        JSON.stringify(riskBarsByType || {})
+        JSON.stringify(riskBarsByType || {}),
       ]
     );
 
     return res.json({ ok: true, user_key, story_key: storyKey, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
-    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
+    return res.status(500).json({
+      ok: false,
+      error: err.code || "db_error",
+      detail: err.sqlMessage || String(err),
+    });
   } finally {
-    conn.release();
+    if (conn) conn.release();
   }
 });
 
@@ -176,6 +198,8 @@ router.get("/history/all", async (req, res) => {
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
+    const toNumOrNull = (v) => (v === null || v === undefined ? null : toNumber(v, null));
+
     const map = new Map();
     for (const r of rows) {
       const sk = r.story_key || "(unknown)";
@@ -190,19 +214,22 @@ router.get("/history/all", async (req, res) => {
         id: r.id,
         client_kst: toStrOrNull(r.client_kst),
         client_utc: toStrOrNull(r.client_utc),
-        client_attempt_order: r.client_attempt_order === null ? null : toNumber(r.client_attempt_order, null),
+        client_attempt_order: toNumOrNull(r.client_attempt_order),
         score: toNumber(r.score, 0),
         total: toNumber(r.total, 0),
         by_category: safeParseJSON(r.by_category, {}),
-        risk_bars: safeParseJSON(r.risk_bars, {})
+        risk_bars: safeParseJSON(r.risk_bars, {}),
       });
     }
     return res.json({ ok: true, data: Array.from(map.values()) });
   } catch (err) {
     console.error("[/str/history/all] error:", err);
-    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
+    return res.status(500).json({
+      ok: false,
+      error: err.code || "db_error",
+      detail: err.sqlMessage || String(err),
+    });
   }
 });
 
 module.exports = router;
-  
