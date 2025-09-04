@@ -1,53 +1,75 @@
+// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
-/** 1) 기준 슬러그/타이틀 테이블 (표시는 여기 기준으로) */
+const DEBUG = true;
+
+/** 표준 슬러그/제목(표시는 여기 기준) */
 const baseStories = [
-  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
+  { story_key: "mother_gloves",     story_title: "어머니의 벙어리장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",        story_title: "아들의 호빵" },
   { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 2) 제목 → 슬러그 역매핑(서버에 과거 ‘제목’을 story_key로 저장한 데이터도 흡수) */
-const titleToSlug = (() => {
-  const m = new Map();
-  for (const b of baseStories) {
-    m.set(normalizeSpace(b.story_title), b.story_key);
-  }
-  return m;
-})();
+/** 기본 매핑: 제목 → 슬러그 */
+const titleToSlugBase = new Map(
+  baseStories.map((b) => [normalizeSpace(b.story_title), b.story_key])
+);
 
-/** 공백/철자 정규화(제목 비교용) */
+/** 과거 데이터 정규화(오타/띄어쓰기/조사 등) → 표준제목 */
+function normalizeKoreanTitle(s) {
+  let x = normalizeSpace(s);
+  // 흔한 오타/변형 교정
+  x = x.replaceAll("병어리", "벙어리");
+  x = x.replaceAll("어머니와", "어머니의");
+  x = x.replaceAll("벙어리장갑", "벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나", "할머니와 바나나");
+  return x;
+}
+
+/** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 반환 */
+function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
+  const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
+  // 이미 표준 슬러그?
+  if (slugToTitle.has(story_key_or_title)) return story_key_or_title;
+
+  // 제목 후보 정규화 → 슬러그 탐색
+  const t1 = normalizeKoreanTitle(story_key_or_title);
+  const t2 = normalizeKoreanTitle(story_title_fallback);
+  const slug =
+    titleToSlugBase.get(t1) ||
+    titleToSlugBase.get(t2) ||
+    null;
+  return slug || story_key_or_title; // 못 찾으면 원본 유지(뒤에서 DB-only 카드로 붙음)
+}
+
 function normalizeSpace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
 
-/** MySQL DATETIME('YYYY-MM-DD HH:mm:ss') → Date(UTC로 해석) */
+/** MySQL DATETIME(UTC) 파싱 → Date(UTC) */
 function parseSqlUtc(s) {
   if (!s) return null;
-  // 'YYYY-MM-DD HH:mm:ss'
-  const m = String(s).match(
-    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/
-  );
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
   if (!m) return null;
   const [, Y, M, D, h, m2, s2] = m;
   const dt = new Date(Date.UTC(+Y, +M - 1, +D, +h, +m2, +s2));
   return isNaN(dt.getTime()) ? null : dt;
 }
 
-/** Date(UTC) → 'YYYY-MM-DD HH:mm:ss' (KST로 표시) */
+/** Date(UTC) → KST 표기 */
 function formatKst(dtUtc) {
   if (!dtUtc) return "";
-  const kstMs = dtUtc.getTime() + 9 * 60 * 60 * 1000;
-  const k = new Date(kstMs);
+  const k = new Date(dtUtc.getTime() + 9 * 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
   return `${k.getFullYear()}-${pad(k.getMonth() + 1)}-${pad(k.getDate())} ${pad(k.getHours())}:${pad(k.getMinutes())}:${pad(k.getSeconds())}`;
 }
 
-/** 다양한 점수 포맷을 0~4 정수로 통일 */
+/** 0~4 점수 통일 */
 function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type }) {
   const getCorrect = (obj, key) => {
     const v = obj?.[key];
@@ -63,23 +85,20 @@ function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type })
   const fromPoints = (p) => {
     const n = Number(p);
     if (!Number.isFinite(n)) return null;
-    // risk_bars에 0~8 점수가 실려온 경우(2점=문항1개 정답) → 0~4 환산
     if (n >= 0 && n <= 8 && n % 2 === 0) return Math.round(n / 2);
     return null;
   };
 
-  // A, AI는 by_type(직접/간접), B/C/D는 by_category 또는 라벨 기반으로 시도 → 실패 시 risk_bars 환산
-  const A  = getCorrect(by_type, "직접화행") ?? fromRatio(risk_bars_by_type?.["직접화행"]) ?? fromPoints(risk_bars?.A) ?? 0;
+  const A  = getCorrect(by_type, "직접화행") ?? fromRatio(risk_bars_by_type?.["직접화행"]) ?? fromPoints(risk_bars?.A)  ?? 0;
   const AI = getCorrect(by_type, "간접화행") ?? fromRatio(risk_bars_by_type?.["간접화행"]) ?? fromPoints(risk_bars?.AI) ?? 0;
-  const B  = getCorrect(by_category, "B") ?? getCorrect(by_category, "질문")   ?? fromRatio(risk_bars?.["질문"])   ?? fromPoints(risk_bars?.B) ?? 0;
-  const C  = getCorrect(by_category, "C") ?? getCorrect(by_category, "단언")   ?? fromRatio(risk_bars?.["단언"])   ?? fromPoints(risk_bars?.C) ?? 0;
-  const D  = getCorrect(by_category, "D") ?? getCorrect(by_category, "의례화") ?? fromRatio(risk_bars?.["의례화"]) ?? fromPoints(risk_bars?.D) ?? 0;
+  const B  = getCorrect(by_category, "B")   ?? getCorrect(by_category, "질문") ?? fromRatio(risk_bars?.["질문"]) ?? fromPoints(risk_bars?.B) ?? 0;
+  const C  = getCorrect(by_category, "C")   ?? getCorrect(by_category, "단언") ?? fromRatio(risk_bars?.["단언"]) ?? fromPoints(risk_bars?.C) ?? 0;
+  const D  = getCorrect(by_category, "D")   ?? getCorrect(by_category, "의례화") ?? fromRatio(risk_bars?.["의례화"]) ?? fromPoints(risk_bars?.D) ?? 0;
 
   return { scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D };
 }
 
 function rowToCardData(row) {
-  // 시간: client_kst 우선, 없으면 client_utc(UTC) → KST 포맷
   const displayTime =
     (row?.client_kst || "").trim() ||
     formatKst(parseSqlUtc(row?.client_utc || ""));
@@ -136,67 +155,25 @@ function ResultDetailCard({ data }) {
   ];
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: 10,
-        padding: 20,
-        marginTop: 12,
-        marginBottom: 12,
-        boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-      }}
-    >
+    <div style={{ background:"#fff", borderRadius:10, padding:20, marginTop:12, marginBottom:12, boxShadow:"0 6px 18px rgba(0,0,0,0.08)" }}>
       <div style={{ marginBottom: 20 }}>
         <div className="tit">총점</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: 10,
-            backgroundColor: "white",
-            padding: "20px 0",
-            fontSize: 18,
-            fontWeight: 700,
-          }}
-        >
+        <div style={{ margin:"0 auto", textAlign:"center", borderRadius:10, backgroundColor:"white", padding:"20px 0", fontSize:18, fontWeight:700 }}>
           {total} / 40
         </div>
       </div>
-
       <div style={{ marginBottom: 20 }}>
         <div className="tit">인지능력</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: 10,
-            backgroundColor: "white",
-            padding: "20px 0",
-          }}
-        >
-          <img
-            src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
-            style={{ width: "15%" }}
-          />
+        <div style={{ margin:"0 auto", textAlign:"center", borderRadius:10, backgroundColor:"white", padding:"20px 0" }}>
+          <img src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} style={{ width:"15%" }} />
         </div>
       </div>
-
       <div>
         <div className="tit">검사 결과 평가</div>
-        <div
-          style={{
-            padding: "12px 0",
-            lineHeight: 1.6,
-            whiteSpace: "pre-line",
-          }}
-        >
+        <div style={{ padding:"12px 0", lineHeight:1.6, whiteSpace:"pre-line" }}>
           {isPassed ? okOpinion : opinions_result[lowIndex]}
         </div>
-        {!isPassed && (
-          <div style={{ fontWeight: 700, marginTop: 6 }}>
-            {opinions_guide[lowIndex]}
-          </div>
-        )}
+        {!isPassed && <div style={{ fontWeight:700, marginTop:6 }}>{opinions_guide[lowIndex]}</div>}
       </div>
     </div>
   );
@@ -214,65 +191,52 @@ export default function BookHistory() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  /** 서버 응답의 그룹을 기준 테이블에 “정규화”해서 합치기 */
   const mergedStories = useMemo(() => {
-    // 1) 슬러그 → 타이틀 사전
     const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
-    // 2) 결과를 슬러그 키로 통일해서 모음
     const merging = new Map();
+
     for (const g of groups) {
-      let slug = g.story_key;
-      const titleNorm = normalizeSpace(g.story_title || "");
-      // (a) 이미 슬러그면 그대로
-      if (!slugToTitle.has(slug)) {
-        // (b) 과거 제목이 story_key였던 데이터 → 제목으로 슬러그 복원
-        const guess = titleToSlug.get(titleNorm);
-        if (guess) slug = guess;
-      }
-      // 병합 컨테이너 생성
+      // g.story_key에 한글제목/오타가 들어온 케이스 보정
+      const slug = toSlugFromAny(g.story_key, g.story_title);
+
       if (!merging.has(slug)) {
         merging.set(slug, {
           story_key: slug,
-          story_title: slugToTitle.get(slug) || g.story_title || slug,
+          story_title: slugToTitle.get(slug) || normalizeKoreanTitle(g.story_title || slug),
           records: [],
         });
       }
-      // 레코드 추가(그룹 안 레코드들을 카드 포맷으로 변환)
       const holder = merging.get(slug);
-      for (const r of g.records || []) {
-        holder.records.push(rowToCardData(r));
-      }
+      for (const r of g.records || []) holder.records.push(rowToCardData(r));
     }
 
-    // 3) 기본 카드(레코드 없을 수도 있음) + DB만 있는 것도 뒤에 추가
-    const ordered = baseStories.map((b) => {
-      const g = merging.get(b.story_key);
-      return {
-        story_key: b.story_key,
-        story_title: (g?.story_title || b.story_title),
-        records: (g?.records || []),
-      };
-    });
+    // 기본 목록(빈 카드 가능) + DB에만 존재하는 키 추가
+    const ordered = baseStories.map((b) => ({
+      story_key: b.story_key,
+      story_title: b.story_title,
+      records: merging.get(b.story_key)?.records || [],
+    }));
     for (const [slug, g] of merging.entries()) {
-      const exists = baseStories.some((b) => b.story_key === slug);
-      if (!exists) {
-        ordered.push({
-          story_key: g.story_key,
-          story_title: g.story_title || g.story_key,
-          records: g.records || [],
-        });
-      }
+      if (!baseStories.some((b) => b.story_key === slug)) ordered.push(g);
     }
 
-    // 4) 각 스토리 안에서는 최신순으로 이미 내려오지만, 혹시 모르니 id/시간 기준 재정렬 가볍게
+    // 레코드 최신순 정렬
     for (const it of ordered) {
       it.records.sort((a, b) => {
-        // 최신 먼저
         const ao = Number(a.client_attempt_order || 0);
         const bo = Number(b.client_attempt_order || 0);
         if (ao !== bo) return bo - ao;
         return String(b.id).localeCompare(String(a.id));
       });
+    }
+
+    if (DEBUG) {
+      console.groupCollapsed("%c[BookHistory] mergedStories", "color:#0aa");
+      console.log("groups(raw)", groups);
+      console.log("ordered(final)", ordered);
+      console.groupEnd();
+      // 빠르게 확인하려고 window에 노출
+      window.__STR_HISTORY__ = { groups, ordered };
     }
 
     return ordered;
@@ -289,21 +253,25 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        // user_key 확보(guest 제외)
-        let userKey =
-          userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
+        let userKey = userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
+        if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
+
         if (!userKey || userKey === "guest") {
           setGroups([]);
           setLoading(false);
           return;
         }
 
-        // 쿠키 인증이 있다 해도 params/header로 user_key 명시
-        const cfg = {
-          params: { user_key: userKey },
-          headers: { "x-user-key": userKey },
-        };
+        const cfg = { params: { user_key: userKey }, headers: { "x-user-key": userKey } };
         const { data } = await API.get(`/str/history/all`, cfg);
+
+        if (DEBUG) {
+          console.groupCollapsed("%c[BookHistory] /str/history/all response", "color:#0a0");
+          console.log("status", data?.ok, "groups#", data?.data?.length);
+          console.log("data", data);
+          console.groupEnd();
+          window.__STR_HISTORY_RAW__ = data;
+        }
 
         if (data?.ok) setGroups(data.data || []);
         else setGroups([]);
@@ -319,127 +287,50 @@ export default function BookHistory() {
   return (
     <div className="content">
       {windowWidth > 1100 && <Background />}
-
-      <div
-        className="wrap"
-        style={{
-          maxWidth: 520,
-          margin: "0 auto",
-          padding: "80px 20px",
-          fontFamily: "Pretendard-Regular",
-        }}
-      >
-        <h2
-          style={{
-            textAlign: "center",
-            marginBottom: 10,
-            fontFamily: "ONE-Mobile-Title",
-            fontSize: 32,
-          }}
-        >
+      <div className="wrap" style={{ maxWidth:520, margin:"0 auto", padding:"80px 20px", fontFamily:"Pretendard-Regular" }}>
+        <h2 style={{ textAlign:"center", marginBottom:10, fontFamily:"ONE-Mobile-Title", fontSize:32 }}>
           동화 화행검사 결과
         </h2>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "#666" }}>
-            불러오는 중...
-          </div>
+          <div style={{ textAlign:"center", padding:"40px 0", color:"#666" }}>불러오는 중...</div>
         ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 15,
-              marginTop: 10,
-            }}
-          >
+          <div style={{ display:"flex", flexDirection:"column", gap:15, marginTop:10 }}>
             {mergedStories.map((b, idx) => {
               const storyId = b.story_key || idx;
               const opened = openStoryId === storyId;
               const records = b.records || [];
-
               return (
-                <div
-                  key={storyId}
-                  style={{
-                    background: "#fff",
-                    borderRadius: 12,
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    overflow: "hidden",
-                  }}
-                >
+                <div key={storyId} style={{ background:"#fff", borderRadius:12, boxShadow:"0 4px 12px rgba(0,0,0,0.1)", overflow:"hidden" }}>
                   <div
-                    onClick={() => {
-                      setOpenStoryId(opened ? null : storyId);
-                      setOpenRecordId(null);
-                    }}
-                    style={{
-                      padding: "18px 20px",
-                      fontSize: 18,
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
+                    onClick={() => { setOpenStoryId(opened ? null : storyId); setOpenRecordId(null); }}
+                    style={{ padding:"18px 20px", fontSize:18, fontWeight:700, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}
                   >
                     <span>{b.story_title}</span>
-                    <span style={{ fontSize: 20 }}>{opened ? "▲" : "▼"}</span>
+                    <span style={{ fontSize:20 }}>{opened ? "▲" : "▼"}</span>
                   </div>
 
                   {opened && (
-                    <div
-                      style={{
-                        padding: "14px 20px",
-                        borderTop: "1px solid #eee",
-                      }}
-                    >
+                    <div style={{ padding:"14px 20px", borderTop:"1px solid #eee" }}>
                       {records.length === 0 ? (
-                        <div style={{ color: "#888", padding: "8px 0" }}>
-                          아직 결과가 없습니다.
-                        </div>
+                        <div style={{ color:"#888", padding:"8px 0" }}>아직 결과가 없습니다.</div>
                       ) : (
                         records.map((r) => {
                           const selected = openRecordId === r.id;
                           return (
                             <div key={r.id}>
                               <div
-                                onClick={() =>
-                                  setOpenRecordId(selected ? null : r.id)
-                                }
-                                style={{
-                                  background: "#fafafa",
-                                  borderRadius: 8,
-                                  padding: "12px 16px",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  cursor: "pointer",
-                                }}
+                                onClick={() => setOpenRecordId(selected ? null : r.id)}
+                                style={{ background:"#fafafa", borderRadius:8, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}
                               >
-                                <span style={{ fontSize: 15, color: "#333" }}>
+                                <span style={{ fontSize:15, color:"#333" }}>
                                   {r.client_kst || ""}
-                                  <span
-                                    style={{
-                                      background: "#eee",
-                                      padding: "2px 8px",
-                                      borderRadius: 8,
-                                      fontSize: 13,
-                                      marginLeft: 8,
-                                      fontWeight: 600,
-                                      color: "#333",
-                                    }}
-                                  >
+                                  <span style={{ background:"#eee", padding:"2px 8px", borderRadius:8, fontSize:13, marginLeft:8, fontWeight:600, color:"#333" }}>
                                     {r.client_attempt_order ?? "?"}회차
                                   </span>
                                 </span>
                               </div>
-
-                              {selected && (
-                                <div style={{ marginTop: 12 }}>
-                                  <ResultDetailCard data={r} />
-                                </div>
-                              )}
+                              {selected && <div style={{ marginTop:12 }}><ResultDetailCard data={r} /></div>}
                             </div>
                           );
                         })
