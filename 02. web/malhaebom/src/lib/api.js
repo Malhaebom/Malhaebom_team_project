@@ -1,4 +1,3 @@
-// 02. web/malhaebom/src/lib/api.js
 import axios from "axios";
 
 const API = axios.create({
@@ -69,24 +68,20 @@ function extractUserKeyFromMe(data) {
 }
 
 export async function getUserKeyFromSession() {
-  // 1) URL 우선
   const fromQuery = getUserKeyFromUrl();
   if (fromQuery) {
     sessionStorage.setItem("user_key", fromQuery);
     return fromQuery;
   }
-  // 2) 캐시
   const cached = (sessionStorage.getItem("user_key") || "").trim();
   if (cached && cached.toLowerCase() !== "guest") return cached;
 
-  // 3) 서버가 실제로 쓰는 키(whoami)
   const who = await getKeyFromWhoAmI();
   if (who) {
     sessionStorage.setItem("user_key", who);
     return who;
   }
 
-  // 4) 구 방식(me) fallback
   try {
     const { data } = await API.get("/userLogin/me");
     const meKey = extractUserKeyFromMe(data);

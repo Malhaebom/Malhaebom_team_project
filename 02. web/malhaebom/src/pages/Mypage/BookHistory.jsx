@@ -3,7 +3,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.4";
+window.__BH_VERSION__ = "BookHistory@v3.5";
 
 /** 표준 슬러그/제목 */
 const baseStories = [
@@ -49,7 +49,6 @@ function parseMaybeJSON(v, fallback={}) {
       return fallback;
     }
   }
-  // Buffer가 오면 문자열화 -> 재시도
   try {
     if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) {
       const s = v.toString("utf8");
@@ -82,48 +81,45 @@ function normalizeScores({
 
   const fromRatio  = (r) => (num(r)!=null ? Math.round((1-Number(r))*4) : null);
   const fromPoints = (p) => (num(p)!=null ? Math.round(Number(p)/2) : null);
+  const clamp04 = (x)=> Math.max(0, Math.min(4, Number.isFinite(+x)? +x : 0));
 
-  // A/AI는 타입 또는 리스크(타입) → 없으면 카테고리 A/AI 로도 시도
-  const A  = read(by_type,"직접화행")
-          ?? fromRatio(risk_bars_by_type?.["직접화행"])
-          ?? fromPoints(read(risk_bars,"A"))
+  // ⚠️ 포인트(0~8) → 0~4 스케일을 최우선으로 사용 (서버가 risk_bars.*로 저장해둔 경우 다 반영됨)
+  const A  = fromPoints(read(risk_bars,"A"))
           ?? read(by_category,"A")
+          ?? read(by_type,"직접화행")
+          ?? fromRatio(risk_bars_by_type?.["직접화행"])
           ?? 0;
 
-  const AI = read(by_type,"간접화행")
-          ?? fromRatio(risk_bars_by_type?.["간접화행"])
-          ?? fromPoints(read(risk_bars,"AI"))
+  const AI = fromPoints(read(risk_bars,"AI"))
           ?? read(by_category,"AI")
+          ?? read(by_type,"간접화행")
+          ?? fromRatio(risk_bars_by_type?.["간접화행"])
           ?? 0;
 
-  const B  = read(by_category,"B")
+  const B  = fromPoints(read(risk_bars,"B"))
+          ?? read(by_category,"B")
           ?? read(by_category,"질문")
           ?? fromRatio(risk_bars?.["질문"])
-          ?? fromPoints(read(risk_bars,"B"))
           ?? 0;
 
-  const C  = read(by_category,"C")
+  const C  = fromPoints(read(risk_bars,"C"))
+          ?? read(by_category,"C")
           ?? read(by_category,"단언")
           ?? fromRatio(risk_bars?.["단언"])
-          ?? fromPoints(read(risk_bars,"C"))
           ?? 0;
 
-  const D  = read(by_category,"D")
+  const D  = fromPoints(read(risk_bars,"D"))
+          ?? read(by_category,"D")
           ?? read(by_category,"의례화")
           ?? fromRatio(risk_bars?.["의례화"])
-          ?? fromPoints(read(risk_bars,"D"))
           ?? 0;
 
-  const sAD = Number(A)*2, sAI = Number(AI)*2, sB = Number(B)*2, sC = Number(C)*2, sD = Number(D)*2;
+  const sAD = clamp04(A)*2, sAI = clamp04(AI)*2, sB = clamp04(B)*2, sC = clamp04(C)*2, sD = clamp04(D)*2;
   const partsSum = sAD + sAI + sB + sC + sD;
-
-  // 세부 파트가 전부 0이면 총점으로 폴백
-  const onlyTotal = (partsSum === 0) && (num(fallbackScore) != null);
 
   return {
     scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D,
     partsSum,
-    onlyTotal,
     fallbackScore: (num(fallbackScore) ?? null),
     fallbackTotal: (num(fallbackTotal) ?? 40),
   };
@@ -131,7 +127,7 @@ function normalizeScores({
 
 function rowToCardData(row){
   let displayTime = "";
-  const rawKst = (row?.client_kst||"").trim?.() || "";
+  const rawKst = row?.client_kst && typeof row.client_kst.trim === "function" ? row.client_kst.trim() : (row?.client_kst || "");
   if (rawKst) {
     if (rawKst.includes("T")) {
       const d = new Date(rawKst);
@@ -144,10 +140,10 @@ function rowToCardData(row){
   }
 
   // ✅ 서버 필드가 문자열/이중 JSON이어도 안전 파싱
-  const by_category      = parseMaybeJSON(row?.by_category, {});
-  const by_type          = parseMaybeJSON(row?.by_type, {});
-  const risk_bars        = parseMaybeJSON(row?.risk_bars, {});
-  const risk_bars_by_type= parseMaybeJSON(row?.risk_bars_by_type, {});
+  const by_category       = parseMaybeJSON(row?.by_category, {});
+  const by_type           = parseMaybeJSON(row?.by_type, {});
+  const risk_bars         = parseMaybeJSON(row?.risk_bars, {});
+  const risk_bars_by_type = parseMaybeJSON(row?.risk_bars_by_type, {});
 
   const scores = normalizeScores({
     by_category,
@@ -192,7 +188,7 @@ function ResultDetailCard({ data }) {
   ];
   const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
 
-  // 세부 점수가 있을 때만 코멘트/가이드
+  // 세부 점수 있는지 여부
   const showBreakdown = (computedTotal > 0);
 
   // 최저 영역 인덱스(세부 있을 때만)
@@ -230,6 +226,10 @@ function ResultDetailCard({ data }) {
 }
 
 /* ────────── 메인 ────────── */
+function normalizeSlugKey(k="") {
+  return String(k).replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g," ").replace(/\s+/g," ").trim();
+}
+
 export default function BookHistory(){
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [openStoryId, setOpenStoryId] = useState(null);
@@ -278,9 +278,14 @@ export default function BookHistory(){
     })();
   },[]);
 
-  // 서버가 슬러그로 보내주므로 단순 병합
+  // 서버가 슬러그로 보내주므로 단순 병합(키 표준화 적용)
   const mergedStories = useMemo(()=>{
-    const map = new Map((groups||[]).map(g => [g.story_key, g])); // g.story_key = slug(new)
+    const map = new Map(
+      (groups||[]).map(g => {
+        const key = normalizeSlugKey(g.story_key || "");
+        return [key, { ...g, story_key: key, story_title: (g.story_title||"").trim() }];
+      })
+    );
     const ordered = baseStories.map(b => ({
       story_key: b.story_key,
       story_title: b.story_title,

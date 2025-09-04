@@ -6,20 +6,6 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-// 표준 슬러그
-const TITLE_TO_KEY = {
-  "어머니의 벙어리 장갑": "mother_gloves",
-  "아버지와 결혼식": "father_wedding",
-  "아들의 호빵": "sons_bread",
-  "할머니와 바나나": "grandma_banana",
-  "꽁당 보리밥": "kkong_boribap",
-
-  // 안전망
-  "꽁당보리밥": "kkong_boribap",
-  "병어리 장갑": "mother_gloves",
-  "어머니와 벙어리 장갑": "mother_gloves",
-};
-
 // 서버와 동일 정규화
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
@@ -30,31 +16,6 @@ function ntitle(s){
   x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
   x = x.replaceAll("할머니와바나나","할머니와 바나나");
   return x;
-}
-
-// 클라에서도 슬러그 확정
-function toSlugOnClient(storyKeyCandidate, titleCandidate){
-  const SLUGS = ["mother_gloves","father_wedding","sons_bread","grandma_banana","kkong_boribap"];
-  const LEGACY = new Map([["kkongdang_boribap","kkong_boribap"]]);
-
-  const raw = (storyKeyCandidate || "").trim();
-  if (LEGACY.has(raw)) return LEGACY.get(raw);
-  if (SLUGS.includes(raw)) return raw;
-
-  const t = ntitle(titleCandidate);
-  if (TITLE_TO_KEY[t]) return TITLE_TO_KEY[t];
-
-  const t2 = ntitle(storyKeyCandidate);
-  if (TITLE_TO_KEY[t2]) return TITLE_TO_KEY[t2];
-
-  if (LEGACY.has(t2)) return LEGACY.get(t2);
-
-  return storyKeyCandidate || "unknown_story";
-}
-
-// 전송용: 표준→레거시(서버 ENUM 호환)
-function toStorageSlug(slug){
-  return slug === "kkong_boribap" ? "kkongdang_boribap" : slug;
 }
 
 function nowKstString() {
@@ -117,43 +78,42 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-async function saveToBookHistory(resolvedUserKey) {
-  const rawTitle = localStorage.getItem("bookTitle") || "동화";
-  const title = ntitle(rawTitle);              // "꽁당 보리밥" 형태
+  async function saveToBookHistory(resolvedUserKey, axiosCfg = {}) {
+    const rawTitle = localStorage.getItem("bookTitle") || "동화";
+    const title = ntitle(rawTitle);              // "꽁당 보리밥" 형태
 
-  // (슬러그는 화면/정렬용일 뿐, 전송키는 제목으로 통일)
-  const examResult = {
-    storyTitle: title,
-    storyKey: title,                           // ← 여기만 변경!
-    attemptTime: new Date().toISOString(),
-    clientKst: nowKstString(),
-    score: total,
-    total: 40,
-    byCategory: {
-      A:  { correct: Number(scoreAD), total: 4 },
-      AI: { correct: Number(scoreAI), total: 4 },
-      B:  { correct: Number(scoreB),  total: 4 },
-      C:  { correct: Number(scoreC),  total: 4 },
-      D:  { correct: Number(scoreD),  total: 4 },
-    },
-    byType: {},
-    riskBars: {
-      A:  Number(scoreAD) * 2,
-      AI: Number(scoreAI) * 2,
-      B:  Number(scoreB)  * 2,
-      C:  Number(scoreC)  * 2,
-      D:  Number(scoreD)  * 2,
-    },
-    riskBarsByType: {},
-  };
+    // (슬러그는 화면/정렬용일 뿐, 전송키는 제목으로 통일)
+    const examResult = {
+      storyTitle: title,
+      storyKey: title,                           // 서버에서 제목을 저장키로 사용
+      attemptTime: new Date().toISOString(),
+      clientKst: nowKstString(),
+      score: total,
+      total: 40,
+      byCategory: {
+        A:  { correct: Number(scoreAD), total: 4 },
+        AI: { correct: Number(scoreAI), total: 4 },
+        B:  { correct: Number(scoreB),  total: 4 },
+        C:  { correct: Number(scoreC),  total: 4 },
+        D:  { correct: Number(scoreD),  total: 4 },
+      },
+      byType: {},
+      riskBars: {
+        A:  Number(scoreAD) * 2,
+        AI: Number(scoreAI) * 2,
+        B:  Number(scoreB)  * 2,
+        C:  Number(scoreC)  * 2,
+        D:  Number(scoreD)  * 2,
+      },
+      riskBarsByType: {},
+    };
 
-  const cfg = { params:{ user_key: resolvedUserKey }, headers:{ "x-user-key": resolvedUserKey } };
-  const { data } = await API.post("/str/attempt", examResult, cfg);
-  if (!data?.ok) {
-    console.error("검사 결과 저장 실패:", data);
-    alert("검사 결과 저장에 실패했습니다.");
+    const { data } = await API.post("/str/attempt", examResult, axiosCfg);
+    if (!data?.ok) {
+      console.error("검사 결과 저장 실패:", data);
+      alert("검사 결과 저장에 실패했습니다.");
+    }
   }
-}
 
   useEffect(() => {
     (async () => {
@@ -170,7 +130,21 @@ async function saveToBookHistory(resolvedUserKey) {
       }
 
       try {
-        await saveToBookHistory(targetUserKey);
+        // 서버가 실제로 인정하는 키로 맞춤
+        let usedKey = targetUserKey;
+        let isAuthed = false;
+        try {
+          const who = await API.get("/str/whoami", { params:{ user_key: targetUserKey } });
+          usedKey = (who?.data?.used || usedKey || "").trim();
+          isAuthed = !!who?.data?.isAuthed;
+        } catch (_e) {}
+
+        // 쿠키 인증이 있으면 헤더/쿼리 미전달(불일치 예방). 없으면 명시 전달.
+        const cfg = isAuthed
+          ? {} 
+          : { params:{ user_key: usedKey }, headers:{ "x-user-key": usedKey } };
+
+        await saveToBookHistory(usedKey, cfg);
       } catch (error) {
         console.error("검사 결과 저장 오류:", error?.response?.data || error);
         alert("검사 결과 저장 중 오류가 발생했습니다.");

@@ -22,7 +22,6 @@ const pool = mysql.createPool({
 });
 
 /* ==== 유틸 ==== */
-// Buffer/문자열/객체 안전 파싱
 function safeParseJSON(jsonVal, fallback = null) {
   try {
     if (jsonVal == null) return fallback;
@@ -113,7 +112,7 @@ function ntitle(s){
   return x;
 }
 
-// (보강) 유니코드 공백 정리
+// 유니코드 공백 정리
 function squashSpaces(s="") {
   const UNI_SPACES = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g;
   return String(s || "")
@@ -121,7 +120,7 @@ function squashSpaces(s="") {
     .replace(/\s+/g, " ")
     .trim();
 }
-// (보강) 공백/기호 제거 비교 키
+// 공백/기호 제거 비교 키
 function normalizeKoTitleCore(s="") {
   const x = squashSpaces(s)
     .replaceAll("병어리","벙어리")
@@ -168,9 +167,7 @@ function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   return raw;
 }
 
-/* =========================
- * whoami: 프론트에서 실제 사용 키 확인 용
- * ========================= */
+/* whoami: 프론트에서 실제 사용 키 확인 용 */
 router.get("/whoami", async (req, res) => {
   try {
     const authedKey = await deriveUserKeyFromAuth(req);
@@ -339,7 +336,7 @@ router.get("/history/all", async (req, res) => {
   }
 });
 
-/* ==== 디버그: 내가 가진 키 분포 ==== */
+/* ==== 디버그 ==== */
 router.get("/history/_debug_keys", async (req, res) => {
   try {
     const user_key = (req.query.user_key || "").trim();
