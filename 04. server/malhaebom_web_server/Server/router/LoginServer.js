@@ -1,12 +1,12 @@
 // Server/router/LoginServer.js
 const express = require("express");
 const router = express.Router();
-const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const pool = require("./db");
 
 /* =========================
- * 환경변수
+ * ENV
  * ========================= */
 const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
@@ -14,23 +14,7 @@ const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
 /* =========================
- * DB 풀
- * ========================= */
-const DB_CONFIG = {
-  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
-  port    : Number(process.env.DB_PORT || 3307),
-  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
-};
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit  : 10,
-});
-
-/* =========================
- * 캐시 방지(이 라우터 전역)
+ * Cache bust
  * ========================= */
 router.use((req, res, next) => {
   res.set({
@@ -44,7 +28,7 @@ router.use((req, res, next) => {
 });
 
 /* =========================
- * 유틸
+ * Utils
  * ========================= */
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
@@ -55,7 +39,7 @@ function isSecureReq(req) {
 function setAuthCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : isSecureReq(req),  // 프록시 뒤에서 https면 true
+    secure  : isSecureReq(req),
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
@@ -75,7 +59,7 @@ function composeUserKey(login_type, login_id) {
 }
 
 /* =========================
- * 로컬 로그인
+ * Local login
  * ========================= */
 router.post("/login", async (req, res) => {
   try {
@@ -99,7 +83,8 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(String(pwd), String(u.pwd || ""));
     if (!ok) return res.status(401).json({ ok: false, msg: "비밀번호가 올바르지 않습니다." });
 
-    const token = sign({ uid: u.user_id, typ: "local" });
+    // typ(하위호환) + login_type + login_id 모두 포함
+    const token = sign({ uid: u.user_id, typ: "local", login_id: u.login_id, login_type: "local" });
     setAuthCookie(req, res, token);
 
     return res.json({
@@ -108,7 +93,8 @@ router.post("/login", async (req, res) => {
       loginId: u.login_id,
       nick: u.nick,
       loginType: "local",
-      userKey: composeUserKey("local", u.login_id),
+      userKey: u.login_id,                               // 표준 user_key
+      userKeyFull: composeUserKey("local", u.login_id),  // 참조용
       cookie: { name: COOKIE_NAME, secure: isSecureReq(req), sameSite: "lax" },
     });
   } catch (err) {
@@ -132,10 +118,7 @@ router.post("/logout", async (req, res) => {
 router.get("/me", async (req, res) => {
   try {
     const token = req.cookies?.[COOKIE_NAME];
-
-    if (!token) {
-      return res.json({ ok: false, isAuthed: false });
-    }
+    if (!token) return res.json({ ok: false, isAuthed: false });
 
     let decoded;
     try {
@@ -145,12 +128,13 @@ router.get("/me", async (req, res) => {
       return res.json({ ok: false, isAuthed: false });
     }
 
+    const loginType = decoded.login_type || decoded.typ; // 하위호환
     const [rows] = await pool.query(
       `SELECT user_id, login_id, login_type, nick
          FROM tb_user
         WHERE user_id = ? AND login_type = ?
         LIMIT 1`,
-      [decoded.uid, decoded.typ]
+      [decoded.uid, loginType]
     );
     if (!rows.length) {
       clearAuthCookie(req, res);
@@ -158,7 +142,7 @@ router.get("/me", async (req, res) => {
     }
 
     const u = rows[0];
-    const userKey = composeUserKey(u.login_type, u.login_id);
+    const userKey = u.login_id;
     return res.json({
       ok: true,
       isAuthed: true,
@@ -166,7 +150,8 @@ router.get("/me", async (req, res) => {
       userId: u.user_id,
       loginId: u.login_id,
       nick: u.nick,
-      userKey,
+      userKey,                               // 예: "01012345678"
+      userKeyFull: `${u.login_type}:${u.login_id}`,
     });
   } catch (err) {
     console.error("[/userLogin/me] error:", err);

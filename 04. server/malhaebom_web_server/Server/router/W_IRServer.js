@@ -1,30 +1,15 @@
+// Server/router/ir.js
 require("dotenv").config();
 
 const express = require("express");
 const router = express.Router();
-const mysql = require("mysql2/promise");
+const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
+const pool = require("./db");
 
-const {
-  DB_HOST = "127.0.0.1",
-  DB_PORT = "3306",
-  DB_USER = "root",
-  DB_PASSWORD = "",
-  DB_NAME = "appdb",
-  IR_ALLOW_GUEST = "false",
-} = process.env;
-
-const ALLOW_GUEST = String(IR_ALLOW_GUEST).toLowerCase() === "true";
-
-const pool = mysql.createPool({
-  host: DB_HOST,
-  port: Number(DB_PORT),
-  user: DB_USER,
-  password: DB_PASSWORD,
-  database: DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  namedPlaceholders: true,
-});
+const IR_ALLOW_GUEST = String(process.env.IR_ALLOW_GUEST || "false").toLowerCase() === "true";
+const JWT_SECRET  = process.env.JWT_SECRET  || "malhaebom_sns";
+const COOKIE_NAME = process.env.COOKIE_NAME || "mb_access";
 
 // ── 유틸 ─────────────────
 function normalizeTitle(s) { return String(s || "").replace(/\s+/g, " ").trim(); }
@@ -75,46 +60,51 @@ function prettyRiskBars(obj) {
   const lines = entries.map(([k, v]) => `  '${k}': ${Number(v)}`);
   return `{\n${lines.join(",\n")}\n}`;
 }
+
+// Authorization 우선순위: x-user-key → JWT(Authorization) → JWT(Cookie) → legacy 보조
 function resolveIdentity(req) {
   const b = req.body || {}, q = req.query || {};
   const h = Object.fromEntries(Object.entries(req.headers || {}).map(([k, v]) => [String(k).toLowerCase(), v]));
   const readAny = (obj, keys) => { for (const k of keys) { if (obj[k] == null) continue; const s = String(obj[k]).trim(); if (s) return s; } return null; };
 
-  const directKey = readAny({ ...b, ...q, ...h }, ["userKey", "user_key", "x-user-key", "x-userkey"]);
-  if (directKey) return { ok: true, user_key: directKey, from: "userKey" };
+  // 1) 명시 헤더 우선
+  const direct = readAny({ ...b, ...q, ...h }, ["x-user-key", "user_key", "userkey"]);
+  if (direct) return { ok: true, user_key: String(direct), from: "x-user-key" };
 
-  const loginId = readAny({ ...b, ...q, ...h }, ["login_id", "loginId", "x-login-id"]);
+  // 2) JWT (Authorization)
+  try {
+    const auth = String(h["authorization"] || "");
+    if (auth.startsWith("Bearer ")) {
+      const p = jwt.verify(auth.slice(7), JWT_SECRET);
+      if (p?.login_id) return { ok: true, user_key: String(p.login_id), from: "jwt" };
+    }
+  } catch {}
+
+  // 3) JWT (Cookie)
+  try {
+    const raw = String(req.headers.cookie || "");
+    const ck  = cookie.parse(raw || "");
+    const t   = ck[COOKIE_NAME];
+    if (t) {
+      const p = jwt.verify(t, JWT_SECRET);
+      if (p?.login_id) return { ok: true, user_key: String(p.login_id), from: "cookie" };
+    }
+  } catch {}
+
+  // 4) 이하 레거시 보조(가능하면 도달하지 않게)
+  const loginId = readAny({ ...b, ...q, ...h }, ["login_id", "loginid", "x-login-id"]);
   if (loginId) return { ok: true, user_key: String(loginId), from: "login_id" };
 
-  const auth = h["authorization"];
-  if (auth && /userkey\s+(.+)/i.test(String(auth))) {
-    const m = String(auth).match(/userkey\s+(.+)/i);
+  const auth2 = h["authorization"];
+  if (auth2 && /userkey\s+(.+)/i.test(String(auth2))) {
+    const m = String(auth2).match(/userkey\s+(.+)/i);
     if (m && m[1]) return { ok: true, user_key: m[1].trim(), from: "authorization" };
   }
 
-  const localUserId =
-    readAny(b, ["userId","user_id","userid","phone","phoneNumber","phone_number"]) ||
-    readAny(h, ["x-user-id","x-userid","x-phone","x-phone-number"]) ||
-    readAny(q, ["userId","user_id","userid","phone","phoneNumber","phone_number"]);
-
-  const snsId =
-    readAny(b, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]) ||
-    readAny(h, ["x-sns-user-id"]) ||
-    readAny(q, ["snsUserId","sns_user_id","oauth_id","kakao_user_id","google_user_id","naver_user_id"]);
-
-  let snsType =
-    readAny(b, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]) ||
-    readAny(h, ["x-sns-login-type"]) ||
-    readAny(q, ["snsLoginType","sns_login_type","login_provider","provider","social_type","loginType"]);
-  if (snsType) snsType = String(snsType).toLowerCase();
-
-  if (localUserId) return { ok: true, user_key: String(localUserId), from: "local" };
-  if (snsId && ["kakao","google","naver"].includes(snsType || "")) return { ok: true, user_key: `${snsType}:${String(snsId)}`, from: "sns" };
-
-  return { ok: false, error: "missing user identity (userKey OR userId OR snsUserId+snsLoginType)" };
+  return { ok: false, error: "missing user identity (x-user-key or JWT with login_id)" };
 }
 
-router.get("/health", (_req, res)=> res.json({ ok:true, db: DB_HOST + "/" + DB_NAME }));
+router.get("/health", (_req, res)=> res.json({ ok:true, db: true }));
 router.get("/whoami", (req, res)=> res.json({ identity: resolveIdentity(req), headers: req.headers, query: req.query }));
 
 async function computeServerOrder(conn, { user_key, client_utc, id }) {
@@ -131,7 +121,7 @@ async function computeServerOrder(conn, { user_key, client_utc, id }) {
 
 router.post("/attempt", async (req, res) => {
   const idn = resolveIdentity(req);
-  if (!idn.ok && !ALLOW_GUEST) return res.status(400).json(idn);
+  if (!idn.ok && !IR_ALLOW_GUEST) return res.status(400).json(idn);
 
   try {
     const { attemptTime, clientKst, interviewTitle, title, attemptOrder, clientRound, score, total, byCategory, riskBars } = req.body || {};
@@ -284,7 +274,7 @@ router.get("/latest", async (req, res) => {
 
 router.get("/attempt/list", async (req, res) => {
   const idn = resolveIdentity(req);
-  if (!idn.ok && !ALLOW_GUEST) return res.status(400).json(idn);
+  if (!idn.ok && !IR_ALLOW_GUEST) return res.status(400).json(idn);
 
   const userKey = idn.ok ? idn.user_key : "guest";
   const limit = Math.min(Math.max(parseInt(String(req.query.limit || "30"), 10) || 30, 1), 200);

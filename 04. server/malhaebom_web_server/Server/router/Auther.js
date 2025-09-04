@@ -6,11 +6,11 @@ const express = require("express");
 const router = express.Router();
 const axios = require("axios");
 const qs = require("querystring");
-const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
+const pool = require("./db");
 
 /* =========================
- * 환경변수
+ * ENV
  * ========================= */
 const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
@@ -19,23 +19,7 @@ const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
 /* =========================
- * DB 풀
- * ========================= */
-const DB_CONFIG = {
-  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
-  port    : Number(process.env.DB_PORT || 3307),
-  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
-};
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit  : 10,
-});
-
-/* =========================
- * OAuth 설정
+ * OAuth
  * ========================= */
 const KAKAO = {
   client_id    : process.env.KAKAO_CLIENT_ID || "",
@@ -54,7 +38,7 @@ const GOOGLE = {
 };
 
 /* =========================
- * 유틸
+ * Utils
  * ========================= */
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
@@ -73,12 +57,6 @@ function setAuthCookie(req, res, token) {
 }
 const makeState = (prefix) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-
-function buildLoginKeyOrThrow(provider, rawId, email) {
-  if (email) return String(email).toLowerCase();
-  if (rawId)  return `${provider}:${String(rawId)}`;
-  throw new Error("SNS 사용자 식별자 없음 (rawId/email 둘 다 없음)");
-}
 
 async function upsertSNSUser({ provider, providerRawId, email, nick }) {
   const emailKey = email ? String(email).toLowerCase() : null;
@@ -109,6 +87,7 @@ async function upsertSNSUser({ provider, providerRawId, email, nick }) {
   if (byPid.length) {
     const uid = byPid[0].user_id;
 
+    // email로 전환(있다면) — 충돌 없을 때만
     if (emailKey && byPid[0].login_id !== emailKey) {
       const [dup] = await pool.query(
         `SELECT user_id FROM tb_user
@@ -140,7 +119,7 @@ async function upsertSNSUser({ provider, providerRawId, email, nick }) {
 }
 
 /* Kakao */
-router.get("/kakao", (req, res) => {
+router.get("/kakao", (_req, res) => {
   if (!KAKAO.client_id || !KAKAO.redirect_uri) {
     return res.status(500).send("카카오 설정 누락");
   }
@@ -193,7 +172,11 @@ router.get("/kakao/callback", async (req, res) => {
       nick: nickname,
     });
 
-    const token = sign({ uid, typ: "kakao" });
+    const [urow] = await pool.query(`SELECT login_id FROM tb_user WHERE user_id=? LIMIT 1`, [uid]);
+    const login_id = urow?.[0]?.login_id || null;
+
+    // typ(하위호환) + login_type + login_id 포함
+    const token = sign({ uid, typ: "kakao", login_id, login_type: "kakao" });
     setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
@@ -204,7 +187,7 @@ router.get("/kakao/callback", async (req, res) => {
 });
 
 /* Naver */
-router.get("/naver", (req, res) => {
+router.get("/naver", (_req, res) => {
   const state = makeState("naver");
   const url =
     "https://nid.naver.com/oauth2.0/authorize?" +
@@ -251,7 +234,10 @@ router.get("/naver/callback", async (req, res) => {
       nick: nickname,
     });
 
-    const token = sign({ uid, typ: "naver" });
+    const [urow] = await pool.query(`SELECT login_id FROM tb_user WHERE user_id=? LIMIT 1`, [uid]);
+    const login_id = urow?.[0]?.login_id || null;
+
+    const token = sign({ uid, typ: "naver", login_id, login_type: "naver" });
     setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
@@ -262,7 +248,7 @@ router.get("/naver/callback", async (req, res) => {
 });
 
 /* Google */
-router.get("/google", (req, res) => {
+router.get("/google", (_req, res) => {
   const url =
     "https://accounts.google.com/o/oauth2/v2/auth?" +
     qs.stringify({
@@ -311,7 +297,10 @@ router.get("/google/callback", async (req, res) => {
       nick: nickname,
     });
 
-    const token = sign({ uid, typ: "google" });
+    const [urow] = await pool.query(`SELECT login_id FROM tb_user WHERE user_id=? LIMIT 1`, [uid]);
+    const login_id = urow?.[0]?.login_id || null;
+
+    const token = sign({ uid, typ: "google", login_id, login_type: "google" });
     setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);

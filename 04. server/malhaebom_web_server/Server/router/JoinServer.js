@@ -1,28 +1,12 @@
 // Server/router/JoinServer.js
 const express = require("express");
 const router = express.Router();
-const mysql = require("mysql2/promise");
 const bcrypt = require("bcrypt");
-
-const SERVER_BASE_URL = process.env.SERVER_BASE_URL || "http://211.188.63.38:3001";
-
-const DB_CONFIG = {
-  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
-  port    : Number(process.env.DB_PORT || 3307),
-  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
-};
-const pool = mysql.createPool({
-  ...DB_CONFIG,
-  waitForConnections: true,
-  connectionLimit  : 10,
-});
+const pool = require("./db");
 
 router.post("/register", async (req, res) => {
   try {
     const { login_id, pwd, nick, birthyear, birth, gender } = req.body || {};
-
     if (!login_id || !pwd || !nick) {
       return res.status(400).json({ ok: false, msg: "필수 항목 누락" });
     }
