@@ -113,6 +113,26 @@ function ntitle(s){
   return x;
 }
 
+// (보강) 유니코드 공백 정리
+function squashSpaces(s="") {
+  const UNI_SPACES = /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g;
+  return String(s || "")
+    .replace(UNI_SPACES, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+// (보강) 공백/기호 제거 비교 키
+function normalizeKoTitleCore(s="") {
+  const x = squashSpaces(s)
+    .replaceAll("병어리","벙어리")
+    .replaceAll("어머니와","어머니의")
+    .replaceAll("벙어리장갑","벙어리 장갑")
+    .replaceAll("꽁당보리밥","꽁당 보리밥")
+    .replaceAll("할머니와바나나","할머니와 바나나")
+    .replace(/[^\p{Letter}\p{Number}]/gu, "");
+  return x;
+}
+
 const BASE_STORIES = [
   { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
   { key: "father_wedding", title: "아버지와 결혼식" },
@@ -120,24 +140,52 @@ const BASE_STORIES = [
   { key: "grandma_banana", title: "할머니와 바나나" },
   { key: "kkong_boribap",  title: "꽁당 보리밥" },
 ];
+
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
+const KOCORE_TO_SLUG = new Map(BASE_STORIES.map(b => [normalizeKoTitleCore(b.title), b.key]));
 const LEGACY_SLUG_MAP = new Map([
   ["kkongdang_boribap", "kkong_boribap"], // old → new
+  ["kkong boribap",     "kkong_boribap"],
+  ["kkongboribap",      "kkong_boribap"],
 ]);
 
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
-  const raw = String(story_key_or_title || "").trim();
+  const raw = squashSpaces(story_key_or_title || "");
   if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
   if (SLUG_TO_TITLE.has(raw)) return raw;
+
+  const k1 = normalizeKoTitleCore(story_key_or_title || "");
+  const k2 = normalizeKoTitleCore(story_title_fallback || "");
+  const byCore = KOCORE_TO_SLUG.get(k1) || KOCORE_TO_SLUG.get(k2);
+  if (byCore) return byCore;
+
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
   const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
   if (byTitle) return byTitle;
-  if (LEGACY_SLUG_MAP.has(t1)) return LEGACY_SLUG_MAP.get(t1);
-  if (LEGACY_SLUG_MAP.has(t2)) return LEGACY_SLUG_MAP.get(t2);
+
   return raw;
 }
+
+/* =========================
+ * whoami: 프론트에서 실제 사용 키 확인 용
+ * ========================= */
+router.get("/whoami", async (req, res) => {
+  try {
+    const authedKey = await deriveUserKeyFromAuth(req);
+    const claimedKey = (req.query.user_key || req.headers["x-user-key"] || "").trim() || null;
+    return res.json({
+      ok: true,
+      isAuthed: !!authedKey,
+      authedKey,
+      claimedKey,
+      used: authedKey || claimedKey || null,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error:"whoami_error", detail:String(e) });
+  }
+});
 
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
@@ -182,7 +230,7 @@ router.post("/attempt", async (req, res) => {
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
 
-    // ★★★ 저장은 앱과 동일하게 '한글 제목'을 story_key로 사용 ★★★
+    // 저장은 한글 제목을 story_key로 사용 (앱과 동일)
     const dbStoryKey = canonicalTitle;
 
     // 시간
@@ -200,7 +248,7 @@ router.post("/attempt", async (req, res) => {
     );
     let last_order = 0;
     for (const r of rows) {
-      const rslug = toSlugFromAny(r.story_key, r.story_title); // DB에 한글/옛키/슬러그 어떤 형태든 흡수
+      const rslug = toSlugFromAny(r.story_key, r.story_title);
       if (rslug === slug) last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
     }
     const nextAttempt = last_order + 1;
@@ -212,7 +260,7 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        dbStoryKey,                // ← 한글 제목으로 저장 (앱과 동일)
+        dbStoryKey,
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
@@ -238,13 +286,14 @@ router.post("/attempt", async (req, res) => {
 /* ==== 유저 전체 히스토리 ==== */
 router.get("/history/all", async (req, res) => {
   try {
-    let user_key = (req.query.user_key || req.headers["x-user-key"] || "").trim();
-    if (!user_key || isGuestKey(user_key)) {
-      user_key = await deriveUserKeyFromAuth(req);
-    }
-    if (!user_key) return res.status(401).json({ ok: false, error: "not_authed" });
+    const claimedKeyRaw = (req.query.user_key || req.headers["x-user-key"] || "").trim();
+    const claimedKey = claimedKeyRaw && !isGuestKey(claimedKeyRaw) ? claimedKeyRaw : null;
+    const authedKey  = await deriveUserKeyFromAuth(req);
 
-    const sql = `
+    const primaryKey = claimedKey || authedKey || null;
+    if (!primaryKey) return res.status(401).json({ ok: false, error: "not_authed" });
+
+    const SQL = `
       SELECT id, user_key, story_key, story_title,
              client_attempt_order, score, total,
              client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type
@@ -252,11 +301,19 @@ router.get("/history/all", async (req, res) => {
        WHERE TRIM(user_key)=TRIM(?)
        ORDER BY client_utc DESC, id DESC
     `;
-    const [rows] = await pool.query(sql, [user_key]);
+
+    // 1차: primaryKey 로 조회
+    let [rows] = await pool.query(SQL, [primaryKey]);
+
+    // 보강: 0건이고 authedKey와 claimedKey가 다르면 authedKey로 한 번 더 시도
+    if ((!rows || rows.length === 0) && authedKey && claimedKey && authedKey !== claimedKey) {
+      const [rows2] = await pool.query(SQL, [authedKey]);
+      if (rows2 && rows2.length) rows = rows2;
+    }
 
     const map = new Map(); // slug -> group
     for (const r of rows) {
-      const slug  = toSlugFromAny(r.story_key, r.story_title); // old→new 정규화
+      const slug  = toSlugFromAny(r.story_key, r.story_title);
       const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
 
       if (!map.has(slug)) {
@@ -279,6 +336,31 @@ router.get("/history/all", async (req, res) => {
   } catch (err) {
     console.error("[/str/history/all] error:", err);
     return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
+  }
+});
+
+/* ==== 디버그: 내가 가진 키 분포 ==== */
+router.get("/history/_debug_keys", async (req, res) => {
+  try {
+    const user_key = (req.query.user_key || "").trim();
+    if (!user_key) return res.status(400).json({ ok:false, error:"missing_user_key" });
+
+    const [rows] = await pool.query(`
+      SELECT id, story_key, story_title
+      FROM tb_story_result
+      WHERE TRIM(user_key)=TRIM(?)
+      ORDER BY id DESC
+      LIMIT 500
+    `, [user_key]);
+
+    const summary = {};
+    for (const r of rows) {
+      const slug = toSlugFromAny(r.story_key, r.story_title);
+      summary[slug] = (summary[slug] || 0) + 1;
+    }
+    return res.json({ ok:true, count: rows.length, summary, samples: rows.slice(0,10) });
+  } catch (e) {
+    return res.status(500).json({ ok:false, error:String(e) });
   }
 });
 
