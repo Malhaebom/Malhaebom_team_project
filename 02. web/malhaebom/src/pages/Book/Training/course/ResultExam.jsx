@@ -110,11 +110,11 @@ export default function ResultExam() {
         },
         byType: {},
         riskBars: {
-          A:  Number(scoreAD) * 2,
-          AI: Number(scoreAI) * 2,
-          B:  Number(scoreB)  * 2,
-          C:  Number(scoreC)  * 2,
-          D:  Number(scoreD)  * 2,
+          A:  1 - (Number(scoreAD) / 4),
+          AI: 1 - (Number(scoreAI) / 4),
+          B:  1 - (Number(scoreB)  / 4),
+          C:  1 - (Number(scoreC)  / 4),
+          D:  1 - (Number(scoreD)  / 4),
         },
         riskBarsByType: {},
       };

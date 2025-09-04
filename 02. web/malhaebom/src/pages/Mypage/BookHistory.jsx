@@ -14,7 +14,9 @@ const baseStories = [
 function toKstString(utcStr) {
   try {
     if (!utcStr) return "";
-    const d = new Date(utcStr + "Z");
+    // 'YYYY-MM-DD HH:mm:ss' → 'YYYY-MM-DDTHH:mm:ssZ'
+    const iso = utcStr.includes("T") ? utcStr : utcStr.replace(" ", "T") + "Z";
+    const d = new Date(iso);
     if (isNaN(d.getTime())) return utcStr;
     const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
     const pad = (n) => String(n).padStart(2, "0");
@@ -32,17 +34,25 @@ function rowToCardData(row) {
     const n = Number(v);
     return Number.isFinite(n) ? n : d;
   };
-  const getHalf = (val) => {
+  
+  // 앱/웹 호환: rb 값이
+  // - 앱: risk 0~1 → correct = round((1 - risk)*4)
+  // - 웹(구): 0~8(=correct*2) → correct = round(val/2)
+  const fromRiskBar = (val) => {
     const n = Number(val);
-    if (Number.isFinite(n) && n >= 0) return Math.round(n / 2);
-    return null;
+    if (!Number.isFinite(n) || n < 0) return null;
+    if (n <= 1.5) { // risk(0~1)로 판단
+      return Math.round((1 - Math.max(0, Math.min(1, n))) * 4);
+    }
+    // 0~8 점수(=correct*2)
+    return Math.round(n / 2);
   };
 
-  let scoreAD = getHalf(rb.A);
-  let scoreAI = getHalf(rb.AI);
-  let scoreB  = getHalf(rb.B);
-  let scoreC  = getHalf(rb.C);
-  let scoreD  = getHalf(rb.D);
+  let scoreAD = fromRiskBar(rb.A);
+  let scoreAI = fromRiskBar(rb.AI);
+  let scoreB  = fromRiskBar(rb.B);
+  let scoreC  = fromRiskBar(rb.C);
+  let scoreD  = fromRiskBar(rb.D);
 
   if (scoreAD === null && bc.A?.correct != null)  scoreAD = toInt(bc.A.correct, 0);
   if (scoreAI === null && bc.AI?.correct != null) scoreAI = toInt(bc.AI.correct, 0);
@@ -189,8 +199,11 @@ export default function BookHistory() {
           return;
         }
 
-        // ★ 항상 user_key를 파라미터로 명시 전달
-        const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
+        // 항상 params + 헤더로 user_key 명시 (쿠키 의존 최소화)
+        const { data } = await API.get(`/str/history/all`, {
+          params: { user_key: userKey },
+          headers: { "x-user-key": userKey },
+        });
 
         if (data?.ok) {
           setGroups(data.data || []);
