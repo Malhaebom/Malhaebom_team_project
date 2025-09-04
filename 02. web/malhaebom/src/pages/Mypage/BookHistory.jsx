@@ -3,7 +3,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.5";
+window.__BH_VERSION__ = "BookHistory@v3.6";
 
 /** 표준 슬러그/제목 */
 const baseStories = [
@@ -11,7 +11,7 @@ const baseStories = [
   { story_key: "father_wedding", story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",     story_title: "아들의 호빵" },
   { story_key: "grandma_banana", story_title: "할머니와 바나나" },
-  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" }, // 표준(짧은) 키
+  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" },
 ];
 
 /* ────────── 유틸 ────────── */
@@ -23,8 +23,6 @@ function parseSqlUtc(s){
   const dt = new Date(Date.UTC(+Y,+M-1,+D,+h,+m2,+s2));
   return isNaN(dt.getTime())?null:dt;
 }
-
-// 화면 표시는 'YYYY년 MM월 DD일 HH:MM'
 function formatKstLabel(dtUtc){
   if(!dtUtc) return "";
   const k = new Date(dtUtc.getTime()+9*60*60*1000);
@@ -32,7 +30,7 @@ function formatKstLabel(dtUtc){
   return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
 }
 
-// 문자열/이중 JSON/버퍼스러운 값까지 안전 파싱
+// 안전 파싱(문자열/버퍼/이중 JSON)
 function parseMaybeJSON(v, fallback={}) {
   if (v == null) return fallback;
   if (typeof v === "object") return v;
@@ -58,13 +56,8 @@ function parseMaybeJSON(v, fallback={}) {
   return fallback;
 }
 
-// 다양한 저장 형태를 흡수해서 0~4 스케일로 변환
-function normalizeScores({
-  by_category, by_type, risk_bars, risk_bars_by_type,
-  fallbackScore = null, fallbackTotal = 40,
-}){
+function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type, fallbackScore = null, fallbackTotal = 40 }){
   const num = (v) => (v==null || v==="" || isNaN(Number(v)) ? null : Number(v));
-
   const read = (obj, key) => {
     if (!obj) return null;
     const v = obj[key];
@@ -72,47 +65,20 @@ function normalizeScores({
     if (typeof v === "number") return v;
     if (typeof v === "string") return num(v);
     if (typeof v === "object") {
-      // { correct: 3, total: 4 } 또는 { value: 3 } 등의 케이스 커버
       if (v.correct != null && !isNaN(Number(v.correct))) return Number(v.correct);
       if (v.value   != null && !isNaN(Number(v.value)))   return Number(v.value);
     }
     return null;
   };
-
   const fromRatio  = (r) => (num(r)!=null ? Math.round((1-Number(r))*4) : null);
   const fromPoints = (p) => (num(p)!=null ? Math.round(Number(p)/2) : null);
   const clamp04 = (x)=> Math.max(0, Math.min(4, Number.isFinite(+x)? +x : 0));
 
-  // ⚠️ 포인트(0~8) → 0~4 스케일을 최우선으로 사용 (서버가 risk_bars.*로 저장해둔 경우 다 반영됨)
-  const A  = fromPoints(read(risk_bars,"A"))
-          ?? read(by_category,"A")
-          ?? read(by_type,"직접화행")
-          ?? fromRatio(risk_bars_by_type?.["직접화행"])
-          ?? 0;
-
-  const AI = fromPoints(read(risk_bars,"AI"))
-          ?? read(by_category,"AI")
-          ?? read(by_type,"간접화행")
-          ?? fromRatio(risk_bars_by_type?.["간접화행"])
-          ?? 0;
-
-  const B  = fromPoints(read(risk_bars,"B"))
-          ?? read(by_category,"B")
-          ?? read(by_category,"질문")
-          ?? fromRatio(risk_bars?.["질문"])
-          ?? 0;
-
-  const C  = fromPoints(read(risk_bars,"C"))
-          ?? read(by_category,"C")
-          ?? read(by_category,"단언")
-          ?? fromRatio(risk_bars?.["단언"])
-          ?? 0;
-
-  const D  = fromPoints(read(risk_bars,"D"))
-          ?? read(by_category,"D")
-          ?? read(by_category,"의례화")
-          ?? fromRatio(risk_bars?.["의례화"])
-          ?? 0;
+  const A  = fromPoints(read(risk_bars,"A"))  ?? read(by_category,"A")  ?? read(by_type,"직접화행") ?? fromRatio(risk_bars_by_type?.["직접화행"]) ?? 0;
+  const AI = fromPoints(read(risk_bars,"AI")) ?? read(by_category,"AI") ?? read(by_type,"간접화행") ?? fromRatio(risk_bars_by_type?.["간접화행"]) ?? 0;
+  const B  = fromPoints(read(risk_bars,"B"))  ?? read(by_category,"B")  ?? read(by_category,"질문") ?? fromRatio(risk_bars?.["질문"]) ?? 0;
+  const C  = fromPoints(read(risk_bars,"C"))  ?? read(by_category,"C")  ?? read(by_category,"단언") ?? fromRatio(risk_bars?.["단언"]) ?? 0;
+  const D  = fromPoints(read(risk_bars,"D"))  ?? read(by_category,"D")  ?? read(by_category,"의례화") ?? fromRatio(risk_bars?.["의례화"]) ?? 0;
 
   const sAD = clamp04(A)*2, sAI = clamp04(AI)*2, sB = clamp04(B)*2, sC = clamp04(C)*2, sD = clamp04(D)*2;
   const partsSum = sAD + sAI + sB + sC + sD;
@@ -139,7 +105,6 @@ function rowToCardData(row){
     displayTime = formatKstLabel(parseSqlUtc(row?.client_utc||""));
   }
 
-  // ✅ 서버 필드가 문자열/이중 JSON이어도 안전 파싱
   const by_category       = parseMaybeJSON(row?.by_category, {});
   const by_type           = parseMaybeJSON(row?.by_type, {});
   const risk_bars         = parseMaybeJSON(row?.risk_bars, {});
@@ -169,13 +134,11 @@ function ResultDetailCard({ data }) {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD, partsSum, fallbackScore, fallbackTotal } = data.scores;
   const sAD = Number(scoreAD)*2, sAI = Number(scoreAI)*2, sB = Number(scoreB)*2, sC = Number(scoreC)*2, sD = Number(scoreD)*2;
 
-  // 총점/판정 계산
-  const computedTotal = partsSum;                     // 세부 합계(0~40)
-  const total = (computedTotal > 0) ? computedTotal   // 세부가 있으면 그 합계
-               : Number(fallbackScore || 0);          // 없으면 DB 저장 총점 폴백
+  const computedTotal = partsSum;
+  const total = (computedTotal > 0) ? computedTotal : Number(fallbackScore || 0);
 
   const denom = (computedTotal > 0) ? 40 : Number(fallbackTotal || 40);
-  const passCut = Math.round(denom * 0.7);            // 70% 컷
+  const passCut = Math.round(denom * 0.7);
   const isPassed = total >= passCut;
 
   const okOpinion = "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다.";
@@ -188,10 +151,7 @@ function ResultDetailCard({ data }) {
   ];
   const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
 
-  // 세부 점수 있는지 여부
   const showBreakdown = (computedTotal > 0);
-
-  // 최저 영역 인덱스(세부 있을 때만)
   const arr=[sAD,sAI,sB,sC,sD];
   const minScore=Math.min(...arr);
   const lowIndex=arr.indexOf(minScore);
@@ -213,9 +173,8 @@ function ResultDetailCard({ data }) {
       <div>
         <div className="tit">검사 결과 평가</div>
         <div style={{padding:"12px 0",lineHeight:1.6,whiteSpace:"pre-line"}}>
-          {showBreakdown
-            ? (isPassed ? okOpinion : opinions_result[lowIndex])
-            : "세부 영역 점수 데이터가 없어 총점 기준으로만 표시합니다."}
+          {showBreakdown ? (isPassed ? okOpinion : opinions_result[lowIndex])
+                         : "세부 영역 점수 데이터가 없어 총점 기준으로만 표시합니다."}
         </div>
         {showBreakdown && !isPassed && (
           <div style={{fontWeight:700,marginTop:6}}>{opinions_guide[lowIndex]}</div>
@@ -227,7 +186,13 @@ function ResultDetailCard({ data }) {
 
 /* ────────── 메인 ────────── */
 function normalizeSlugKey(k="") {
-  return String(k).replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g," ").replace(/\s+/g," ").trim();
+  const s = String(k)
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g," ")
+    .replace(/\s+/g," ")
+    .trim();
+  if (s === "kkongdang_boribap" || s === "kkong boribap" || s === "kkongboribap")
+    return "kkong_boribap";
+  return s;
 }
 
 export default function BookHistory(){
@@ -235,7 +200,7 @@ export default function BookHistory(){
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
-  const [groups, setGroups] = useState([]);       // 서버 응답 원본(슬러그 key)
+  const [groups, setGroups] = useState([]); // 서버 응답 원본(슬러그 key)
   const [loading, setLoading] = useState(true);
   const [usedUserKey, setUsedUserKey] = useState("");
 
@@ -253,7 +218,6 @@ export default function BookHistory(){
         const key = await ensureUserKey({ retries:2, delayMs:150 });
         setUsedUserKey(key || "(cookie only)");
 
-        // 캐시 방지 파라미터 추가
         const cfg = key
           ? { params:{ user_key:key, _t: Date.now() }, headers:{ "x-user-key":key } }
           : { params:{ _t: Date.now() } };
@@ -278,8 +242,8 @@ export default function BookHistory(){
     })();
   },[]);
 
-  // 서버가 슬러그로 보내주므로 단순 병합(키 표준화 적용)
   const mergedStories = useMemo(()=>{
+    // 키 정규화가 핵심 (꽁당 보리밥 누락 방지)
     const map = new Map(
       (groups||[]).map(g => {
         const key = normalizeSlugKey(g.story_key || "");
@@ -300,7 +264,7 @@ export default function BookHistory(){
         });
       }
     }
-    // 회차/최신순 정렬
+    // 회차/최신순
     for (const it of ordered){
       it.records.sort((a,b)=>{
         const ao = Number(a.client_attempt_order||0);

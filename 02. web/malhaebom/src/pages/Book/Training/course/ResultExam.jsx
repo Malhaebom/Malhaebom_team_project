@@ -80,12 +80,11 @@ export default function ResultExam() {
 
   async function saveToBookHistory(resolvedUserKey, axiosCfg = {}) {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
-    const title = ntitle(rawTitle);              // "꽁당 보리밥" 형태
+    const title = ntitle(rawTitle); // "꽁당 보리밥"
 
-    // (슬러그는 화면/정렬용일 뿐, 전송키는 제목으로 통일)
     const examResult = {
       storyTitle: title,
-      storyKey: title,                           // 서버에서 제목을 저장키로 사용
+      storyKey: title, // 서버가 제목을 저장키로 사용
       attemptTime: new Date().toISOString(),
       clientKst: nowKstString(),
       score: total,
@@ -130,7 +129,7 @@ export default function ResultExam() {
       }
 
       try {
-        // 서버가 실제로 인정하는 키로 맞춤
+        // 서버가 실제 사용하는 키 조회
         let usedKey = targetUserKey;
         let isAuthed = false;
         try {
@@ -139,10 +138,8 @@ export default function ResultExam() {
           isAuthed = !!who?.data?.isAuthed;
         } catch (_e) {}
 
-        // 쿠키 인증이 있으면 헤더/쿼리 미전달(불일치 예방). 없으면 명시 전달.
-        const cfg = isAuthed
-          ? {} 
-          : { params:{ user_key: usedKey }, headers:{ "x-user-key": usedKey } };
+        // 쿠키 인증이 있으면 충돌 방지 위해 헤더/쿼리 전달 X
+        const cfg = isAuthed ? {} : { params:{ user_key: usedKey }, headers:{ "x-user-key": usedKey } };
 
         await saveToBookHistory(usedKey, cfg);
       } catch (error) {

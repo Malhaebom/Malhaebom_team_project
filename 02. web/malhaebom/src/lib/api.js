@@ -8,7 +8,6 @@ const API = axios.create({
 
 API.interceptors.request.use((config) => {
   const method = (config.method || "get").toLowerCase();
-
   if (method === "get") {
     const url = config.url || "";
     if (
@@ -23,7 +22,6 @@ API.interceptors.request.use((config) => {
     config.headers["Cache-Control"] = "no-cache";
     config.headers["Pragma"] = "no-cache";
   }
-
   return config;
 });
 
@@ -68,20 +66,26 @@ function extractUserKeyFromMe(data) {
 }
 
 export async function getUserKeyFromSession() {
+  // 1) URL 우선
   const fromQuery = getUserKeyFromUrl();
   if (fromQuery) {
     sessionStorage.setItem("user_key", fromQuery);
     return fromQuery;
   }
-  const cached = (sessionStorage.getItem("user_key") || "").trim();
-  if (cached && cached.toLowerCase() !== "guest") return cached;
 
+  // 2) 서버가 실제 사용하는 키를 항상 먼저 확인
   const who = await getKeyFromWhoAmI();
-  if (who) {
-    sessionStorage.setItem("user_key", who);
+  if (who && who.toLowerCase() !== "guest") {
+    const cached = (sessionStorage.getItem("user_key") || "").trim();
+    if (who !== cached) sessionStorage.setItem("user_key", who);
     return who;
   }
 
+  // 3) 캐시
+  const cached = (sessionStorage.getItem("user_key") || "").trim();
+  if (cached && cached.toLowerCase() !== "guest") return cached;
+
+  // 4) 구 방식(me) fallback
   try {
     const { data } = await API.get("/userLogin/me");
     const meKey = extractUserKeyFromMe(data);
