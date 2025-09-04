@@ -49,16 +49,13 @@ router.use((req, res, next) => {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-
-// 요청이 HTTPS인지 판단 (Nginx 프록시 헤더 포함)
 function isSecureReq(req) {
   return !!(req?.secure || String(req?.headers?.["x-forwarded-proto"] || "").toLowerCase() === "https");
 }
-
 function setAuthCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : isSecureReq(req),  // ← 요청이 https일 때만 true
+    secure  : isSecureReq(req),  // 프록시 뒤에서 https면 true
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
@@ -102,14 +99,8 @@ router.post("/login", async (req, res) => {
     const ok = await bcrypt.compare(String(pwd), String(u.pwd || ""));
     if (!ok) return res.status(401).json({ ok: false, msg: "비밀번호가 올바르지 않습니다." });
 
-    console.log("[LOGIN SUCCESS] user:", {
-      user_id: u.user_id,
-      login_id: u.login_id,
-      nick: u.nick,
-    });
-
     const token = sign({ uid: u.user_id, typ: "local" });
-    setAuthCookie(req, res, token); // ← req 반영
+    setAuthCookie(req, res, token);
 
     return res.json({
       ok: true,
@@ -129,7 +120,7 @@ router.post("/login", async (req, res) => {
 /* 로그아웃 */
 router.post("/logout", async (req, res) => {
   try {
-    clearAuthCookie(req, res); // ← req 반영
+    clearAuthCookie(req, res);
     return res.json({ ok: true });
   } catch (err) {
     console.error("[/userLogin/logout] error:", err);
@@ -150,7 +141,7 @@ router.get("/me", async (req, res) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (_e) {
-      clearAuthCookie(req, res); // ← req 반영
+      clearAuthCookie(req, res);
       return res.json({ ok: false, isAuthed: false });
     }
 
@@ -162,7 +153,7 @@ router.get("/me", async (req, res) => {
       [decoded.uid, decoded.typ]
     );
     if (!rows.length) {
-      clearAuthCookie(req, res); // ← req 반영
+      clearAuthCookie(req, res);
       return res.json({ ok: false, isAuthed: false });
     }
 

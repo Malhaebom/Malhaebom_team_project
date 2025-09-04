@@ -14,17 +14,15 @@ const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 3001);
 
-// 운영/개발 베이스 URL
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";  // 이 서버(백엔드)
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";      // 프론트(80, Nginx)
-const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";                          // 개발 vite (선택)
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
+const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";
 
 /* =========================
  * CORS 허용 목록
  * ========================= */
 const csv = (s) => (s || "").split(",").map(x => x.trim()).filter(Boolean);
-
-const envOrigins = csv(process.env.CORS_ORIGINS); // 예: "http://211.188.63.38,http://211.188.63.38:5173"
+const envOrigins = csv(process.env.CORS_ORIGINS);
 
 const rawAllowed = Array.from(new Set([
   SERVER_BASE_URL,
@@ -38,7 +36,6 @@ const allowedHosts = new Set(
     try { return new url.URL(o).host; } catch { return null; }
   }).filter(Boolean)
 );
-
 const allowedOrigins = new Set(rawAllowed);
 
 app.use(
@@ -47,8 +44,8 @@ app.use(
       if (!origin) return cb(null, true); // 서버-서버 호출 등
       try {
         const u = new url.URL(origin);
-        if (allowedOrigins.has(origin)) return cb(null, true); // 1) 완전 일치
-        if (allowedHosts.has(u.host))   return cb(null, true); // 2) 같은 host면 포트 달라도 허용
+        if (allowedOrigins.has(origin)) return cb(null, true); // 완전 일치
+        if (allowedHosts.has(u.host))   return cb(null, true); // 같은 host면 포트 달라도 허용
       } catch {}
       console.warn("[CORS] blocked origin:", origin);
       return cb(new Error("Not allowed by CORS"), false);
@@ -62,7 +59,7 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// 프록시 뒤(예: Nginx)라면 신뢰 설정 (쿠키/리다이렉트에 필요)
+// 프록시 뒤(예: Nginx)라면 신뢰 설정 (쿠키 secure와 리다이렉트 판단에 필요)
 app.set("trust proxy", 1);
 
 /* =========================
@@ -73,13 +70,13 @@ const JoinServer  = require("./router/JoinServer");
 const Auther      = require("./router/Auther");
 const W_STRServer = require("./router/W_STRServer");
 
-// ✅ 기존 경로 유지 (레거시/직접호출 호환)
+// 레거시 경로
 app.use("/userLogin", LoginServer);
 app.use("/userJoin",  JoinServer);
 app.use("/auth",      Auther);
 app.use("/str",       W_STRServer);
 
-// ✅ 새로운 권장 경로: /api 프리픽스 (프론트는 항상 /api만 호출)
+// 프론트는 /api만 호출
 app.use("/api/userLogin", LoginServer);
 app.use("/api/userJoin",  JoinServer);
 app.use("/api/auth",      Auther);
