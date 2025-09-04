@@ -1,4 +1,3 @@
-// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
