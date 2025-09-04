@@ -1,11 +1,10 @@
-// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
 
-/** 표준 슬러그/제목(표시는 여기 기준) */
+/** 표준 슬러그/제목(표시는 여기 기준) — 제목은 ‘어머니의 벙어리 장갑’(띄어쓰기 있음) */
 const baseStories = [
   { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
@@ -14,40 +13,42 @@ const baseStories = [
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 기본 매핑: 제목 → 슬러그 */
-const titleToSlugBase = new Map(
-  baseStories.map((b) => [normalizeSpace(b.story_title), b.story_key])
-);
+/** 공백 정규화 */
+function normalizeSpace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
 
-/** 과거 데이터 정규화(오타/띄어쓰기/조사 등) → 표준제목 */
+/** 과거 데이터(오타·조사·공백 불일치) → 표준 제목으로 교정 */
 function normalizeKoreanTitle(s) {
   let x = normalizeSpace(s);
-  x = x.replaceAll("병어리", "벙어리");
-  x = x.replaceAll("어머니와", "어머니의");
-  x = x.replaceAll("벙어리장갑", "벙어리 장갑");
+  // 흔한 오타/변형 교정
+  x = x.replaceAll("병어리", "벙어리");         // 오타
+  x = x.replaceAll("어머니와", "어머니의");     // 조사 교정
+  x = x.replaceAll("벙어리장갑", "벙어리 장갑"); // 띄어쓰기
   x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
   x = x.replaceAll("할머니와바나나", "할머니와 바나나");
   return x;
 }
 
-/** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 반환 */
+/** 제목 → 표준 슬러그 맵 (교정 후 매핑하도록 수정) */
+const titleToSlugBase = new Map(
+  baseStories.map((b) => [normalizeKoreanTitle(b.story_title), b.story_key])
+);
+
+/** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 교정 후 슬러그 반환 */
 function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
   const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
+  // 이미 표준 슬러그?
   if (slugToTitle.has(story_key_or_title)) return story_key_or_title;
+
+  // 제목 후보 교정 → 슬러그 탐색
   const t1 = normalizeKoreanTitle(story_key_or_title);
   const t2 = normalizeKoreanTitle(story_title_fallback);
-  const slug =
-    titleToSlugBase.get(t1) ||
-    titleToSlugBase.get(t2) ||
-    null;
-  return slug || story_key_or_title;
+  const slug = titleToSlugBase.get(t1) || titleToSlugBase.get(t2) || null;
+  return slug || story_key_or_title; // 못 찾으면 원본 유지(아래에서 ‘DB-only 카드’로 추가)
 }
 
-function normalizeSpace(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
-}
-
-/** MySQL DATETIME(UTC) 파싱 → Date(UTC) */
+/** MySQL DATETIME(UTC) → Date(UTC) */
 function parseSqlUtc(s) {
   if (!s) return null;
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
@@ -191,6 +192,7 @@ export default function BookHistory() {
     const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
     const merging = new Map();
 
+    // 1) 서버 응답 → 표준 슬러그로 합치기
     for (const g of groups) {
       const slug = toSlugFromAny(g.story_key, g.story_title);
 
@@ -205,6 +207,7 @@ export default function BookHistory() {
       for (const r of g.records || []) holder.records.push(rowToCardData(r));
     }
 
+    // 2) 기본 카드(빈일 수 있음) + DB 전용 키 추가
     const ordered = baseStories.map((b) => ({
       story_key: b.story_key,
       story_title: b.story_title,
@@ -214,6 +217,7 @@ export default function BookHistory() {
       if (!baseStories.some((b) => b.story_key === slug)) ordered.push(g);
     }
 
+    // 3) 레코드 최신순(회차 desc → id desc) 정렬
     for (const it of ordered) {
       it.records.sort((a, b) => {
         const ao = Number(a.client_attempt_order || 0);
@@ -230,7 +234,6 @@ export default function BookHistory() {
       console.groupEnd();
       window.__STR_HISTORY__ = { groups, ordered };
     }
-
     return ordered;
   }, [groups]);
 
@@ -254,6 +257,7 @@ export default function BookHistory() {
           return;
         }
 
+        // 쿠키 인증이 있더라도 user_key를 params/header로 함께 보냄(확실히)
         const cfg = { params: { user_key: userKey }, headers: { "x-user-key": userKey } };
         const { data } = await API.get(`/str/history/all`, cfg);
 
