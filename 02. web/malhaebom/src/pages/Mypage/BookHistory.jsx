@@ -3,7 +3,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.3";
+window.__BH_VERSION__ = "BookHistory@v3.4";
 
 /** 표준 슬러그/제목 */
 const baseStories = [
@@ -30,6 +30,33 @@ function formatKstLabel(dtUtc){
   const k = new Date(dtUtc.getTime()+9*60*60*1000);
   const pad=n=>String(n).padStart(2,"0");
   return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
+}
+
+// 문자열/이중 JSON/버퍼스러운 값까지 안전 파싱
+function parseMaybeJSON(v, fallback={}) {
+  if (v == null) return fallback;
+  if (typeof v === "object") return v;
+  if (typeof v === "string") {
+    try {
+      const t = v.trim();
+      if (!t) return fallback;
+      const once = JSON.parse(t);
+      if (typeof once === "string") {
+        try { return JSON.parse(once); } catch { return fallback; }
+      }
+      return once ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  // Buffer가 오면 문자열화 -> 재시도
+  try {
+    if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) {
+      const s = v.toString("utf8");
+      return s ? parseMaybeJSON(s, fallback) : fallback;
+    }
+  } catch {}
+  return fallback;
 }
 
 // 다양한 저장 형태를 흡수해서 0~4 스케일로 변환
@@ -71,19 +98,19 @@ function normalizeScores({
 
   const B  = read(by_category,"B")
           ?? read(by_category,"질문")
-          ?? fromRatio(read(risk_bars,"질문"))
+          ?? fromRatio(risk_bars?.["질문"])
           ?? fromPoints(read(risk_bars,"B"))
           ?? 0;
 
   const C  = read(by_category,"C")
           ?? read(by_category,"단언")
-          ?? fromRatio(read(risk_bars,"단언"))
+          ?? fromRatio(risk_bars?.["단언"])
           ?? fromPoints(read(risk_bars,"C"))
           ?? 0;
 
   const D  = read(by_category,"D")
           ?? read(by_category,"의례화")
-          ?? fromRatio(read(risk_bars,"의례화"))
+          ?? fromRatio(risk_bars?.["의례화"])
           ?? fromPoints(read(risk_bars,"D"))
           ?? 0;
 
@@ -91,7 +118,7 @@ function normalizeScores({
   const partsSum = sAD + sAI + sB + sC + sD;
 
   // 세부 파트가 전부 0이면 총점으로 폴백
-  const onlyTotal = (partsSum === 0) && (fallbackScore != null);
+  const onlyTotal = (partsSum === 0) && (num(fallbackScore) != null);
 
   return {
     scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D,
@@ -104,7 +131,7 @@ function normalizeScores({
 
 function rowToCardData(row){
   let displayTime = "";
-  const rawKst = (row?.client_kst||"").trim();
+  const rawKst = (row?.client_kst||"").trim?.() || "";
   if (rawKst) {
     if (rawKst.includes("T")) {
       const d = new Date(rawKst);
@@ -116,11 +143,17 @@ function rowToCardData(row){
     displayTime = formatKstLabel(parseSqlUtc(row?.client_utc||""));
   }
 
+  // ✅ 서버 필드가 문자열/이중 JSON이어도 안전 파싱
+  const by_category      = parseMaybeJSON(row?.by_category, {});
+  const by_type          = parseMaybeJSON(row?.by_type, {});
+  const risk_bars        = parseMaybeJSON(row?.risk_bars, {});
+  const risk_bars_by_type= parseMaybeJSON(row?.risk_bars_by_type, {});
+
   const scores = normalizeScores({
-    by_category: row?.by_category||{},
-    by_type: row?.by_type||{},
-    risk_bars: row?.risk_bars||{},
-    risk_bars_by_type: row?.risk_bars_by_type||{},
+    by_category,
+    by_type,
+    risk_bars,
+    risk_bars_by_type,
     fallbackScore: row?.score,
     fallbackTotal: row?.total,
   });
@@ -137,7 +170,7 @@ function rowToCardData(row){
 /* ────────── 상세 카드 ────────── */
 function ResultDetailCard({ data }) {
   if (!data) return null;
-  const { scoreAD, scoreAI, scoreB, scoreC, scoreD, partsSum, onlyTotal, fallbackScore, fallbackTotal } = data.scores;
+  const { scoreAD, scoreAI, scoreB, scoreC, scoreD, partsSum, fallbackScore, fallbackTotal } = data.scores;
   const sAD = Number(scoreAD)*2, sAI = Number(scoreAI)*2, sB = Number(scoreB)*2, sC = Number(scoreC)*2, sD = Number(scoreD)*2;
 
   // 총점/판정 계산
@@ -159,7 +192,7 @@ function ResultDetailCard({ data }) {
   ];
   const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
 
-  // 세부 점수가 없을 땐 코멘트/가이드 숨김
+  // 세부 점수가 있을 때만 코멘트/가이드
   const showBreakdown = (computedTotal > 0);
 
   // 최저 영역 인덱스(세부 있을 때만)
