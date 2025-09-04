@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+// 02. web/malhaebom/src/pages/Story/Exam/ResultExam.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import { useNavigate } from "react-router-dom";
@@ -31,6 +32,7 @@ export default function ResultExam() {
   const userKeyFromUrl = rawFromUrl && rawFromUrl !== "guest" ? rawFromUrl : "";
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const postedRef = useRef(false); // ✅ 같은 페이지에서 중복 저장 방지(다음 회차는 새 페이지에서 정상 저장)
 
   useEffect(() => {
     AOS.init();
@@ -46,14 +48,12 @@ export default function ResultExam() {
     const sB  = Number(scoreB)  * 2;
     const sC  = Number(scoreC)  * 2;
     const sD  = Number(scoreD)  * 2;
-
     const arr = [sAD, sAI, sB, sC, sD];
-    const total = arr.reduce((a, b) => a + b, 0);
+    const sum = arr.reduce((a, b) => a + b, 0);
     const minScore = Math.min(...arr);
     const lowIndex = arr.indexOf(minScore);
-    const isPassed = total >= 28;
-
-    return { total, isPassed, lowIndex };
+    const ok = sum >= 28;
+    return { total: sum, isPassed: ok, lowIndex };
   }, [scoreAD, scoreAI, scoreB, scoreC, scoreD]);
 
   const okOpinion =
@@ -75,7 +75,6 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // 저장
   const saveToBookHistory = async () => {
     try {
       const title = localStorage.getItem("bookTitle") || "동화";
@@ -84,13 +83,9 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
-      // user_key 확보(쿼리 우선 → 세션 보장), guest는 절대 전송 금지
+      // user_key 확보(guest는 금지)
       const sanitize = (k) => (k && k !== "guest" ? k : null);
-      let targetUserKey = sanitize(userKeyFromUrl);
-      if (!targetUserKey) {
-        targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
-        targetUserKey = sanitize(targetUserKey);
-      }
+      let targetUserKey = sanitize(userKeyFromUrl) || sanitize(await ensureUserKey({ retries: 3, delayMs: 200 }));
       if (!targetUserKey) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
@@ -99,7 +94,7 @@ export default function ResultExam() {
       const examResult = {
         storyTitle: title,
         storyKey,
-        attemptTime: new Date().toISOString(), // 서버가 now로 보정도 함
+        attemptTime: new Date().toISOString(),
         clientKst: nowKstString(),
         score: total,
         total: 40,
@@ -111,24 +106,12 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
-        // 참고: 앱과 단위 다름(앱은 0~1 ratio). 저장은 그대로 두고, 조회에서 모두 보정해서 읽도록 처리함.
-        riskBars: {
-          A:  Number(scoreAD) * 2,
-          AI: Number(scoreAI) * 2,
-          B:  Number(scoreB)  * 2,
-          C:  Number(scoreC)  * 2,
-          D:  Number(scoreD)  * 2,
-        },
+        riskBars: { A: Number(scoreAD)*2, AI: Number(scoreAI)*2, B: Number(scoreB)*2, C: Number(scoreC)*2, D: Number(scoreD)*2 },
         riskBarsByType: {},
       };
 
-      const cfg = {};
-      if (targetUserKey) {
-        cfg.params = { user_key: targetUserKey };
-        cfg.headers = { "x-user-key": targetUserKey };
-      }
+      const cfg = { params: { user_key: targetUserKey }, headers: { "x-user-key": targetUserKey } };
       const { data } = await API.post("/str/attempt", examResult, cfg);
-
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
         alert("검사 결과 저장에 실패했습니다.");
@@ -139,21 +122,15 @@ export default function ResultExam() {
     }
   };
 
+  // ✅ 페이지마다 1번만 저장(다음 회차는 새 페이지에서 다시 1번 저장됨)
   useEffect(() => {
-    if (total > 0) {
-      const flag = sessionStorage.getItem("examCompleted");
-      if (!flag) {
-        (async () => {
-          await saveToBookHistory();
-          sessionStorage.setItem("examCompleted", "true");
-        })();
-      }
+    if (total > 0 && !postedRef.current) {
+      postedRef.current = true;
+      saveToBookHistory();
     }
   }, [total]);
 
-  const goHome = () => {
-    location.href = "/";
-  };
+  const goHome = () => { location.href = "/"; };
 
   return (
     <div className="content">
