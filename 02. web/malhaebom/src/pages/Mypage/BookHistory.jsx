@@ -3,7 +3,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.1";
+window.__BH_VERSION__ = "BookHistory@v3.2";
 
 /** 표준 슬러그/제목 */
 const baseStories = [
@@ -11,7 +11,7 @@ const baseStories = [
   { story_key: "father_wedding", story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",     story_title: "아들의 호빵" },
   { story_key: "grandma_banana", story_title: "할머니와 바나나" },
-  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" }, // ← 변경
+  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" }, // ← 표준(짧은) 키
 ];
 
 /* ────────── 유틸 ────────── */
@@ -75,6 +75,48 @@ function rowToCardData(row){
   };
 }
 
+/* ────────── 상세 카드 ────────── */
+function ResultDetailCard({ data }) {
+  if (!data) return null;
+  const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = data.scores;
+  const sAD = Number(scoreAD)*2, sAI = Number(scoreAI)*2, sB = Number(scoreB)*2, sC = Number(scoreC)*2, sD = Number(scoreD)*2;
+  const arr=[sAD,sAI,sB,sC,sD]; const total=arr.reduce((a,b)=>a+b,0); const minScore=Math.min(...arr); const lowIndex=arr.indexOf(minScore);
+  const isPassed = total>=28;
+  const okOpinion = "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다.";
+  const opinions_result=[
+    "당신은 직접화행의 점수가 낮습니다.\n기본적인 대화의 문장인식 즉 문장에 내포된 의미에 대한 이해력이 부족하고 동화에 있는 인물들이 나누는 대화들에 대한 인지능력이 조금 부족해 보입니다.\n선생님과의 프로그램을 통한 동화 인물들에 대한 학습으로 점수를 올릴 수 있습니다.",
+    "당신은 간접화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 대화에 대한 이해력이 부족하고 동화책 내용의 간접적 질문에 대한 듣기의 인지능력이 조금 부족해보입니다.\n선생님과의 프로그램을 통한 대화 응용능력 학습으로 점수를 올릴 수 있습니다.",
+    "당신은 질문화행 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 인물들이 대화에서 주고 받는 정보에 대한 판단에 대한 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통한 대화정보파악학습으로 점수를 올릴수 있습니다.",
+    "당신은 단언화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 대화하는 인물들의 말에 대한 의도파악과 관련하여 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해 인물대사 의도파악학습으로 점수를 올릴 수 있습니다.",
+    "당신은 의례화화행 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 인물들이 상황에 맞는 자신의 감정을 표현하는 말에 대한 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해  인물들의 상황 및 정서 파악 학습으로 점수를 올릴 수 있습니다.",
+  ];
+  const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
+
+  return (
+    <div style={{background:"#fff",borderRadius:10,padding:20,marginTop:12,marginBottom:12,boxShadow:"0 6px 18px rgba(0,0,0,0.08)"}}>
+      <div style={{marginBottom:20}}>
+        <div className="tit">총점</div>
+        <div style={{margin:"0 auto",textAlign:"center",borderRadius:10,backgroundColor:"white",padding:"20px 0",fontSize:18,fontWeight:700}}>
+          {total} / 40
+        </div>
+      </div>
+      <div style={{marginBottom:20}}>
+        <div className="tit">인지능력</div>
+        <div style={{margin:"0 auto",textAlign:"center",borderRadius:10,backgroundColor:"white",padding:"20px 0"}}>
+          <img src={isPassed?"/drawable/speech_clear.png":"/drawable/speech_fail.png"} style={{width:"15%"}} alt="result"/>
+        </div>
+      </div>
+      <div>
+        <div className="tit">검사 결과 평가</div>
+        <div style={{padding:"12px 0",lineHeight:1.6,whiteSpace:"pre-line"}}>
+          {isPassed? okOpinion : opinions_result[lowIndex]}
+        </div>
+        {!isPassed && <div style={{fontWeight:700,marginTop:6}}>{opinions_guide[lowIndex]}</div>}
+      </div>
+    </div>
+  );
+}
+
 /* ────────── 메인 ────────── */
 export default function BookHistory(){
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -99,7 +141,11 @@ export default function BookHistory(){
         const key = await ensureUserKey({ retries:2, delayMs:150 });
         setUsedUserKey(key || "(cookie only)");
 
-        const cfg = key ? { params:{ user_key:key }, headers:{ "x-user-key":key } } : {};
+        // 캐시 방지 파라미터 추가
+        const cfg = key
+          ? { params:{ user_key:key, _t: Date.now() }, headers:{ "x-user-key":key } }
+          : { params:{ _t: Date.now() } };
+
         const { data } = await API.get("/str/history/all", cfg);
 
         if (DEBUG){
@@ -122,7 +168,7 @@ export default function BookHistory(){
 
   // 서버가 슬러그로 보내주므로 단순 병합
   const mergedStories = useMemo(()=>{
-    const map = new Map(groups.map(g => [g.story_key, g])); // g.story_key = slug
+    const map = new Map(groups.map(g => [g.story_key, g])); // g.story_key = slug(new)
     const ordered = baseStories.map(b => ({
       story_key: b.story_key,
       story_title: b.story_title,

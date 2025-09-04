@@ -52,6 +52,11 @@ function toSlugOnClient(storyKeyCandidate, titleCandidate){
   return storyKeyCandidate || "unknown_story";
 }
 
+// 전송용: 표준→레거시(서버 ENUM 호환)
+function toStorageSlug(slug){
+  return slug === "kkong_boribap" ? "kkongdang_boribap" : slug;
+}
+
 function nowKstString() {
   const d = new Date();
   const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
@@ -97,9 +102,6 @@ export default function ResultExam() {
     return { total, isPassed, lowIndex };
   }, [scoreAD, scoreAI, scoreB, scoreC, scoreD]);
 
-  const okOpinion =
-    "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다.";
-
   const opinions_result = [
     "당신은 직접화행의 점수가 낮습니다.\n기본적인 대화의 문장인식 즉 문장에 내포된 의미에 대한 이해력이 부족하고 동화에 있는 인물들이 나누는 대화들에 대한 인지능력이 조금 부족해 보입니다.\n선생님과의 프로그램을 통한 동화 인물들에 대한 학습으로 점수를 올릴 수 있습니다.",
     "당신은 간접화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 대화에 대한 이해력이 부족하고 동화책 내용의 간접적 질문에 대한 듣기의 인지능력이 조금 부족해보입니다.\n선생님과의 프로그램을 통한 대화 응용능력 학습으로 점수를 올릴 수 있습니다.",
@@ -107,7 +109,6 @@ export default function ResultExam() {
     "당신은 단언화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 대화하는 인물들의 말에 대한 의도파악과 관련하여 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해 인물대사 의도파악학습으로 점수를 올릴 수 있습니다.",
     "당신은 의례화화행 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 인물들이 상황에 맞는 자신의 감정을 표현하는 말에 대한 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해  인물들의 상황 및 정서 파악 학습으로 점수를 올릴 수 있습니다.",
   ];
-
   const opinions_guide = [
     "A-요구(직접)가 부족합니다.",
     "A-요구(간접)가 부족합니다.",
@@ -120,20 +121,17 @@ export default function ResultExam() {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
     const title = ntitle(rawTitle);
 
-    // ★ storyKey 보강: localStorage.storyKey 우선 사용
+    // 저장용 storyKey (localStorage 우선 → 제목 매핑 → 레거시치환)
     const lsKey = (localStorage.getItem("storyKey") || "").trim();
     const storyKeyCandidate = lsKey || TITLE_TO_KEY[title] || "";
-    const storyKey = toSlugOnClient(storyKeyCandidate, title);
-
-    if (!["mother_gloves","father_wedding","sons_bread","grandma_banana","kkong_boribap"].includes(storyKey)) {
-      console.warn("[ResultExam] 비표준/빈 슬러그 감지:", { title, lsKey, storyKeyCandidate, storyKey });
-    }
+    const storyKeyStd = toSlugOnClient(storyKeyCandidate, title);
+    const storyKeySend = toStorageSlug(storyKeyStd);
 
     const examResult = {
       storyTitle: title,
-      storyKey,
-      attemptTime: new Date().toISOString(), // 서버에서 UTC→SQL, KST 라벨 생성
-      clientKst: nowKstString(),             // 서버가 무시하고 재생성해도 OK
+      storyKey: storyKeySend,          // ← 서버 ENUM 호환
+      attemptTime: new Date().toISOString(),
+      clientKst: nowKstString(),
       score: total,
       total: 40,
       byCategory: {
@@ -159,17 +157,10 @@ export default function ResultExam() {
       headers: { "x-user-key": resolvedUserKey },
     };
 
-    try{
-      console.log("[ResultExam] save payload =", { examResult, cfg });
-      const { data } = await API.post("/str/attempt", examResult, cfg);
-      console.log("[ResultExam] save response =", data);
-      if (!data?.ok) {
-        console.error("검사 결과 저장 실패:", data);
-        alert("검사 결과 저장에 실패했습니다.");
-      }
-    }catch(err){
-      console.error("검사 결과 저장 오류:", err?.response?.data || err);
-      alert("검사 결과 저장 중 오류가 발생했습니다.");
+    const { data } = await API.post("/str/attempt", examResult, cfg);
+    if (!data?.ok) {
+      console.error("검사 결과 저장 실패:", data);
+      alert("검사 결과 저장에 실패했습니다.");
     }
   }
 
@@ -187,7 +178,12 @@ export default function ResultExam() {
         return;
       }
 
-      await saveToBookHistory(targetUserKey);
+      try {
+        await saveToBookHistory(targetUserKey);
+      } catch (error) {
+        console.error("검사 결과 저장 오류:", error?.response?.data || error);
+        alert("검사 결과 저장 중 오류가 발생했습니다.");
+      }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
@@ -222,8 +218,9 @@ export default function ResultExam() {
                 <div className="sub_tit">
                   <div className="num_tit">
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
-                      {isPassed ? "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다."
-                               : opinions_result[lowIndex]}
+                      {isPassed
+                        ? "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다."
+                        : opinions_result[lowIndex]}
                     </p>
                     {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
                   </div>

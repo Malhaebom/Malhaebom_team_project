@@ -22,19 +22,16 @@ const pool = mysql.createPool({
 });
 
 /* ==== 유틸 ==== */
-// ★ Buffer 안전 처리 추가
+// Buffer/문자열/객체 안전 파싱
 function safeParseJSON(jsonVal, fallback = null) {
   try {
     if (jsonVal == null) return fallback;
-    if (typeof jsonVal === "object") {
-      if (Buffer.isBuffer(jsonVal)) {
-        const s = jsonVal.toString("utf8");
-        return s ? JSON.parse(s) : fallback;
-      }
-      // 이미 객체(JSON 칼럼)인 경우
-      return jsonVal;
+    if (Buffer.isBuffer(jsonVal)) {
+      const s = jsonVal.toString("utf8");
+      return s ? JSON.parse(s) : fallback;
     }
-    const s = String(jsonVal);
+    if (typeof jsonVal === "object") return jsonVal;
+    const s = String(jsonVal).trim();
     return s ? JSON.parse(s) : fallback;
   } catch {
     return fallback;
@@ -126,14 +123,19 @@ const BASE_STORIES = [
 ];
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
+// 레거시 → 표준
 const LEGACY_SLUG_MAP = new Map([
-  ["kkongdang_boribap", "kkong_boribap"], // 레거시 → 표준
+  ["kkongdang_boribap", "kkong_boribap"],
+]);
+// 저장 전용: 표준 → 레거시(ENUM 호환)
+const STORAGE_SLUG_MAP = new Map([
+  ["kkong_boribap", "kkongdang_boribap"],
 ]);
 
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   const raw = String(story_key_or_title || "").trim();
-  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
-  if (SLUG_TO_TITLE.has(raw)) return raw;
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw); // old→new
+  if (SLUG_TO_TITLE.has(raw)) return raw;                         // already new
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
   const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
@@ -174,7 +176,7 @@ router.post("/attempt", async (req, res) => {
       user_key: bodyUserKey,
     } = req.body || {};
 
-    // 1) 인증 키 결정
+    // 인증 키 결정
     const authedKey = await deriveUserKeyFromAuth(req);
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
@@ -191,14 +193,15 @@ router.post("/attempt", async (req, res) => {
       user_key = claimedKey;
     }
 
-    // ★ 완화: storyKey가 없어도 storyTitle로 유도 가능해야 저장
+    // storyKey/Title 최소 한쪽은 필요
     if (!storyKey && !storyTitle) {
       return res.status(400).json({ ok: false, error: "missing_storyKey_and_title" });
     }
 
-    // 표준화
+    // 표준화(표시는 표준), 저장은 ENUM 호환용 레거시 키로
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
+    const dbSlug = STORAGE_SLUG_MAP.get(slug) || slug; // ← 저장용
 
     // 시간
     const utcDate = (() => {
@@ -211,7 +214,7 @@ router.post("/attempt", async (req, res) => {
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
     const clientKstLabel = toKstLabelFromUtcDate(utcDate);
 
-    // 다음 회차 계산 (슬러그 기준)
+    // 다음 회차 계산
     const [rows] = await conn.query(
       `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
@@ -234,7 +237,7 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        slug,
+        dbSlug,                // ← 저장은 레거시 키
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
@@ -282,7 +285,7 @@ router.get("/history/all", async (req, res) => {
 
     const map = new Map(); // slug -> group
     for (const r of rows) {
-      const slug  = toSlugFromAny(r.story_key, r.story_title);
+      const slug  = toSlugFromAny(r.story_key, r.story_title); // old→new 정규화
       const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
 
       if (!map.has(slug)) {
@@ -293,12 +296,10 @@ router.get("/history/all", async (req, res) => {
         client_kst: toStrOrNull(r.client_kst),
         client_utc: toStrOrNull(r.client_utc),
         client_attempt_order: r.client_attempt_order == null ? null : toNumber(r.client_attempt_order, null),
-        // ★ Buffer → JSON 파싱 보정 적용
         by_category: safeParseJSON(r.by_category, {}),
         by_type: safeParseJSON(r.by_type, {}),
         risk_bars: safeParseJSON(r.risk_bars, {}),
         risk_bars_by_type: safeParseJSON(r.risk_bars_by_type, {}),
-        // 점수/총점은 클라에서 다시 계산하므로 원본 그대로 둠
         score: toNumber(r.score, 0),
         total: toNumber(r.total, 0),
       });
