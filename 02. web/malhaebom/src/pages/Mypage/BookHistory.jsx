@@ -25,12 +25,15 @@ function parseSqlUtc(s){
   const dt = new Date(Date.UTC(+Y,+M-1,+D,+h,+m2,+s2));
   return isNaN(dt.getTime())?null:dt;
 }
-function formatKst(dtUtc){
+
+// ▼ 변경: 화면 표시는 'YYYY년 MM월 DD일 HH:MM'
+function formatKstLabel(dtUtc){
   if(!dtUtc) return "";
   const k = new Date(dtUtc.getTime()+9*60*60*1000);
   const pad=n=>String(n).padStart(2,"0");
-  return `${k.getFullYear()}-${pad(k.getMonth()+1)}-${pad(k.getDate())} ${pad(k.getHours())}:${pad(k.getMinutes())}:${pad(k.getSeconds())}`;
+  return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
 }
+
 function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type }){
   const getCorrect=(obj,key)=> (obj?.[key] && obj[key].correct!=null)?Number(obj[key].correct)||0:null;
   const fromRatio=r=> (Number.isFinite(+r)&&r>=0&&r<=1)?Math.round((1-Number(r))*4):null;
@@ -44,8 +47,22 @@ function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type })
 
   return { scoreAD:A, scoreAI:AI, scoreB:B, scoreC:C, scoreD:D };
 }
+
 function rowToCardData(row){
-  const displayTime = (row?.client_kst||"").trim() || formatKst(parseSqlUtc(row?.client_utc||""));
+  // ▼ 변경: client_kst가 ISO면 라벨로 변환, 없으면 client_utc로 라벨 생성
+  let displayTime = "";
+  const rawKst = (row?.client_kst||"").trim();
+  if (rawKst) {
+    if (rawKst.includes("T")) {
+      const d = new Date(rawKst);
+      displayTime = isNaN(d.getTime()) ? rawKst : formatKstLabel(d);
+    } else {
+      displayTime = rawKst;
+    }
+  } else {
+    displayTime = formatKstLabel(parseSqlUtc(row?.client_utc||""));
+  }
+
   const scores = normalizeScores({
     by_category: row?.by_category||{},
     by_type: row?.by_type||{},
@@ -76,7 +93,7 @@ function ResultDetailCard({ data }) {
     "당신은 단언화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 대화하는 인물들의 말에 대한 의도파악과 관련하여 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해 인물대사 의도파악학습으로 점수를 올릴 수 있습니다.",
     "당신은 의례화화행 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 인물들이 상황에 맞는 자신의 감정을 표현하는 말에 대한 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해  인물들의 상황 및 정서 파악 학습으로 점수를 올릴 수 있습니다.",
   ];
-  const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족합니다.","D-의례화가 부족합니다."];
+  const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
 
   return (
     <div style={{background:"#fff",borderRadius:10,padding:20,marginTop:12,marginBottom:12,boxShadow:"0 6px 18px rgba(0,0,0,0.08)"}}>

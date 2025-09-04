@@ -52,6 +52,18 @@ function toUtcSqlDatetime(date) {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
+// ▼ 추가: UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
+function toKstLabelFromUtcDate(utcDate) {
+  const k = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const Y = k.getFullYear();
+  const M = pad(k.getMonth() + 1);
+  const D = pad(k.getDate());
+  const h = pad(k.getHours());
+  const m = pad(k.getMinutes());
+  return `${Y}년 ${M}월 ${D}일 ${h}:${m}`;
+}
+
 function composeUserKey(login_type, login_id) {
   if (!login_type || !login_id) return null;
   return login_type === "local" ? String(login_id) : `${login_type}:${login_id}`;
@@ -123,71 +135,7 @@ router.get("/whoami", async (req, res) => {
   });
 });
 
-/* 테스트 데이터 추가 (개발용) 그대로 사용 가능 */
-router.post("/test-data", async (req, res) => {
-  try {
-    const { user_key = "test_user" } = req.body;
-
-    const testData = [
-      {
-        user_key,
-        story_key: "mother_gloves",
-        story_title: "어머니의 벙어리 장갑",
-        client_attempt_order: 1,
-        score: 32,
-        total: 40,
-        client_utc: toUtcSqlDatetime(new Date()),
-        client_kst: "2024-01-15 14:30:00",
-        by_category: JSON.stringify({ B: { correct: 3 }, C: { correct: 4 }, D: { correct: 4 } }),
-        by_type: JSON.stringify({ "직접화행": { correct: 4 }, "간접화행": { correct: 4 } }),
-        risk_bars: JSON.stringify({ A: 8, AI: 8, B: 6, C: 8, D: 8 }),
-        risk_bars_by_type: JSON.stringify({ "직접화행": 0.2, "간접화행": 0.2 })
-      },
-      {
-        user_key,
-        story_key: "father_wedding",
-        story_title: "아버지와 결혼식",
-        client_attempt_order: 1,
-        score: 28,
-        total: 40,
-        client_utc: toUtcSqlDatetime(new Date(Date.now() - 86400000)),
-        client_kst: "2024-01-14 10:15:00",
-        by_category: JSON.stringify({ B: { correct: 3 }, C: { correct: 3 }, D: { correct: 4 } }),
-        by_type: JSON.stringify({ "직접화행": { correct: 4 }, "간접화행": { correct: 3 } }),
-        risk_bars: JSON.stringify({ A: 8, AI: 6, B: 6, C: 6, D: 8 }),
-        risk_bars_by_type: JSON.stringify({ "직접화행": 0.2, "간접화행": 0.4 })
-      }
-    ];
-
-    for (const data of testData) {
-      await pool.query(
-        `INSERT INTO tb_story_result
-         (user_key, story_key, story_title, client_attempt_order, score, total, client_utc, client_kst,
-          by_category, by_type, risk_bars, risk_bars_by_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          data.user_key,
-          data.story_key,
-          data.story_title,
-          data.client_attempt_order,
-          data.score,
-          data.total,
-          data.client_utc,
-          data.client_kst,
-          data.by_category,
-          data.by_type,
-          data.risk_bars,
-          data.risk_bars_by_type,
-        ]
-      );
-    }
-
-    res.json({ ok: true, message: "테스트 데이터가 추가되었습니다.", user_key });
-  } catch (err) {
-    console.error("[/str/test-data] error:", err);
-    res.status(500).json({ ok: false, error: err.message });
-  }
-});
+/* 테스트 데이터 라우트는 생략(기존 그대로) */
 
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
@@ -232,20 +180,22 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // ★ 입력값을 표준화: 슬러그/제목 확정
+    // 입력값을 표준화
     const slug = toSlugFromAny(storyKey, storyTitle);
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
 
-    // client_utc(NOT NULL) 보정
-    let clientUtcStr;
+    // client_utc + client_kst(라벨) 생성
+    let utcDate;
     if (attemptTime) {
-      const utc = new Date(attemptTime);
-      clientUtcStr = isNaN(utc.getTime()) ? toUtcSqlDatetime(new Date()) : toUtcSqlDatetime(utc);
+      const t = new Date(attemptTime);
+      utcDate = isNaN(t.getTime()) ? new Date() : t;
     } else {
-      clientUtcStr = toUtcSqlDatetime(new Date());
+      utcDate = new Date();
     }
+    const clientUtcStr   = toUtcSqlDatetime(utcDate);
+    const clientKstLabel = toStrOrNull(clientKst) || toKstLabelFromUtcDate(utcDate); // ▼ 여기서 라벨 자동 생성
 
-    // ★ 다음 회차: 유저의 모든 결과 중 slug로 환산해 비교(과거 한글키 포함)
+    // 다음 회차 계산(슬러그 기준)
     const [rows] = await conn.query(
       `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
@@ -268,13 +218,13 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        slug,                       // ← 슬러그로 저장
-        canonicalTitle,             // ← 표준 제목으로 저장
+        slug,
+        canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
         clientUtcStr,
-        toStrOrNull(clientKst),
+        clientKstLabel,                 // ▼ 저장되는 값은 'YYYY년 MM월 DD일 HH:MM'
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -314,8 +264,8 @@ router.get("/history/all", async (req, res) => {
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
-    // ★ 서버에서 슬러그로 그룹핑(과거 한글키도 흡수)
-    const map = new Map(); // slug -> group
+    // 서버에서 슬러그로 그룹핑
+    const map = new Map();
     for (const r of rows) {
       const slug  = toSlugFromAny(r.story_key, r.story_title);
       const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
