@@ -73,7 +73,7 @@ const LoginServer = require("./router/LoginServer");
 const JoinServer = require("./router/JoinServer");
 const Auther = require("./router/Auther");
 const W_STRServer = require("./router/W_STRServer");
-const W_IRServer = requier("./router/W_IRServer")
+const W_IRServer = require("./router/W_IRServer")
 
 // 레거시 경로
 app.use("/userLogin", LoginServer);
