@@ -4,7 +4,7 @@ import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
 
-/** 표준 슬러그/제목(표시는 여기 기준) — 제목은 ‘어머니의 벙어리 장갑’(띄어쓰기 있음) */
+/** 표준 슬러그/제목(표시는 여기 기준) — 반드시 ‘의’/띄어쓰기 맞춤 */
 const baseStories = [
   { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
@@ -13,39 +13,37 @@ const baseStories = [
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 공백 정규화 */
+/** 공백/오타/조사 교정 포함 정규화 */
 function normalizeSpace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
-
-/** 과거 데이터(오타·조사·공백 불일치) → 표준 제목으로 교정 */
 function normalizeKoreanTitle(s) {
   let x = normalizeSpace(s);
-  // 흔한 오타/변형 교정
-  x = x.replaceAll("병어리", "벙어리");         // 오타
-  x = x.replaceAll("어머니와", "어머니의");     // 조사 교정
-  x = x.replaceAll("벙어리장갑", "벙어리 장갑"); // 띄어쓰기
+  // 흔한 변형/오타 교정
+  x = x.replaceAll("병어리", "벙어리");
+  x = x.replaceAll("어머니와", "어머니의");
+  x = x.replaceAll("벙어리장갑", "벙어리 장갑");
   x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
   x = x.replaceAll("할머니와바나나", "할머니와 바나나");
   return x;
 }
 
-/** 제목 → 표준 슬러그 맵 (교정 후 매핑하도록 수정) */
+/** 기본 매핑: (정규화된)제목 → 슬러그  ← ★ 여기 핵심 수정 */
 const titleToSlugBase = new Map(
   baseStories.map((b) => [normalizeKoreanTitle(b.story_title), b.story_key])
 );
 
-/** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 교정 후 슬러그 반환 */
+/** 제목/슬러그 추론: (1) 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 */
 function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
   const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
   // 이미 표준 슬러그?
   if (slugToTitle.has(story_key_or_title)) return story_key_or_title;
 
-  // 제목 후보 교정 → 슬러그 탐색
+  // 제목 후보 정규화 → 슬러그 탐색
   const t1 = normalizeKoreanTitle(story_key_or_title);
   const t2 = normalizeKoreanTitle(story_title_fallback);
   const slug = titleToSlugBase.get(t1) || titleToSlugBase.get(t2) || null;
-  return slug || story_key_or_title; // 못 찾으면 원본 유지(아래에서 ‘DB-only 카드’로 추가)
+  return slug || story_key_or_title; // 못 찾으면 원본 유지(아래에서 DB-only 카드로 추가됨)
 }
 
 /** MySQL DATETIME(UTC) → Date(UTC) */
@@ -58,7 +56,7 @@ function parseSqlUtc(s) {
   return isNaN(dt.getTime()) ? null : dt;
 }
 
-/** Date(UTC) → KST 표기 */
+/** Date(UTC) → KST 문자열 */
 function formatKst(dtUtc) {
   if (!dtUtc) return "";
   const k = new Date(dtUtc.getTime() + 9 * 60 * 60 * 1000);
@@ -188,12 +186,13 @@ export default function BookHistory() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  /** DB 그룹 → 화면 카드 데이터로 병합 */
   const mergedStories = useMemo(() => {
     const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
     const merging = new Map();
 
-    // 1) 서버 응답 → 표준 슬러그로 합치기
     for (const g of groups) {
+      // g.story_key가 한글/오타일 수 있으니 보정
       const slug = toSlugFromAny(g.story_key, g.story_title);
 
       if (!merging.has(slug)) {
@@ -207,7 +206,7 @@ export default function BookHistory() {
       for (const r of g.records || []) holder.records.push(rowToCardData(r));
     }
 
-    // 2) 기본 카드(빈일 수 있음) + DB 전용 키 추가
+    // 기본 목록(빈 카드 가능) + DB에만 있는 키 추가
     const ordered = baseStories.map((b) => ({
       story_key: b.story_key,
       story_title: b.story_title,
@@ -217,7 +216,7 @@ export default function BookHistory() {
       if (!baseStories.some((b) => b.story_key === slug)) ordered.push(g);
     }
 
-    // 3) 레코드 최신순(회차 desc → id desc) 정렬
+    // 최신 회차 먼저 보이도록 정렬
     for (const it of ordered) {
       it.records.sort((a, b) => {
         const ao = Number(a.client_attempt_order || 0);
@@ -234,6 +233,7 @@ export default function BookHistory() {
       console.groupEnd();
       window.__STR_HISTORY__ = { groups, ordered };
     }
+
     return ordered;
   }, [groups]);
 
@@ -243,47 +243,41 @@ export default function BookHistory() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // ★ user_key가 없어도(쿠키만 있어도) 항상 호출해서 서버가 복원하도록 함
   useEffect(() => {
-  (async () => {
-    try {
-      setLoading(true);
+    (async () => {
+      try {
+        setLoading(true);
 
-      // 1) user_key 해보되, 없어도 요청 보냄(쿠키로 서버가 복원)
-      let userKey =
-        userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
-      if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
+        let userKey =
+          userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
+        if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
 
-      // 2) user_key가 있으면 params/header로, 없으면 쿠키만으로 호출
-      const cfg =
-        userKey && userKey !== "guest"
-          ? { params: { user_key: userKey }, headers: { "x-user-key": userKey } }
-          : {};
+        const cfg =
+          userKey && userKey !== "guest"
+            ? { params: { user_key: userKey }, headers: { "x-user-key": userKey } }
+            : {};
 
-      const { data } = await API.get(`/str/history/all`, cfg);
+        const { data } = await API.get(`/str/history/all`, cfg);
 
-      if (DEBUG) {
-        console.groupCollapsed(
-          "%c[BookHistory] /str/history/all response",
-          "color:#0a0"
-        );
-        console.log("status", data?.ok, "groups#", data?.data?.length);
-        console.log("data", data);
-        console.groupEnd();
-        // 콘솔에서 확인용
-        window.__STR_HISTORY_RAW__ = data;
+        if (DEBUG) {
+          console.groupCollapsed("%c[BookHistory] /str/history/all response", "color:#0a0");
+          console.log("status", data?.ok, "groups#", data?.data?.length);
+          console.log("data", data);
+          console.groupEnd();
+          window.__STR_HISTORY_RAW__ = data;
+        }
+
+        if (data?.ok) setGroups(data.data || []);
+        else setGroups([]);
+      } catch (err) {
+        console.error("history/all 에러:", err);
+        setGroups([]);
+      } finally {
+        setLoading(false);
       }
-
-      if (data?.ok) setGroups(data.data || []);
-      else setGroups([]);
-    } catch (err) {
-      console.error("history/all 에러:", err);
-      setGroups([]);
-    } finally {
-      setLoading(false);
-    }
-  })();
-}, [userKeyFromQuery]);
-
+    })();
+  }, [userKeyFromQuery]);
 
   return (
     <div className="content">
