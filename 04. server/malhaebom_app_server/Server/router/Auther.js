@@ -65,6 +65,9 @@ function getRedirectBase(req) {
   return "http://localhost:4000"; // 최후 fallback
 }
 function buildRedirectUri(req, pathname) {
+  if (/^https?:\/\//i.test(String(pathname || ""))) {
+    return String(pathname);
+  }
   return `${getRedirectBase(req)}${pathname}`;
 }
 
