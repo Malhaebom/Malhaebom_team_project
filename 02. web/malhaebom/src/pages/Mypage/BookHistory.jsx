@@ -3,7 +3,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.2";
+window.__BH_VERSION__ = "BookHistory@v3.3";
 
 /** 표준 슬러그/제목 */
 const baseStories = [
@@ -11,7 +11,7 @@ const baseStories = [
   { story_key: "father_wedding", story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",     story_title: "아들의 호빵" },
   { story_key: "grandma_banana", story_title: "할머니와 바나나" },
-  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" }, // ← 표준(짧은) 키
+  { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" }, // 표준(짧은) 키
 ];
 
 /* ────────── 유틸 ────────── */
@@ -32,18 +32,74 @@ function formatKstLabel(dtUtc){
   return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
 }
 
-function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type }){
-  const getCorrect=(obj,key)=> (obj?.[key] && obj[key].correct!=null)?Number(obj[key].correct)||0:null;
-  const fromRatio=r=> (Number.isFinite(+r)&&r>=0&&r<=1)?Math.round((1-Number(r))*4):null;
-  const fromPoints=p=> (Number.isFinite(+p)&&p>=0&&p<=8&&p%2===0)?Math.round(Number(p)/2):null;
+// 다양한 저장 형태를 흡수해서 0~4 스케일로 변환
+function normalizeScores({
+  by_category, by_type, risk_bars, risk_bars_by_type,
+  fallbackScore = null, fallbackTotal = 40,
+}){
+  const num = (v) => (v==null || v==="" || isNaN(Number(v)) ? null : Number(v));
 
-  const A  = getCorrect(by_type,"직접화행") ?? fromRatio(risk_bars_by_type?.["직접화행"]) ?? fromPoints(risk_bars?.A)  ?? 0;
-  const AI = getCorrect(by_type,"간접화행") ?? fromRatio(risk_bars_by_type?.["간접화행"]) ?? fromPoints(risk_bars?.AI) ?? 0;
-  const B  = getCorrect(by_category,"B")   ?? getCorrect(by_category,"질문") ?? fromRatio(risk_bars?.["질문"]) ?? fromPoints(risk_bars?.B) ?? 0;
-  const C  = getCorrect(by_category,"C")   ?? getCorrect(by_category,"단언") ?? fromRatio(risk_bars?.["단언"]) ?? fromPoints(risk_bars?.C) ?? 0;
-  const D  = getCorrect(by_category,"D")   ?? getCorrect(by_category,"의례화") ?? fromRatio(risk_bars?.["의례화"]) ?? fromPoints(risk_bars?.D) ?? 0;
+  const read = (obj, key) => {
+    if (!obj) return null;
+    const v = obj[key];
+    if (v == null) return null;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") return num(v);
+    if (typeof v === "object") {
+      // { correct: 3, total: 4 } 또는 { value: 3 } 등의 케이스 커버
+      if (v.correct != null && !isNaN(Number(v.correct))) return Number(v.correct);
+      if (v.value   != null && !isNaN(Number(v.value)))   return Number(v.value);
+    }
+    return null;
+  };
 
-  return { scoreAD:A, scoreAI:AI, scoreB:B, scoreC:C, scoreD:D };
+  const fromRatio  = (r) => (num(r)!=null ? Math.round((1-Number(r))*4) : null);
+  const fromPoints = (p) => (num(p)!=null ? Math.round(Number(p)/2) : null);
+
+  // A/AI는 타입 또는 리스크(타입) → 없으면 카테고리 A/AI 로도 시도
+  const A  = read(by_type,"직접화행")
+          ?? fromRatio(risk_bars_by_type?.["직접화행"])
+          ?? fromPoints(read(risk_bars,"A"))
+          ?? read(by_category,"A")
+          ?? 0;
+
+  const AI = read(by_type,"간접화행")
+          ?? fromRatio(risk_bars_by_type?.["간접화행"])
+          ?? fromPoints(read(risk_bars,"AI"))
+          ?? read(by_category,"AI")
+          ?? 0;
+
+  const B  = read(by_category,"B")
+          ?? read(by_category,"질문")
+          ?? fromRatio(read(risk_bars,"질문"))
+          ?? fromPoints(read(risk_bars,"B"))
+          ?? 0;
+
+  const C  = read(by_category,"C")
+          ?? read(by_category,"단언")
+          ?? fromRatio(read(risk_bars,"단언"))
+          ?? fromPoints(read(risk_bars,"C"))
+          ?? 0;
+
+  const D  = read(by_category,"D")
+          ?? read(by_category,"의례화")
+          ?? fromRatio(read(risk_bars,"의례화"))
+          ?? fromPoints(read(risk_bars,"D"))
+          ?? 0;
+
+  const sAD = Number(A)*2, sAI = Number(AI)*2, sB = Number(B)*2, sC = Number(C)*2, sD = Number(D)*2;
+  const partsSum = sAD + sAI + sB + sC + sD;
+
+  // 세부 파트가 전부 0이면 총점으로 폴백
+  const onlyTotal = (partsSum === 0) && (fallbackScore != null);
+
+  return {
+    scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D,
+    partsSum,
+    onlyTotal,
+    fallbackScore: (num(fallbackScore) ?? null),
+    fallbackTotal: (num(fallbackTotal) ?? 40),
+  };
 }
 
 function rowToCardData(row){
@@ -65,7 +121,10 @@ function rowToCardData(row){
     by_type: row?.by_type||{},
     risk_bars: row?.risk_bars||{},
     risk_bars_by_type: row?.risk_bars_by_type||{},
+    fallbackScore: row?.score,
+    fallbackTotal: row?.total,
   });
+
   return {
     id: row.id,
     client_attempt_order: row.client_attempt_order,
@@ -78,10 +137,18 @@ function rowToCardData(row){
 /* ────────── 상세 카드 ────────── */
 function ResultDetailCard({ data }) {
   if (!data) return null;
-  const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = data.scores;
+  const { scoreAD, scoreAI, scoreB, scoreC, scoreD, partsSum, onlyTotal, fallbackScore, fallbackTotal } = data.scores;
   const sAD = Number(scoreAD)*2, sAI = Number(scoreAI)*2, sB = Number(scoreB)*2, sC = Number(scoreC)*2, sD = Number(scoreD)*2;
-  const arr=[sAD,sAI,sB,sC,sD]; const total=arr.reduce((a,b)=>a+b,0); const minScore=Math.min(...arr); const lowIndex=arr.indexOf(minScore);
-  const isPassed = total>=28;
+
+  // 총점/판정 계산
+  const computedTotal = partsSum;                     // 세부 합계(0~40)
+  const total = (computedTotal > 0) ? computedTotal   // 세부가 있으면 그 합계
+               : Number(fallbackScore || 0);          // 없으면 DB 저장 총점 폴백
+
+  const denom = (computedTotal > 0) ? 40 : Number(fallbackTotal || 40);
+  const passCut = Math.round(denom * 0.7);            // 70% 컷
+  const isPassed = total >= passCut;
+
   const okOpinion = "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다.";
   const opinions_result=[
     "당신은 직접화행의 점수가 낮습니다.\n기본적인 대화의 문장인식 즉 문장에 내포된 의미에 대한 이해력이 부족하고 동화에 있는 인물들이 나누는 대화들에 대한 인지능력이 조금 부족해 보입니다.\n선생님과의 프로그램을 통한 동화 인물들에 대한 학습으로 점수를 올릴 수 있습니다.",
@@ -92,12 +159,20 @@ function ResultDetailCard({ data }) {
   ];
   const opinions_guide=["A-요구(직접)가 부족합니다.","A-요구(간접)가 부족합니다.","B-질문이 부족합니다.","C-단언이 부족습니다.","D-의례화가 부족합니다."];
 
+  // 세부 점수가 없을 땐 코멘트/가이드 숨김
+  const showBreakdown = (computedTotal > 0);
+
+  // 최저 영역 인덱스(세부 있을 때만)
+  const arr=[sAD,sAI,sB,sC,sD];
+  const minScore=Math.min(...arr);
+  const lowIndex=arr.indexOf(minScore);
+
   return (
     <div style={{background:"#fff",borderRadius:10,padding:20,marginTop:12,marginBottom:12,boxShadow:"0 6px 18px rgba(0,0,0,0.08)"}}>
       <div style={{marginBottom:20}}>
         <div className="tit">총점</div>
         <div style={{margin:"0 auto",textAlign:"center",borderRadius:10,backgroundColor:"white",padding:"20px 0",fontSize:18,fontWeight:700}}>
-          {total} / 40
+          {total} / {denom}
         </div>
       </div>
       <div style={{marginBottom:20}}>
@@ -109,9 +184,13 @@ function ResultDetailCard({ data }) {
       <div>
         <div className="tit">검사 결과 평가</div>
         <div style={{padding:"12px 0",lineHeight:1.6,whiteSpace:"pre-line"}}>
-          {isPassed? okOpinion : opinions_result[lowIndex]}
+          {showBreakdown
+            ? (isPassed ? okOpinion : opinions_result[lowIndex])
+            : "세부 영역 점수 데이터가 없어 총점 기준으로만 표시합니다."}
         </div>
-        {!isPassed && <div style={{fontWeight:700,marginTop:6}}>{opinions_guide[lowIndex]}</div>}
+        {showBreakdown && !isPassed && (
+          <div style={{fontWeight:700,marginTop:6}}>{opinions_guide[lowIndex]}</div>
+        )}
       </div>
     </div>
   );
@@ -168,7 +247,7 @@ export default function BookHistory(){
 
   // 서버가 슬러그로 보내주므로 단순 병합
   const mergedStories = useMemo(()=>{
-    const map = new Map(groups.map(g => [g.story_key, g])); // g.story_key = slug(new)
+    const map = new Map((groups||[]).map(g => [g.story_key, g])); // g.story_key = slug(new)
     const ordered = baseStories.map(b => ({
       story_key: b.story_key,
       story_title: b.story_title,
