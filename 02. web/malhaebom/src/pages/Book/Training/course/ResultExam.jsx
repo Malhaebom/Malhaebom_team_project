@@ -120,9 +120,14 @@ export default function ResultExam() {
       };
 
       // ★ 반드시 user_key를 params로 명시: 쿠키 불안정 환경 커버
-      const { data } = await API.post("/str/attempt", examResult, {
-        params: { user_key: targetUserKey },
-      });
+        const { data } = await API.post(
+          "/str/attempt",
+        examResult,
+        {
+          params: { user_key: targetUserKey },     // 쿼리
+          headers: { "x-user-key": targetUserKey } // 헤더도 함께
+        }
+      );
 
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
