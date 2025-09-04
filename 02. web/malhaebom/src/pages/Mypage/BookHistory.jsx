@@ -244,41 +244,46 @@ export default function BookHistory() {
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
+  (async () => {
+    try {
+      setLoading(true);
 
-        let userKey = userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
-        if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
+      // 1) user_key 해보되, 없어도 요청 보냄(쿠키로 서버가 복원)
+      let userKey =
+        userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
+      if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
 
-        if (!userKey || userKey === "guest") {
-          setGroups([]);
-          setLoading(false);
-          return;
-        }
+      // 2) user_key가 있으면 params/header로, 없으면 쿠키만으로 호출
+      const cfg =
+        userKey && userKey !== "guest"
+          ? { params: { user_key: userKey }, headers: { "x-user-key": userKey } }
+          : {};
 
-        // 쿠키 인증이 있더라도 user_key를 params/header로 함께 보냄(확실히)
-        const cfg = { params: { user_key: userKey }, headers: { "x-user-key": userKey } };
-        const { data } = await API.get(`/str/history/all`, cfg);
+      const { data } = await API.get(`/str/history/all`, cfg);
 
-        if (DEBUG) {
-          console.groupCollapsed("%c[BookHistory] /str/history/all response", "color:#0a0");
-          console.log("status", data?.ok, "groups#", data?.data?.length);
-          console.log("data", data);
-          console.groupEnd();
-          window.__STR_HISTORY_RAW__ = data;
-        }
-
-        if (data?.ok) setGroups(data.data || []);
-        else setGroups([]);
-      } catch (err) {
-        console.error("history/all 에러:", err);
-        setGroups([]);
-      } finally {
-        setLoading(false);
+      if (DEBUG) {
+        console.groupCollapsed(
+          "%c[BookHistory] /str/history/all response",
+          "color:#0a0"
+        );
+        console.log("status", data?.ok, "groups#", data?.data?.length);
+        console.log("data", data);
+        console.groupEnd();
+        // 콘솔에서 확인용
+        window.__STR_HISTORY_RAW__ = data;
       }
-    })();
-  }, [userKeyFromQuery]);
+
+      if (data?.ok) setGroups(data.data || []);
+      else setGroups([]);
+    } catch (err) {
+      console.error("history/all 에러:", err);
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  })();
+}, [userKeyFromQuery]);
+
 
   return (
     <div className="content">
