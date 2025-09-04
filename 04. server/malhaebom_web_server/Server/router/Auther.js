@@ -1,6 +1,6 @@
 // Server/router/Auther.js
-// Google / Kakao / Naver OAuth (tb_user 단일 테이블 사용)
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const express = require("express");
 const router = express.Router();
@@ -12,13 +12,11 @@ const jwt = require("jsonwebtoken");
 /* =========================
  * 환경변수
  * ========================= */
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://211.188.63.38:3001";
-const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || "http://211.188.63.38";
+const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
+const PUBLIC_BASE_URL   = process.env.PUBLIC_BASE_URL   || FRONTEND_BASE_URL;
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
-
-// ⚠️ HTTP 환경에서 secure 쿠키가 막히지 않도록: HTTPS일 때만 true
-const USE_SECURE_COOKIE = /^https:\/\//i.test(SERVER_BASE_URL);
 
 /* =========================
  * DB 풀
@@ -42,17 +40,17 @@ const pool = mysql.createPool({
 const KAKAO = {
   client_id    : process.env.KAKAO_CLIENT_ID || "",
   client_secret: process.env.KAKAO_CLIENT_SECRET || "",
-  redirect_uri : process.env.KAKAO_REDIRECT_URI || `${SERVER_BASE_URL}/auth/kakao/callback`,
+  redirect_uri : process.env.KAKAO_REDIRECT_URI || `${PUBLIC_BASE_URL}/api/auth/kakao/callback`,
 };
 const NAVER = {
   client_id    : process.env.NAVER_CLIENT_ID || "",
   client_secret: process.env.NAVER_CLIENT_SECRET || "",
-  redirect_uri : process.env.NAVER_REDIRECT_URI || `${SERVER_BASE_URL}/auth/naver/callback`,
+  redirect_uri : process.env.NAVER_REDIRECT_URI || `${PUBLIC_BASE_URL}/api/auth/naver/callback`,
 };
 const GOOGLE = {
   client_id    : process.env.GOOGLE_CLIENT_ID || "",
   client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
-  redirect_uri : process.env.GOOGLE_REDIRECT_URI || `${SERVER_BASE_URL}/auth/google/callback`,
+  redirect_uri : process.env.GOOGLE_REDIRECT_URI || `${PUBLIC_BASE_URL}/api/auth/google/callback`,
 };
 
 /* =========================
@@ -61,10 +59,13 @@ const GOOGLE = {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-function setAuthCookie(res, token) {
+function isSecureReq(req) {
+  return !!(req?.secure || String(req?.headers?.["x-forwarded-proto"] || "").toLowerCase() === "https");
+}
+function setAuthCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : USE_SECURE_COOKIE, // HTTPS일 때만 true
+    secure  : isSecureReq(req),
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
@@ -73,47 +74,78 @@ function setAuthCookie(res, token) {
 const makeState = (prefix) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-/**
- * SNS 사용자 upsert (tb_user)
- * - login_type: 'google' | 'kakao' | 'naver'
- * - login_id  : 공급자 원시 ID(권장) or email(fallback)
- * - 반환: user_id(pk)
- */
-async function upsertSNSUser({ provider, providerRawId, email, nick }) {
-  let login_id = String(providerRawId || "").trim();
-  if (!login_id && email) login_id = String(email).trim();
-  if (!login_id) throw new Error("SNS 사용자 식별자 없음");
+function buildLoginKeyOrThrow(provider, rawId, email) {
+  if (email) return String(email).toLowerCase();
+  if (rawId)  return `${provider}:${String(rawId)}`;
+  throw new Error("SNS 사용자 식별자 없음 (rawId/email 둘 다 없음)");
+}
 
-  const [rows] = await pool.query(
-    `SELECT user_id, nick
-       FROM tb_user
+async function upsertSNSUser({ provider, providerRawId, email, nick }) {
+  const emailKey = email ? String(email).toLowerCase() : null;
+  const pidKey   = `${provider}:${String(providerRawId || "")}`;
+
+  if (emailKey) {
+    const [byEmail] = await pool.query(
+      `SELECT user_id, nick FROM tb_user
+        WHERE login_id = ? AND login_type = ?
+        LIMIT 1`,
+      [emailKey, provider]
+    );
+    if (byEmail.length) {
+      const uid = byEmail[0].user_id;
+      if (nick && nick !== byEmail[0].nick) {
+        await pool.query(`UPDATE tb_user SET nick = ? WHERE user_id = ?`, [nick, uid]);
+      }
+      return uid;
+    }
+  }
+
+  const [byPid] = await pool.query(
+    `SELECT user_id, nick, login_id FROM tb_user
       WHERE login_id = ? AND login_type = ?
       LIMIT 1`,
-    [login_id, provider]
+    [pidKey, provider]
   );
+  if (byPid.length) {
+    const uid = byPid[0].user_id;
 
-  if (rows.length) {
-    const uid = rows[0].user_id;
-    if (nick && nick !== rows[0].nick) {
+    if (emailKey && byPid[0].login_id !== emailKey) {
+      const [dup] = await pool.query(
+        `SELECT user_id FROM tb_user
+          WHERE login_id = ? AND login_type = ?
+          LIMIT 1`,
+        [emailKey, provider]
+      );
+      if (!dup.length) {
+        await pool.query(
+          `UPDATE tb_user SET login_id = ? WHERE user_id = ?`,
+          [emailKey, uid]
+        );
+      }
+    }
+
+    if (nick && nick !== byPid[0].nick) {
       await pool.query(`UPDATE tb_user SET nick = ? WHERE user_id = ?`, [nick, uid]);
     }
     return uid;
   }
 
+  const login_id = emailKey || pidKey;
   const [ins] = await pool.query(
     `INSERT INTO tb_user (login_id, login_type, pwd, nick, birthyear, gender)
      VALUES (?, ?, NULL, ?, NULL, NULL)`,
-    [login_id, provider, nick || `${provider}_${login_id.slice(0, 6)}`]
+    [login_id, provider, nick || `${provider}_${String(providerRawId || email || "").slice(0, 6)}`]
   );
   return ins.insertId;
 }
 
-/* =========================
- * Kakao
- * ========================= */
+/* Kakao */
 router.get("/kakao", (req, res) => {
+  if (!KAKAO.client_id || !KAKAO.redirect_uri) {
+    return res.status(500).send("카카오 설정 누락");
+  }
   const state = makeState("kakao");
-  const url =
+  const authUrl =
     "https://kauth.kakao.com/oauth/authorize?" +
     qs.stringify({
       client_id    : KAKAO.client_id,
@@ -123,7 +155,7 @@ router.get("/kakao", (req, res) => {
       prompt       : "select_account",
       state,
     });
-  return res.redirect(url);
+  return res.redirect(authUrl);
 });
 
 router.get("/kakao/callback", async (req, res) => {
@@ -162,7 +194,7 @@ router.get("/kakao/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "kakao" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {
@@ -171,9 +203,7 @@ router.get("/kakao/callback", async (req, res) => {
   }
 });
 
-/* =========================
- * Naver
- * ========================= */
+/* Naver */
 router.get("/naver", (req, res) => {
   const state = makeState("naver");
   const url =
@@ -222,7 +252,7 @@ router.get("/naver/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "naver" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {
@@ -231,9 +261,7 @@ router.get("/naver/callback", async (req, res) => {
   }
 });
 
-/* =========================
- * Google
- * ========================= */
+/* Google */
 router.get("/google", (req, res) => {
   const url =
     "https://accounts.google.com/o/oauth2/v2/auth?" +
@@ -284,7 +312,7 @@ router.get("/google/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "google" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token);
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {

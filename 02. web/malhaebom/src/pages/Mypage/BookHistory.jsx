@@ -1,56 +1,128 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
+import API, { ensureUserKey } from "../../lib/api.js";
 
+const DEBUG = true;
 
-
+/** 표준 슬러그/제목(표시는 여기 기준) — 반드시 ‘의’/띄어쓰기 맞춤 */
 const baseStories = [
-  { story_key: "mother_gloves", story_title: "어머니의 병어리 장갑" },
-  { story_key: "father_wedding", story_title: "아버지와 결혼식" },
-  { story_key: "sons_bread", story_title: "아들의 호빵" },
-  { story_key: "grandma_banana", story_title: "할머니와 바나나" },
+  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
+  { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
+  { story_key: "sons_bread",        story_title: "아들의 호빵" },
+  { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-// 임시 더미 기록
-const dummyRecordsForStory = (b) => [
-  {
-    id: `${b.story_key}_1`,
-    client_attempt_order: 1,
-    client_kst: "2025-09-02 10:00",
-    story_title: b.story_title,
-    scores: {
-      scoreAD: 3,
-      scoreAI: 2,
-      scoreB: 3,
-      scoreC: 2,
-      scoreD: 1,
-    },
-  },
-  {
-    id: `${b.story_key}_2`,
-    client_attempt_order: 2,
-    client_kst: "2025-09-03 14:30",
-    story_title: b.story_title,
-    scores: {
-      scoreAD: 4,
-      scoreAI: 3,
-      scoreB: 2,
-      scoreC: 3,
-      scoreD: 2,
-    },
-  },
-];
+/** 공백/오타/조사 교정 포함 정규화 */
+function normalizeSpace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
+function normalizeKoreanTitle(s) {
+  let x = normalizeSpace(s);
+  // 흔한 변형/오타 교정
+  x = x.replaceAll("병어리", "벙어리");
+  x = x.replaceAll("어머니와", "어머니의");
+  x = x.replaceAll("벙어리장갑", "벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나", "할머니와 바나나");
+  return x;
+}
+
+/** 기본 매핑: (정규화된)제목 → 슬러그  ← ★ 여기 핵심 수정 */
+const titleToSlugBase = new Map(
+  baseStories.map((b) => [normalizeKoreanTitle(b.story_title), b.story_key])
+);
+
+/** 제목/슬러그 추론: (1) 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 */
+function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
+  const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
+  // 이미 표준 슬러그?
+  if (slugToTitle.has(story_key_or_title)) return story_key_or_title;
+
+  // 제목 후보 정규화 → 슬러그 탐색
+  const t1 = normalizeKoreanTitle(story_key_or_title);
+  const t2 = normalizeKoreanTitle(story_title_fallback);
+  const slug = titleToSlugBase.get(t1) || titleToSlugBase.get(t2) || null;
+  return slug || story_key_or_title; // 못 찾으면 원본 유지(아래에서 DB-only 카드로 추가됨)
+}
+
+/** MySQL DATETIME(UTC) → Date(UTC) */
+function parseSqlUtc(s) {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const [, Y, M, D, h, m2, s2] = m;
+  const dt = new Date(Date.UTC(+Y, +M - 1, +D, +h, +m2, +s2));
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+/** Date(UTC) → KST 문자열 */
+function formatKst(dtUtc) {
+  if (!dtUtc) return "";
+  const k = new Date(dtUtc.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${k.getFullYear()}-${pad(k.getMonth() + 1)}-${pad(k.getDate())} ${pad(k.getHours())}:${pad(k.getMinutes())}:${pad(k.getSeconds())}`;
+}
+
+/** 0~4 점수 통일 */
+function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type }) {
+  const getCorrect = (obj, key) => {
+    const v = obj?.[key];
+    if (v && typeof v === "object" && v.correct != null) return Number(v.correct) || 0;
+    return null;
+  };
+  const fromRatio = (ratio) => {
+    const r = Number(ratio);
+    if (!Number.isFinite(r)) return null;
+    if (r >= 0 && r <= 1) return Math.round((1 - r) * 4);
+    return null;
+  };
+  const fromPoints = (p) => {
+    const n = Number(p);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 0 && n <= 8 && n % 2 === 0) return Math.round(n / 2);
+    return null;
+  };
+
+  const A  = getCorrect(by_type, "직접화행") ?? fromRatio(risk_bars_by_type?.["직접화행"]) ?? fromPoints(risk_bars?.A)  ?? 0;
+  const AI = getCorrect(by_type, "간접화행") ?? fromRatio(risk_bars_by_type?.["간접화행"]) ?? fromPoints(risk_bars?.AI) ?? 0;
+  const B  = getCorrect(by_category, "B")   ?? getCorrect(by_category, "질문") ?? fromRatio(risk_bars?.["질문"]) ?? fromPoints(risk_bars?.B) ?? 0;
+  const C  = getCorrect(by_category, "C")   ?? getCorrect(by_category, "단언") ?? fromRatio(risk_bars?.["단언"]) ?? fromPoints(risk_bars?.C) ?? 0;
+  const D  = getCorrect(by_category, "D")   ?? getCorrect(by_category, "의례화") ?? fromRatio(risk_bars?.["의례화"]) ?? fromPoints(risk_bars?.D) ?? 0;
+
+  return { scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D };
+}
+
+function rowToCardData(row) {
+  const displayTime =
+    (row?.client_kst || "").trim() ||
+    formatKst(parseSqlUtc(row?.client_utc || ""));
+
+  const scores = normalizeScores({
+    by_category: row?.by_category || {},
+    by_type: row?.by_type || {},
+    risk_bars: row?.risk_bars || {},
+    risk_bars_by_type: row?.risk_bars_by_type || {},
+  });
+
+  return {
+    id: row.id,
+    client_attempt_order: row.client_attempt_order,
+    client_kst: displayTime,
+    story_title: row.story_title,
+    scores,
+  };
+}
 
 function ResultDetailCard({ data }) {
   if (!data) return null;
 
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = data.scores;
-
   const sAD = Number(scoreAD) * 2;
   const sAI = Number(scoreAI) * 2;
-  const sB = Number(scoreB) * 2;
-  const sC = Number(scoreC) * 2;
-  const sD = Number(scoreD) * 2;
+  const sB  = Number(scoreB)  * 2;
+  const sC  = Number(scoreC)  * 2;
+  const sD  = Number(scoreD)  * 2;
 
   const arr = [sAD, sAI, sB, sC, sD];
   const total = arr.reduce((a, b) => a + b, 0);
@@ -78,65 +150,25 @@ function ResultDetailCard({ data }) {
   ];
 
   return (
-    <div
-      style={{
-        background: "#fff",
-        borderRadius: "10px",
-        padding: "20px",
-        marginTop: 12,
-        marginBottom: 12,
-        boxShadow: "0 6px 18px rgba(0,0,0,0.08)",
-      }}
-    >
+    <div style={{ background:"#fff", borderRadius:10, padding:20, marginTop:12, marginBottom:12, boxShadow:"0 6px 18px rgba(0,0,0,0.08)" }}>
       <div style={{ marginBottom: 20 }}>
         <div className="tit">총점</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: "10px",
-            backgroundColor: "white",
-            padding: "20px 0",
-            fontSize: 18,
-            fontWeight: 700,
-          }}
-        >
+        <div style={{ margin:"0 auto", textAlign:"center", borderRadius:10, backgroundColor:"white", padding:"20px 0", fontSize:18, fontWeight:700 }}>
           {total} / 40
         </div>
       </div>
-
       <div style={{ marginBottom: 20 }}>
         <div className="tit">인지능력</div>
-        <div
-          style={{
-            margin: "0 auto",
-            textAlign: "center",
-            borderRadius: "10px",
-            backgroundColor: "white",
-            padding: "20px 0",
-          }}
-        >
-          <img
-            src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
-            style={{ width: "15%" }}
-          />
+        <div style={{ margin:"0 auto", textAlign:"center", borderRadius:10, backgroundColor:"white", padding:"20px 0" }}>
+          <img src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} style={{ width:"15%" }} />
         </div>
       </div>
-
       <div>
         <div className="tit">검사 결과 평가</div>
-        <div
-          style={{
-            padding: "12px 0",
-            lineHeight: 1.6,
-            whiteSpace: "pre-line",
-          }}
-        >
+        <div style={{ padding:"12px 0", lineHeight:1.6, whiteSpace:"pre-line" }}>
           {isPassed ? okOpinion : opinions_result[lowIndex]}
         </div>
-        {!isPassed && (
-          <div style={{ fontWeight: 700, marginTop: 6 }}>{opinions_guide[lowIndex]}</div>
-        )}
+        {!isPassed && <div style={{ fontWeight:700, marginTop:6 }}>{opinions_guide[lowIndex]}</div>}
       </div>
     </div>
   );
@@ -147,118 +179,164 @@ export default function BookHistory() {
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
+  const query = new URLSearchParams(window.location.search);
+  const rawQ = (query.get("user_key") || "").trim();
+  const userKeyFromQuery = rawQ && rawQ !== "guest" ? rawQ : "";
+
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  /** DB 그룹 → 화면 카드 데이터로 병합 */
+  const mergedStories = useMemo(() => {
+    const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
+    const merging = new Map();
+
+    for (const g of groups) {
+      // g.story_key가 한글/오타일 수 있으니 보정
+      const slug = toSlugFromAny(g.story_key, g.story_title);
+
+      if (!merging.has(slug)) {
+        merging.set(slug, {
+          story_key: slug,
+          story_title: slugToTitle.get(slug) || normalizeKoreanTitle(g.story_title || slug),
+          records: [],
+        });
+      }
+      const holder = merging.get(slug);
+      for (const r of g.records || []) holder.records.push(rowToCardData(r));
+    }
+
+    // 기본 목록(빈 카드 가능) + DB에만 있는 키 추가
+    const ordered = baseStories.map((b) => ({
+      story_key: b.story_key,
+      story_title: b.story_title,
+      records: merging.get(b.story_key)?.records || [],
+    }));
+    for (const [slug, g] of merging.entries()) {
+      if (!baseStories.some((b) => b.story_key === slug)) ordered.push(g);
+    }
+
+    // 최신 회차 먼저 보이도록 정렬
+    for (const it of ordered) {
+      it.records.sort((a, b) => {
+        const ao = Number(a.client_attempt_order || 0);
+        const bo = Number(b.client_attempt_order || 0);
+        if (ao !== bo) return bo - ao;
+        return String(b.id).localeCompare(String(a.id));
+      });
+    }
+
+    if (DEBUG) {
+      console.groupCollapsed("%c[BookHistory] mergedStories", "color:#0aa");
+      console.log("groups(raw)", groups);
+      console.log("ordered(final)", ordered);
+      console.groupEnd();
+      window.__STR_HISTORY__ = { groups, ordered };
+    }
+
+    return ordered;
+  }, [groups]);
+
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  // ★ user_key가 없어도(쿠키만 있어도) 항상 호출해서 서버가 복원하도록 함
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+
+        let userKey =
+          userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
+        if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
+
+        const cfg =
+          userKey && userKey !== "guest"
+            ? { params: { user_key: userKey }, headers: { "x-user-key": userKey } }
+            : {};
+
+        const { data } = await API.get(`/str/history/all`, cfg);
+
+        if (DEBUG) {
+          console.groupCollapsed("%c[BookHistory] /str/history/all response", "color:#0a0");
+          console.log("status", data?.ok, "groups#", data?.data?.length);
+          console.log("data", data);
+          console.groupEnd();
+          window.__STR_HISTORY_RAW__ = data;
+        }
+
+        if (data?.ok) setGroups(data.data || []);
+        else setGroups([]);
+      } catch (err) {
+        console.error("history/all 에러:", err);
+        setGroups([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [userKeyFromQuery]);
+
   return (
     <div className="content">
       {windowWidth > 1100 && <Background />}
-
-      <div
-        className="wrap"
-        style={{
-          maxWidth: 520,
-          margin: "0 auto",
-          padding: "80px 20px",
-          fontFamily: "Pretendard-Regular",
-        }}
-      >
-        <h2
-          style={{
-            textAlign: "center",
-            marginBottom: 10,
-            fontFamily: "ONE-Mobile-Title",
-            fontSize: 32,
-          }}
-        >
+      <div className="wrap" style={{ maxWidth:520, margin:"0 auto", padding:"80px 20px", fontFamily:"Pretendard-Regular" }}>
+        <h2 style={{ textAlign:"center", marginBottom:10, fontFamily:"ONE-Mobile-Title", fontSize:32 }}>
           동화 화행검사 결과
         </h2>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 15, marginTop: 10 }}>
-          {baseStories.map((b, idx) => {
-            const storyId = b.story_key || idx;
-            const opened = openStoryId === storyId;
-            const records = dummyRecordsForStory(b);
-
-            return (
-              <div
-                key={storyId}
-                style={{
-                  background: "#fff",
-                  borderRadius: 12,
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  onClick={() => setOpenStoryId(opened ? null : storyId)}
-                  style={{
-                    padding: "18px 20px",
-                    fontSize: 18,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span>{b.story_title}</span>
-                  <span style={{ fontSize: 20 }}>{opened ? "▲" : "▼"}</span>
-                </div>
-
-                {opened && (
-                  <div style={{ padding: "14px 20px", borderTop: "1px solid #eee" }}>
-                    {records.map((r) => {
-                      const selected = openRecordId === r.id;
-                      return (
-                        <div key={r.id}>
-                          <div
-                            onClick={() => setOpenRecordId(selected ? null : r.id)}
-                            style={{
-                              background: "#fafafa",
-                              borderRadius: 8,
-                              padding: "12px 16px",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              cursor: "pointer",
-                            }}
-                          >
-                            <span style={{ fontSize: 15, color: "#333" }}>
-                              {r.client_kst}
-                              <span
-                                style={{
-                                  background: "#eee",
-                                  padding: "2px 8px",
-                                  borderRadius: 8,
-                                  fontSize: 13,
-                                  marginLeft: 8,
-                                  fontWeight: 600,
-                                  color: "#333",
-                                }}
-                              >
-                                {r.client_attempt_order}회차
-                              </span>
-                            </span>
-                          </div>
-
-                          {selected && (
-                            <div style={{ marginTop: 12 }}>
-                              <ResultDetailCard data={r} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+        {loading ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:"#666" }}>불러오는 중...</div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:15, marginTop:10 }}>
+            {mergedStories.map((b, idx) => {
+              const storyId = b.story_key || idx;
+              const opened = openStoryId === storyId;
+              const records = b.records || [];
+              return (
+                <div key={storyId} style={{ background:"#fff", borderRadius:12, boxShadow:"0 4px 12px rgba(0,0,0,0.1)", overflow:"hidden" }}>
+                  <div
+                    onClick={() => { setOpenStoryId(opened ? null : storyId); setOpenRecordId(null); }}
+                    style={{ padding:"18px 20px", fontSize:18, fontWeight:700, cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center" }}
+                  >
+                    <span>{b.story_title}</span>
+                    <span style={{ fontSize:20 }}>{opened ? "▲" : "▼"}</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+
+                  {opened && (
+                    <div style={{ padding:"14px 20px", borderTop:"1px solid #eee" }}>
+                      {records.length === 0 ? (
+                        <div style={{ color:"#888", padding:"8px 0" }}>아직 결과가 없습니다.</div>
+                      ) : (
+                        records.map((r) => {
+                          const selected = openRecordId === r.id;
+                          return (
+                            <div key={r.id}>
+                              <div
+                                onClick={() => setOpenRecordId(selected ? null : r.id)}
+                                style={{ background:"#fafafa", borderRadius:8, padding:"12px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer" }}
+                              >
+                                <span style={{ fontSize:15, color:"#333" }}>
+                                  {r.client_kst || ""}
+                                  <span style={{ background:"#eee", padding:"2px 8px", borderRadius:8, fontSize:13, marginLeft:8, fontWeight:600, color:"#333" }}>
+                                    {r.client_attempt_order ?? "?"}회차
+                                  </span>
+                                </span>
+                              </div>
+                              {selected && <div style={{ marginTop:12 }}><ResultDetailCard data={r} /></div>}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

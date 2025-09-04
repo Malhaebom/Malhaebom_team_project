@@ -1,32 +1,41 @@
-import React, { useEffect, useMemo, useState } from "react";
+// 02. web/malhaebom/src/pages/Story/Exam/ResultExam.jsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
 import { useNavigate } from "react-router-dom";
 import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
-import axios from "axios";
+import API, { ensureUserKey } from "../../../../lib/api.js";
 
-const API = axios.create({
-  baseURL: "http://localhost:3001",
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+const TITLE_TO_KEY = {
+  "어머니의 벙어리 장갑": "mother_gloves",
+  "아버지와 결혼식": "father_wedding",
+  "아들의 호빵": "sons_bread",
+  "할머니와 바나나": "grandma_banana",
+  "꽁당 보리밥": "kkongdang_boribap",
+};
+
+function nowKstString() {
+  const d = new Date();
+  const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${k.getUTCFullYear()}-${pad(k.getUTCMonth() + 1)}-${pad(k.getUTCDate())} ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())}:${pad(k.getUTCSeconds())}`;
+}
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
+  const savedOnceRef = useRef(false); // 이 화면에 진입할 때 1회만 저장
 
-  // URL 파라미터에서 user_key 읽기 추가
   const query = new URLSearchParams(window.location.search);
-  const userKey = query.get('user_key');
+  const userKeyFromUrl = (query.get("user_key") || "").trim();
 
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth); // 브라우저 너비 상태
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
     AOS.init();
     setBookTitle(localStorage.getItem("bookTitle") || "동화");
-
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -35,9 +44,9 @@ export default function ResultExam() {
   const { total, isPassed, lowIndex } = useMemo(() => {
     const sAD = Number(scoreAD) * 2;
     const sAI = Number(scoreAI) * 2;
-    const sB = Number(scoreB) * 2;
-    const sC = Number(scoreC) * 2;
-    const sD = Number(scoreD) * 2;
+    const sB  = Number(scoreB)  * 2;
+    const sC  = Number(scoreC)  * 2;
+    const sD  = Number(scoreD)  * 2;
 
     const arr = [sAD, sAI, sB, sC, sD];
     const total = arr.reduce((a, b) => a + b, 0);
@@ -63,71 +72,78 @@ export default function ResultExam() {
     "A-요구(직접)가 부족합니다.",
     "A-요구(간접)가 부족합니다.",
     "B-질문이 부족합니다.",
-    "C-단언이 부족합니다.",
+    "C-단언이 부족습니다.",
     "D-의례화가 부족합니다.",
   ];
 
-  // 검사 완료 시 서버에 저장
-  const saveToBookHistory = async () => {
-    try {
-      const bookTitle = localStorage.getItem("bookTitle") || "동화";
-      
-      // 서버가 기대하는 데이터 구조로 변경
-      const examResult = {
-        storyTitle: bookTitle,
-        storyKey: bookTitle,
-        attemptTime: new Date().toISOString(),
-        clientKst: new Date().toISOString(),
-        score: total,
-        total: 40,
-        byCategory: {
-          A: { correct: Number(scoreAD), total: 4 },
-          AI: { correct: Number(scoreAI), total: 4 },
-          B: { correct: Number(scoreB), total: 4 },
-          C: { correct: Number(scoreC), total: 4 },
-          D: { correct: Number(scoreD), total: 4 }
-        },
-        byType: {},
-        riskBars: {
-          A: Number(scoreAD) * 2,
-          AI: Number(scoreAI) * 2,
-          B: Number(scoreB) * 2,
-          C: Number(scoreC) * 2,
-          D: Number(scoreD) * 2
-        },
-        riskBarsByType: {}
-      };
+  async function saveToBookHistory(resolvedUserKey) {
+    const title = localStorage.getItem("bookTitle") || "동화";
+    const storyKey =
+      TITLE_TO_KEY[title] ||
+      localStorage.getItem("storyKey") ||
+      "unknown_story";
 
-      // user_key가 있으면 추가
-      if (userKey) {
-        examResult.user_key = userKey;
-        console.log("테스트용 user_key 추가:", userKey);
-      }
+    const examResult = {
+      storyTitle: title,
+      storyKey,
+      attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환(없어도 now로 보정)
+      clientKst: nowKstString(),             // 표시용
+      score: total,
+      total: 40,
+      byCategory: {
+        A:  { correct: Number(scoreAD), total: 4 },
+        AI: { correct: Number(scoreAI), total: 4 },
+        B:  { correct: Number(scoreB),  total: 4 },
+        C:  { correct: Number(scoreC),  total: 4 },
+        D:  { correct: Number(scoreD),  total: 4 },
+      },
+      byType: {},
+      // 아래 riskBars는 앱 형식 맞춤(0~8 점수), 서버는 그대로 보관
+      riskBars: {
+        A:  Number(scoreAD) * 2,
+        AI: Number(scoreAI) * 2,
+        B:  Number(scoreB)  * 2,
+        C:  Number(scoreC)  * 2,
+        D:  Number(scoreD)  * 2,
+      },
+      riskBarsByType: {},
+    };
 
-      // user_key를 쿼리 파라미터로 전달하여 서버에서 사용자 식별 가능하도록 수정
-      const { data } = await API.post(`/str/attempt?user_key=${userKey || 'guest'}`, examResult);
-      
-      if (data?.ok) {
-        console.log("검사 결과가 서버에 저장되었습니다.");
-      } else {
-        console.error("검사 결과 저장 실패:", data?.msg);
-      }
-    } catch (error) {
-      console.error("검사 결과 저장 중 오류 발생:", error);
+    const cfg = {
+      params:  { user_key: resolvedUserKey },
+      headers: { "x-user-key": resolvedUserKey },
+    };
+
+    const { data } = await API.post("/str/attempt", examResult, cfg);
+    if (!data?.ok) {
+      console.error("검사 결과 저장 실패:", data);
+      alert("검사 결과 저장에 실패했습니다.");
     }
-  };
+  }
 
-  // 컴포넌트 마운트 시 자동으로 저장 (중복 저장 방지)
   useEffect(() => {
-    if (total > 0) { // 점수가 있을 때만 저장
-      // 이미 저장된 검사인지 확인 (sessionStorage 사용)
-      const examCompleted = sessionStorage.getItem("examCompleted");
-      if (!examCompleted) {
-        saveToBookHistory().then(() => {
-          sessionStorage.setItem("examCompleted", "true");
-        });
+    (async () => {
+      if (total <= 0) return;
+      if (savedOnceRef.current) return;
+      savedOnceRef.current = true;
+
+      // 항상 같은 user_key로 저장
+      let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
+      if (!targetUserKey) {
+        targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
       }
-    }
+      if (!targetUserKey) {
+        alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
+        return;
+      }
+
+      try {
+        await saveToBookHistory(targetUserKey);
+      } catch (error) {
+        console.error("검사 결과 저장 오류:", error);
+        alert("검사 결과 저장 중 오류가 발생했습니다.");
+      }
+    })();
   }, [total]);
 
   const goHome = () => {
@@ -136,7 +152,6 @@ export default function ResultExam() {
 
   return (
     <div className="content">
-      {/* 브라우저 1100px 이상일 때만 Background 렌더링 */}
       {windowWidth > 1100 && <Background />}
       <div className="wrap">
         <Header title={bookTitle} showBack={false} />
@@ -146,38 +161,15 @@ export default function ResultExam() {
             <div className="ct_question" data-aos="fade-up" data-aos-duration="1000">
               <div>
                 <div className="tit">총점</div>
-                <div
-                  className="sub_tit"
-                  id="score"
-                  style={{
-                    margin: "0 auto",
-                    textAlign: "center",
-                    borderRadius: "10px",
-                    backgroundColor: "white",
-                    padding: "20px 0",
-                  }}
-                >
+                <div className="sub_tit" id="score" style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
                   <p>{total} / 40</p>
                 </div>
               </div>
 
               <div>
                 <div className="tit">인지능력</div>
-                <div
-                  style={{
-                    margin: "0 auto",
-                    textAlign: "center",
-                    borderRadius: "10px",
-                    backgroundColor: "white",
-                    padding: "20px 0",
-                  }}
-                >
-                  <img
-                    id="isPassed"
-                    src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
-                    className="container"
-                    style={{ width: "15%" }}
-                  />
+                <div style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
+                  <img id="isPassed" src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} className="container" style={{ width: "15%" }} />
                 </div>
               </div>
 
@@ -188,18 +180,12 @@ export default function ResultExam() {
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
                       {isPassed ? okOpinion : opinions_result[lowIndex]}
                     </p>
-                    {!isPassed && (
-                      <p className="num" id="opinions_guide">
-                        {opinions_guide[lowIndex]}
-                      </p>
-                    )}
+                    {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
                   </div>
                 </div>
               </div>
 
-              <button className="question_bt" type="button" onClick={goHome}>
-                홈으로
-              </button>
+              <button className="question_bt" type="button" onClick={goHome}>홈으로</button>
             </div>
           </div>
         </div>
