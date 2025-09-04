@@ -7,13 +7,21 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-const TITLE_TO_KEY = {
-  "어머니의 병어리 장갑": "mother_gloves",
-  "아버지와 결혼식": "father_wedding",
-  "아들의 호빵": "sons_bread",
-  "할머니와 바나나": "grandma_banana",
-  "꽁당 보리밥": "kkongdang_boribap",
+// 영문 키/오타 → 표준 한글 제목
+const TITLE_ALIASES = {
+  mother_gloves: "어머니의 벙어리 장갑",
+  father_wedding: "아버지와 결혼식",
+  sons_bread: "아들의 호빵",
+  grandma_banana: "할머니와 바나나",
+  kkongdang_boribap: "꽁당 보리밥",
+  "어머니와 벙어리장갑": "어머니의 벙어리 장갑",
+  "어머니와 벙어리 장갑": "어머니의 벙어리 장갑",
+  "공동보리밥": "꽁당 보리밥",
+  "꽁당보리밥": "꽁당 보리밥",
 };
+const normalizeTitle = (s) => String(s || "").replace(/\s+/g, " ").trim();
+const toCanonical = (keyOrTitle) =>
+  normalizeTitle(TITLE_ALIASES[keyOrTitle] || keyOrTitle);
 
 function nowKstString() {
   const d = new Date();
@@ -28,10 +36,10 @@ export default function ResultExam() {
   const navigate = useNavigate();
 
   const query = new URLSearchParams(window.location.search);
-  const userKeyFromUrl = (query.get("user_key") || "").trim();
+  const userKeyFromUrl = (query.get("user_key") || query.get("userKey") || "").trim();
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const savedOnceRef = useRef(false); // 이 렌더에서 저장 1회만
+  const savedOnceRef = useRef(false);
 
   useEffect(() => {
     AOS.init();
@@ -53,7 +61,6 @@ export default function ResultExam() {
     const minScore = Math.min(...arr);
     const lowIndex = arr.indexOf(minScore);
     const isPassed = total >= 28;
-
     return { total, isPassed, lowIndex };
   }, [scoreAD, scoreAI, scoreB, scoreC, scoreD]);
 
@@ -76,28 +83,28 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // 저장 (이 렌더에서 정확히 1회만)
+  // 저장(이 렌더에서 정확히 1회)
   const saveToBookHistory = async () => {
     try {
       const title = localStorage.getItem("bookTitle") || "동화";
-      const storyKey =
-        TITLE_TO_KEY[title] ||
-        localStorage.getItem("storyKey") ||
-        "unknown_story";
+      // 앱과 동일: storyKey는 정규화된 한글 제목
+      const storyKey = toCanonical(title || localStorage.getItem("storyKey") || "동화");
+      const storyTitle = storyKey; // title도 통일
 
-      // user_key 확보(쿼리 우선 → 세션)
       const sanitize = (k) => (k && k !== "guest" ? k : null);
-      let targetUserKey = sanitize(userKeyFromUrl) || sanitize(await ensureUserKey({ retries: 3, delayMs: 200 }));
+      let targetUserKey =
+        sanitize(userKeyFromUrl) ||
+        sanitize(await ensureUserKey({ retries: 3, delayMs: 200 }));
       if (!targetUserKey) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
       }
 
       const examResult = {
-        storyTitle: title,
+        storyTitle,
         storyKey,
-        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환(없어도 now로 보정)
-        clientKst: nowKstString(),             // 표시용
+        attemptTime: new Date().toISOString(), // 서버가 DATETIME으로 변환
+        clientKst: nowKstString(),
         score: total,
         total: 40,
         byCategory: {
@@ -108,7 +115,7 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
-        // 참고: 서버가 riskBars 없으면 byCategory로 계산함. 여기선 웹 UI 보정과 동일하게 전송
+        // 참고: 서버가 riskBars 없어도 byCategory로 계산 가능하지만 웹 표시 보정을 위해 함께 전송
         riskBars: {
           A:  Number(scoreAD) * 2,
           AI: Number(scoreAI) * 2,
@@ -119,7 +126,6 @@ export default function ResultExam() {
         riskBarsByType: {},
       };
 
-      // 서버가 user_key를 헤더/파라미터 모두에서 수용
       const cfg = {
         params: { user_key: targetUserKey },
         headers: { "x-user-key": targetUserKey },
@@ -131,18 +137,16 @@ export default function ResultExam() {
         alert("검사 결과 저장에 실패했습니다.");
       }
     } catch (error) {
-      console.error("검사 결과 저장 중 오류 발생:", error);
+      console.error("검사 결과 저장 중 오류:", error);
       alert("검사 결과 저장 중 오류가 발생했습니다.");
     }
   };
 
-  // 렌더 최초 1회만 저장
   useEffect(() => {
     if (total > 0 && !savedOnceRef.current) {
       savedOnceRef.current = true;
       saveToBookHistory();
     }
-    // total이 바뀌어도 같은 렌더 내 중복 방지
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
@@ -201,13 +205,9 @@ export default function ResultExam() {
                 <div className="sub_tit">
                   <div className="num_tit">
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
-                      {isPassed ? okOpinion : opinions_result[lowIndex]}
+                      {isPassed ? "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다." : opinions_result[lowIndex]}
                     </p>
-                    {!isPassed && (
-                      <p className="num" id="opinions_guide">
-                        {opinions_guide[lowIndex]}
-                      </p>
-                    )}
+                    {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
                   </div>
                 </div>
               </div>

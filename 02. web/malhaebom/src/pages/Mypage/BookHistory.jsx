@@ -4,7 +4,7 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const baseStories = [
-  { story_key: "mother_gloves",     story_title: "어머니의 병어리 장갑" },
+  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",        story_title: "아들의 호빵" },
   { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
