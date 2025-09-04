@@ -14,9 +14,9 @@ const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 3001);
 
-const SERVER_BASE_URL   = process.env.SERVER_BASE_URL   || "http://127.0.0.1:3001";
+const SERVER_BASE_URL = process.env.SERVER_BASE_URL || "http://127.0.0.1:3001";
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || "https://malhaebom.smhrd.com";
-const DEV_FRONT_URL     = process.env.DEV_FRONT_URL     || "";
+const DEV_FRONT_URL = process.env.DEV_FRONT_URL || "";
 
 /* =========================
  * CORS 허용 목록
@@ -45,14 +45,26 @@ app.use(
       try {
         const u = new url.URL(origin);
         if (allowedOrigins.has(origin)) return cb(null, true); // 완전 일치
-        if (allowedHosts.has(u.host))   return cb(null, true); // 같은 host면 포트 달라도 허용
-      } catch {}
+        if (allowedHosts.has(u.host)) return cb(null, true); // 같은 host면 포트 달라도 허용
+      } catch { }
       console.warn("[CORS] blocked origin:", origin);
       return cb(new Error("Not allowed by CORS"), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-user-key",
+      "x-login-id",
+      "x-user-id",
+      "x-sns-user-id",
+      "x-sns-login-type",
+      "x-phone",
+      "x-phone-number",
+      "X-Requested-With",
+      "Accept"
+    ],
   })
 );
 
@@ -66,21 +78,21 @@ app.set("trust proxy", 1);
  * 라우터
  * ========================= */
 const LoginServer = require("./router/LoginServer");
-const JoinServer  = require("./router/JoinServer");
-const Auther      = require("./router/Auther");
+const JoinServer = require("./router/JoinServer");
+const Auther = require("./router/Auther");
 const W_STRServer = require("./router/W_STRServer");
 
 // 레거시 경로
 app.use("/userLogin", LoginServer);
-app.use("/userJoin",  JoinServer);
-app.use("/auth",      Auther);
-app.use("/str",       W_STRServer);
+app.use("/userJoin", JoinServer);
+app.use("/auth", Auther);
+app.use("/str", W_STRServer);
 
 // 프론트는 /api만 호출
 app.use("/api/userLogin", LoginServer);
-app.use("/api/userJoin",  JoinServer);
-app.use("/api/auth",      Auther);
-app.use("/api/str",       W_STRServer);
+app.use("/api/userJoin", JoinServer);
+app.use("/api/auth", Auther);
+app.use("/api/str", W_STRServer);
 
 /* =========================
  * 헬스체크
