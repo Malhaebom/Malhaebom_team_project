@@ -22,7 +22,6 @@ const pool = mysql.createPool({
 });
 
 /* ==== 유틸 ==== */
-// Buffer/문자열/객체 안전 파싱
 function safeParseJSON(jsonVal, fallback = null) {
   try {
     if (jsonVal == null) return fallback;
@@ -33,9 +32,7 @@ function safeParseJSON(jsonVal, fallback = null) {
     if (typeof jsonVal === "object") return jsonVal;
     const s = String(jsonVal).trim();
     return s ? JSON.parse(s) : fallback;
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 const toNumber = (n, d = 0) => (Number.isFinite(Number(n)) ? Number(n) : d);
 const toStrOrNull = (s) => {
@@ -46,7 +43,7 @@ const toStrOrNull = (s) => {
 const pad2 = (n) => String(n).padStart(2, "0");
 const isGuestKey = (k) => !!k && String(k).trim().toLowerCase() === "guest";
 
-/** Date → 'YYYY-MM-DD HH:mm:ss' (UTC 기준) */
+/** Date → 'YYYY-MM-DD HH:mm:ss' (UTC) */
 function toUtcSqlDatetime(date) {
   const y = date.getUTCFullYear();
   const m = pad2(date.getUTCMonth() + 1);
@@ -56,42 +53,30 @@ function toUtcSqlDatetime(date) {
   const ss = pad2(date.getUTCSeconds());
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
-
 // UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
 function toKstLabelFromUtcDate(utcDate) {
   const k = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
-  const Y = k.getFullYear();
-  const M = pad(k.getMonth() + 1);
-  const D = pad(k.getDate());
-  const h = pad(k.getHours());
-  const m = pad(k.getMinutes());
-  return `${Y}년 ${M}월 ${D}일 ${h}:${m}`;
+  return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
 }
 
 function composeUserKey(login_type, login_id) {
   if (!login_type || !login_id) return null;
   return login_type === "local" ? String(login_id) : `${login_type}:${login_id}`;
 }
-
 async function deriveUserKeyFromAuth(req) {
   try {
     const token = req.cookies?.[COOKIE_NAME];
     if (!token) return null;
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query(
-      `SELECT login_id, login_type
-         FROM tb_user
-        WHERE user_id = ?
-        LIMIT 1`,
+      `SELECT login_id, login_type FROM tb_user WHERE user_id=? LIMIT 1`,
       [decoded.uid]
     );
     if (!rows.length) return null;
     const { login_id, login_type } = rows[0];
     return composeUserKey(login_type, login_id);
-  } catch (_e) {
-    return null;
-  }
+  } catch { return null; }
 }
 
 router.use((req, _res, next) => {
@@ -112,7 +97,6 @@ function ntitle(s){
   x = x.replaceAll("할머니와바나나","할머니와 바나나");
   return x;
 }
-
 const BASE_STORIES = [
   { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
   { key: "father_wedding", title: "아버지와 결혼식" },
@@ -122,14 +106,12 @@ const BASE_STORIES = [
 ];
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
-const LEGACY_SLUG_MAP = new Map([
-  ["kkongdang_boribap", "kkong_boribap"], // old → new
-]);
+const LEGACY_SLUG_MAP = new Map([["kkongdang_boribap","kkong_boribap"]]);
 
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   const raw = String(story_key_or_title || "").trim();
-  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
   if (SLUG_TO_TITLE.has(raw)) return raw;
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
   const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
@@ -138,6 +120,19 @@ function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   if (LEGACY_SLUG_MAP.has(t2)) return LEGACY_SLUG_MAP.get(t2);
   return raw;
 }
+
+/* ==== (복구) 웹이 user_key를 알아오는데 쓰는 엔드포인트 ==== */
+router.get("/whoami", async (req, res) => {
+  const authedKey =
+    (await deriveUserKeyFromAuth(req)) || null;
+  const claimedKey = (req.query.user_key || req.query.userKey || req.headers["x-user-key"] || req.body?.user_key || "").trim();
+  return res.json({
+    ok: true,
+    authedKey,
+    claimedKey: claimedKey || null,
+    used: authedKey || (!isGuestKey(claimedKey) ? claimedKey || null : null),
+  });
+});
 
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
@@ -160,15 +155,22 @@ router.post("/attempt", async (req, res) => {
 
     // 인증
     const authedKey = await deriveUserKeyFromAuth(req);
-    const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
+    const claimedKey = (
+      req.query.user_key ||
+      req.query.userKey ||
+      req.headers["x-user-key"] ||
+      bodyUserKey ||
+      ""
+    ).trim() || null;
+
     let user_key = null;
     if (authedKey) {
-      if (claimedKey && String(claimedKey).toLowerCase() !== "guest" && claimedKey !== authedKey) {
+      if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
         return res.status(403).json({ ok: false, error: "mismatched_user_key" });
       }
       user_key = authedKey;
     } else {
-      if (!claimedKey || String(claimedKey).toLowerCase() === "guest") {
+      if (!claimedKey || isGuestKey(claimedKey)) {
         return res.status(401).json({ ok: false, error: "not_authed", detail: "로그인된 사용자만 저장 가능합니다." });
       }
       user_key = claimedKey;
@@ -178,11 +180,11 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey_and_title" });
     }
 
-    // 표준화: 슬러그(표시/비교용), 한글 제목(저장용)
+    // 표준화: 슬러그(비교/그룹핑), 한글 제목(저장키)
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
 
-    // ★★★ 저장은 앱과 동일하게 '한글 제목'을 story_key로 사용 ★★★
+    // 저장은 앱과 동일하게 '한글 제목'을 story_key로
     const dbStoryKey = canonicalTitle;
 
     // 시간
@@ -191,7 +193,7 @@ router.post("/attempt", async (req, res) => {
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
     const clientKstLabel = toKstLabelFromUtcDate(utcDate);
 
-    // 다음 회차(슬러그 기준 비교)
+    // 다음 회차 계산(정규화된 슬러그 기준)
     const [rows] = await conn.query(
       `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
@@ -200,7 +202,7 @@ router.post("/attempt", async (req, res) => {
     );
     let last_order = 0;
     for (const r of rows) {
-      const rslug = toSlugFromAny(r.story_key, r.story_title); // DB에 한글/옛키/슬러그 어떤 형태든 흡수
+      const rslug = toSlugFromAny(r.story_key, r.story_title);
       if (rslug === slug) last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
     }
     const nextAttempt = last_order + 1;
@@ -212,7 +214,7 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        dbStoryKey,                // ← 한글 제목으로 저장 (앱과 동일)
+        dbStoryKey,              // ← 한글 제목으로 저장
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
@@ -226,7 +228,12 @@ router.post("/attempt", async (req, res) => {
       ]
     );
 
-    return res.json({ ok: true, user_key, story_key: slug, attempt_order: nextAttempt });
+    return res.json({
+      ok: true,
+      user_key,
+      story_key: slug,
+      attempt_order: nextAttempt,
+    });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
     return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
@@ -238,11 +245,18 @@ router.post("/attempt", async (req, res) => {
 /* ==== 유저 전체 히스토리 ==== */
 router.get("/history/all", async (req, res) => {
   try {
-    let user_key = (req.query.user_key || req.headers["x-user-key"] || "").trim();
+    // ★ 별칭 전부 허용: user_key, userKey, 헤더, 바디
+    let user_key =
+      (req.query.user_key || req.query.userKey || req.headers["x-user-key"] || req.body?.user_key || "").trim();
+
     if (!user_key || isGuestKey(user_key)) {
       user_key = await deriveUserKeyFromAuth(req);
     }
-    if (!user_key) return res.status(401).json({ ok: false, error: "not_authed" });
+    if (!user_key) {
+      // 웹에서 빈 리스트를 그리더라도 401로 끊기지 않게 하고 싶다면 아래 라인을 주석 해제:
+      // return res.json({ ok: true, data: [] });
+      return res.status(401).json({ ok: false, error: "not_authed" });
+    }
 
     const sql = `
       SELECT id, user_key, story_key, story_title,
@@ -256,7 +270,7 @@ router.get("/history/all", async (req, res) => {
 
     const map = new Map(); // slug -> group
     for (const r of rows) {
-      const slug  = toSlugFromAny(r.story_key, r.story_title); // old→new 정규화
+      const slug  = toSlugFromAny(r.story_key, r.story_title); // 어떤 형태든 표준 슬러그로
       const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
 
       if (!map.has(slug)) {
