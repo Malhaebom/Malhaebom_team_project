@@ -6,7 +6,7 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-// 표준 슬러그를 짧은 값으로 통일
+// 표준 슬러그
 const TITLE_TO_KEY = {
   "어머니의 벙어리 장갑": "mother_gloves",
   "아버지와 결혼식": "father_wedding",
@@ -14,7 +14,7 @@ const TITLE_TO_KEY = {
   "할머니와 바나나": "grandma_banana",
   "꽁당 보리밥": "kkong_boribap",
 
-  // 안전망(띄어쓰기/오타/레거시)
+  // 안전망
   "꽁당보리밥": "kkong_boribap",
   "병어리 장갑": "mother_gloves",
   "어머니와 벙어리 장갑": "mother_gloves",
@@ -32,13 +32,14 @@ function ntitle(s){
   return x;
 }
 
-// 클라에서도 슬러그 확정 (레거시도 흡수)
+// 클라에서도 슬러그 확정
 function toSlugOnClient(storyKeyCandidate, titleCandidate){
   const SLUGS = ["mother_gloves","father_wedding","sons_bread","grandma_banana","kkong_boribap"];
   const LEGACY = new Map([["kkongdang_boribap","kkong_boribap"]]);
 
-  if (LEGACY.has(storyKeyCandidate)) return LEGACY.get(storyKeyCandidate);
-  if (SLUGS.includes(storyKeyCandidate)) return storyKeyCandidate;
+  const raw = (storyKeyCandidate || "").trim();
+  if (LEGACY.has(raw)) return LEGACY.get(raw);
+  if (SLUGS.includes(raw)) return raw;
 
   const t = ntitle(titleCandidate);
   if (TITLE_TO_KEY[t]) return TITLE_TO_KEY[t];
@@ -118,13 +119,21 @@ export default function ResultExam() {
   async function saveToBookHistory(resolvedUserKey) {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
     const title = ntitle(rawTitle);
-    const storyKey = toSlugOnClient(TITLE_TO_KEY[title], title);
+
+    // ★ storyKey 보강: localStorage.storyKey 우선 사용
+    const lsKey = (localStorage.getItem("storyKey") || "").trim();
+    const storyKeyCandidate = lsKey || TITLE_TO_KEY[title] || "";
+    const storyKey = toSlugOnClient(storyKeyCandidate, title);
+
+    if (!["mother_gloves","father_wedding","sons_bread","grandma_banana","kkong_boribap"].includes(storyKey)) {
+      console.warn("[ResultExam] 비표준/빈 슬러그 감지:", { title, lsKey, storyKeyCandidate, storyKey });
+    }
 
     const examResult = {
       storyTitle: title,
       storyKey,
-      attemptTime: new Date().toISOString(),
-      clientKst: nowKstString(),
+      attemptTime: new Date().toISOString(), // 서버에서 UTC→SQL, KST 라벨 생성
+      clientKst: nowKstString(),             // 서버가 무시하고 재생성해도 OK
       score: total,
       total: 40,
       byCategory: {
@@ -213,7 +222,8 @@ export default function ResultExam() {
                 <div className="sub_tit">
                   <div className="num_tit">
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
-                      {isPassed ? okOpinion : opinions_result[lowIndex]}
+                      {isPassed ? "당신은 모든 영역(직접화행, 간접화행, 질문화행, 단언화행, 의례화화행)에 좋은 점수를 얻었습니다. 현재는 인지기능 정상입니다.\n하지만 유지하기 위해서 꾸준한 학습과 교육을 통한 관리가 필요합니다."
+                               : opinions_result[lowIndex]}
                     </p>
                     {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
                   </div>

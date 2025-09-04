@@ -22,11 +22,20 @@ const pool = mysql.createPool({
 });
 
 /* ==== 유틸 ==== */
-function safeParseJSON(jsonStr, fallback = null) {
+// ★ Buffer 안전 처리 추가
+function safeParseJSON(jsonVal, fallback = null) {
   try {
-    if (jsonStr == null) return fallback;
-    if (typeof jsonStr === "object") return jsonStr;
-    return JSON.parse(jsonStr);
+    if (jsonVal == null) return fallback;
+    if (typeof jsonVal === "object") {
+      if (Buffer.isBuffer(jsonVal)) {
+        const s = jsonVal.toString("utf8");
+        return s ? JSON.parse(s) : fallback;
+      }
+      // 이미 객체(JSON 칼럼)인 경우
+      return jsonVal;
+    }
+    const s = String(jsonVal);
+    return s ? JSON.parse(s) : fallback;
   } catch {
     return fallback;
   }
@@ -107,38 +116,31 @@ function ntitle(s){
   return x;
 }
 
-// ※ 표준 슬러그를 짧게: 'kkong_boribap'
+// 표준 슬러그(짧은 키) 사용
 const BASE_STORIES = [
   { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
   { key: "father_wedding", title: "아버지와 결혼식" },
   { key: "sons_bread",     title: "아들의 호빵" },
   { key: "grandma_banana", title: "할머니와 바나나" },
-  { key: "kkong_boribap",  title: "꽁당 보리밥" }, // ← 변경
+  { key: "kkong_boribap",  title: "꽁당 보리밥" },
 ];
-
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
-
-// 과거/타 코드의 긴 슬러그도 흡수
 const LEGACY_SLUG_MAP = new Map([
-  ["kkongdang_boribap", "kkong_boribap"], // 17자 → 13자
+  ["kkongdang_boribap", "kkong_boribap"], // 레거시 → 표준
 ]);
 
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   const raw = String(story_key_or_title || "").trim();
-  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw); // 레거시 치환
-  if (SLUG_TO_TITLE.has(raw)) return raw;                         // 이미 표준 슬러그
-
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
+  if (SLUG_TO_TITLE.has(raw)) return raw;
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
   const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
   if (byTitle) return byTitle;
-
-  // 혹시 레거시 again
   if (LEGACY_SLUG_MAP.has(t1)) return LEGACY_SLUG_MAP.get(t1);
   if (LEGACY_SLUG_MAP.has(t2)) return LEGACY_SLUG_MAP.get(t2);
-
-  return raw; // 최후의 수단(서버-클라 양쪽에서 다시 정규화됨)
+  return raw;
 }
 
 /* 디버그: 내가 인식한 user_key */
@@ -172,9 +174,8 @@ router.post("/attempt", async (req, res) => {
       user_key: bodyUserKey,
     } = req.body || {};
 
-    // 1) 인증 쿠키 우선
+    // 1) 인증 키 결정
     const authedKey = await deriveUserKeyFromAuth(req);
-    // 2) 쿼리/헤더/바디 주장값
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
     let user_key = null;
@@ -190,15 +191,16 @@ router.post("/attempt", async (req, res) => {
       user_key = claimedKey;
     }
 
-    if (!storyKey) {
-      return res.status(400).json({ ok: false, error: "missing_storyKey" });
+    // ★ 완화: storyKey가 없어도 storyTitle로 유도 가능해야 저장
+    if (!storyKey && !storyTitle) {
+      return res.status(400).json({ ok: false, error: "missing_storyKey_and_title" });
     }
 
-    // 입력값 표준화 (레거시 슬러그도 흡수)
-    const slug = toSlugFromAny(storyKey, storyTitle);
-    const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
+    // 표준화
+    const slug = toSlugFromAny(storyKey || "", storyTitle || "");
+    const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
 
-    // 시간값 생성
+    // 시간
     const utcDate = (() => {
       if (attemptTime) {
         const t = new Date(attemptTime);
@@ -209,7 +211,7 @@ router.post("/attempt", async (req, res) => {
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
     const clientKstLabel = toKstLabelFromUtcDate(utcDate);
 
-    // 다음 회차 계산(슬러그 기준)
+    // 다음 회차 계산 (슬러그 기준)
     const [rows] = await conn.query(
       `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
@@ -232,13 +234,13 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        slug,                // ← 짧은 표준 슬러그 저장
+        slug,
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
         clientUtcStr,
-        clientKstLabel,      // 'YYYY년 MM월 DD일 HH:MM'
+        clientKstLabel,
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -278,8 +280,7 @@ router.get("/history/all", async (req, res) => {
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
-    // 슬러그로 그룹핑 (레거시도 흡수)
-    const map = new Map();
+    const map = new Map(); // slug -> group
     for (const r of rows) {
       const slug  = toSlugFromAny(r.story_key, r.story_title);
       const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
@@ -292,12 +293,14 @@ router.get("/history/all", async (req, res) => {
         client_kst: toStrOrNull(r.client_kst),
         client_utc: toStrOrNull(r.client_utc),
         client_attempt_order: r.client_attempt_order == null ? null : toNumber(r.client_attempt_order, null),
-        score: toNumber(r.score, 0),
-        total: toNumber(r.total, 0),
+        // ★ Buffer → JSON 파싱 보정 적용
         by_category: safeParseJSON(r.by_category, {}),
         by_type: safeParseJSON(r.by_type, {}),
         risk_bars: safeParseJSON(r.risk_bars, {}),
         risk_bars_by_type: safeParseJSON(r.risk_bars_by_type, {}),
+        // 점수/총점은 클라에서 다시 계산하므로 원본 그대로 둠
+        score: toNumber(r.score, 0),
+        total: toNumber(r.total, 0),
       });
     }
     return res.json({ ok: true, data: Array.from(map.values()) });
