@@ -52,6 +52,18 @@ function toUtcSqlDatetime(date) {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
+// ▼ 추가: UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
+function toKstLabelFromUtcDate(utcDate) {
+  const k = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const Y = k.getFullYear();
+  const M = pad(k.getMonth() + 1);
+  const D = pad(k.getDate());
+  const h = pad(k.getHours());
+  const m = pad(k.getMinutes());
+  return `${Y}년 ${M}월 ${D}일 ${h}:${m}`;
+}
+
 function composeUserKey(login_type, login_id) {
   if (!login_type || !login_id) return null;
   return login_type === "local" ? String(login_id) : `${login_type}:${login_id}`;
@@ -84,6 +96,33 @@ router.use((req, _res, next) => {
   next();
 });
 
+/* ───── (중요) story_key/제목 정규화: 슬러그 표준화 ───── */
+function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ntitle(s){
+  let x = nspace(s);
+  x = x.replaceAll("병어리","벙어리");
+  x = x.replaceAll("어머니와","어머니의");
+  x = x.replaceAll("벙어리장갑","벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나","할머니와 바나나");
+  return x;
+}
+const BASE_STORIES = [
+  { key: "mother_gloves",     title: "어머니의 벙어리 장갑" },
+  { key: "father_wedding",    title: "아버지와 결혼식" },
+  { key: "sons_bread",        title: "아들의 호빵" },
+  { key: "grandma_banana",    title: "할머니와 바나나" },
+  { key: "kkongdang_boribap", title: "꽁당 보리밥" },
+];
+const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
+const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
+function toSlugFromAny(story_key_or_title, story_title_fallback=""){
+  if (SLUG_TO_TITLE.has(story_key_or_title)) return story_key_or_title; // 이미 슬러그
+  const t1 = ntitle(story_key_or_title);
+  const t2 = ntitle(story_title_fallback);
+  return TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2) || story_key_or_title;
+}
+
 /* 디버그: 내가 인식한 user_key */
 router.get("/whoami", async (req, res) => {
   const authedKey = await deriveUserKeyFromAuth(req);
@@ -96,6 +135,8 @@ router.get("/whoami", async (req, res) => {
   });
 });
 
+/* 테스트 데이터 라우트는 생략(기존 그대로) */
+
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
   let conn;
@@ -105,8 +146,8 @@ router.post("/attempt", async (req, res) => {
     const {
       storyTitle,
       storyKey,
-      attemptTime,     // ISO string 기대 (없을 수 있음)
-      clientKst,       // 표시용 문자열 (선택)
+      attemptTime,
+      clientKst,
       score,
       total,
       byCategory = {},
@@ -121,7 +162,7 @@ router.post("/attempt", async (req, res) => {
     // 2) 쿼리/헤더/바디 주장값
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
-    // 규칙: 쿠키가 있으면 쿠키 사용(다르면 403). 없으면 claimedKey(guest 금지) 사용.
+    // 규칙: 쿠키 있으면 쿠키 사용(다르면 403), 없으면 claimedKey(guest 금지) 사용
     let user_key = null;
     if (authedKey) {
       if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
@@ -139,25 +180,36 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // client_utc(NOT NULL) 보정
-    let clientUtcStr;
+    // 입력값을 표준화
+    const slug = toSlugFromAny(storyKey, storyTitle);
+    const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
+
+    // client_utc + client_kst(라벨) 생성
+    let utcDate;
     if (attemptTime) {
-      const utc = new Date(attemptTime);
-      clientUtcStr = isNaN(utc.getTime()) ? toUtcSqlDatetime(new Date()) : toUtcSqlDatetime(utc);
+      const t = new Date(attemptTime);
+      utcDate = isNaN(t.getTime()) ? new Date() : t;
     } else {
-      clientUtcStr = toUtcSqlDatetime(new Date());
+      utcDate = new Date();
     }
+    const clientUtcStr   = toUtcSqlDatetime(utcDate);
+    const clientKstLabel = toStrOrNull(clientKst) || toKstLabelFromUtcDate(utcDate); // ▼ 여기서 라벨 자동 생성
 
-    // 다음 회차 계산 (user_key, story_key 별)
-    const [lastRows] = await conn.query(
-      `SELECT COALESCE(MAX(client_attempt_order), 0) AS last_order
+    // 다음 회차 계산(슬러그 기준)
+    const [rows] = await conn.query(
+      `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
-        WHERE TRIM(user_key)=TRIM(?) AND story_key=?`,
-      [user_key, storyKey]
+        WHERE TRIM(user_key)=TRIM(?)`,
+      [user_key]
     );
-    const nextAttempt = Number(lastRows?.[0]?.last_order || 0) + 1;
-
-    const story_title = storyTitle || storyKey;
+    let last_order = 0;
+    for (const r of rows) {
+      const rslug = toSlugFromAny(r.story_key, r.story_title);
+      if (rslug === slug) {
+        last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
+      }
+    }
+    const nextAttempt = last_order + 1;
 
     await conn.query(
       `INSERT INTO tb_story_result
@@ -166,13 +218,13 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        storyKey,
-        story_title,
+        slug,
+        canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
         clientUtcStr,
-        toStrOrNull(clientKst),
+        clientKstLabel,                 // ▼ 저장되는 값은 'YYYY년 MM월 DD일 HH:MM'
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -180,7 +232,7 @@ router.post("/attempt", async (req, res) => {
       ]
     );
 
-    return res.json({ ok: true, user_key, story_key: storyKey, attempt_order: nextAttempt });
+    return res.json({ ok: true, user_key, story_key: slug, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
     return res.status(500).json({
@@ -208,21 +260,20 @@ router.get("/history/all", async (req, res) => {
              client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type
         FROM tb_story_result
        WHERE TRIM(user_key)=TRIM(?)
-       ORDER BY story_key ASC, client_utc DESC, id DESC
+       ORDER BY client_utc DESC, id DESC
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
+    // 서버에서 슬러그로 그룹핑
     const map = new Map();
     for (const r of rows) {
-      const sk = r.story_key || "(unknown)";
-      if (!map.has(sk)) {
-        map.set(sk, {
-          story_key: r.story_key,
-          story_title: toStrOrNull(r.story_title),
-          records: [],
-        });
+      const slug  = toSlugFromAny(r.story_key, r.story_title);
+      const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
+
+      if (!map.has(slug)) {
+        map.set(slug, { story_key: slug, story_title: title, records: [] });
       }
-      map.get(sk).records.push({
+      map.get(slug).records.push({
         id: r.id,
         client_kst: toStrOrNull(r.client_kst),
         client_utc: toStrOrNull(r.client_utc),
