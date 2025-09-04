@@ -1,4 +1,3 @@
-// 02. web/malhaebom/src/pages/Story/Exam/ResultExam.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
@@ -28,7 +27,8 @@ export default function ResultExam() {
   const navigate = useNavigate();
 
   const query = new URLSearchParams(window.location.search);
-  const userKeyFromUrl = (query.get("user_key") || "").trim();
+  const rawFromUrl = (query.get("user_key") || "").trim();
+  const userKeyFromUrl = rawFromUrl && rawFromUrl !== "guest" ? rawFromUrl : "";
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
@@ -84,10 +84,12 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
-      // user_key 확보(쿼리 우선 → 세션 보장)
-      let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
+      // user_key 확보(쿼리 우선 → 세션 보장), guest는 절대 전송 금지
+      const sanitize = (k) => (k && k !== "guest" ? k : null);
+      let targetUserKey = sanitize(userKeyFromUrl);
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
+        targetUserKey = sanitize(targetUserKey);
       }
       if (!targetUserKey) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
@@ -97,8 +99,8 @@ export default function ResultExam() {
       const examResult = {
         storyTitle: title,
         storyKey,
-        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환 (없어도 서버가 now로 보정)
-        clientKst: nowKstString(),             // 표시용
+        attemptTime: new Date().toISOString(), // 서버가 now로 보정도 함
+        clientKst: nowKstString(),
         score: total,
         total: 40,
         byCategory: {
@@ -109,32 +111,30 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
+        // 참고: 앱과 단위 다름(앱은 0~1 ratio). 저장은 그대로 두고, 조회에서 모두 보정해서 읽도록 처리함.
         riskBars: {
-          A:  1 - (Number(scoreAD) / 4),
-          AI: 1 - (Number(scoreAI) / 4),
-          B:  1 - (Number(scoreB)  / 4),
-          C:  1 - (Number(scoreC)  / 4),
-          D:  1 - (Number(scoreD)  / 4),
+          A:  Number(scoreAD) * 2,
+          AI: Number(scoreAI) * 2,
+          B:  Number(scoreB)  * 2,
+          C:  Number(scoreC)  * 2,
+          D:  Number(scoreD)  * 2,
         },
         riskBarsByType: {},
       };
 
-      // ★ 반드시 user_key를 params로 명시: 쿠키 불안정 환경 커버
-        const { data } = await API.post(
-          "/str/attempt",
-        examResult,
-        {
-          params: { user_key: targetUserKey },     // 쿼리
-          headers: { "x-user-key": targetUserKey } // 헤더도 함께
-        }
-      );
+      const cfg = {};
+      if (targetUserKey) {
+        cfg.params = { user_key: targetUserKey };
+        cfg.headers = { "x-user-key": targetUserKey };
+      }
+      const { data } = await API.post("/str/attempt", examResult, cfg);
 
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
         alert("검사 결과 저장에 실패했습니다.");
       }
     } catch (error) {
-      console.error("검사 결과 저장 오류:", error);
+      console.error("검사 결과 저장 중 오류 발생:", error);
       alert("검사 결과 저장 중 오류가 발생했습니다.");
     }
   };
