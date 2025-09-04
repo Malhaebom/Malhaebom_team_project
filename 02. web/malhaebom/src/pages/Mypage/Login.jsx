@@ -47,6 +47,9 @@ const Login = () => {
         return;
       }
 
+      // 이전 세션 키(다른 계정) 남아있을 수 있으니 먼저 제거
+      try { sessionStorage.removeItem("user_key"); } catch { }
+
       const { data } = await API.post("/userLogin/login", { login_id, pwd });
       console.debug("[Login] /login =>", data);
 
@@ -60,6 +63,11 @@ const Login = () => {
       console.debug("[Login] /me (after login) =>", me?.data);
 
       if (me?.data?.ok && me.data.isAuthed) {
+        // ✅ 현재 로그인 ID로 user_key를 즉시 덮어쓰기
+        try {
+          const key = me.data.userKey || me.data.loginId || login_id;
+          if (key) sessionStorage.setItem("user_key", key);
+        } catch { }
         setNick(me.data.nick || "");
         navigate("/", { replace: true }); // 이제 홈으로 이동
       } else {
@@ -77,8 +85,8 @@ const Login = () => {
   };
 
   // SNS 시작 (백엔드 OAuth 시작 URL → 반드시 /api 경로)
-  const startKakao  = () => (window.location.href = "/api/auth/kakao");
-  const startNaver  = () => (window.location.href = "/api/auth/naver");
+  const startKakao = () => (window.location.href = "/api/auth/kakao");
+  const startNaver = () => (window.location.href = "/api/auth/naver");
   const startGoogle = () => (window.location.href = "/api/auth/google");
 
   const socialBtnStyle = (bgColor, color = "#000") => ({

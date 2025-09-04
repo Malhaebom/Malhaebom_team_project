@@ -98,7 +98,7 @@ function InterviewStart() {
       formData.append("response_time", String(responseTime));
       formData.append("audio_duration", String(audioDuration));
 
-      fetch("http://127.0.0.1:4000/process-audio", {
+      fetch("http://127.0.0.1:4010/process-audio", {
         method: "POST",
         body: formData,
       })
