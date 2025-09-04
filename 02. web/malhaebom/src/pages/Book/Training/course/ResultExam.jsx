@@ -76,7 +76,7 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  // ✅ 결과 저장
+  // ✅ 결과 저장 (항상 params로 user_key 넘김: 쿠키 의존 최소화)
   const saveToBookHistory = async () => {
     try {
       const title = localStorage.getItem("bookTitle") || "동화";
@@ -85,7 +85,6 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
-      // 미로그인/게스트면 저장 불가
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
@@ -118,15 +117,20 @@ export default function ResultExam() {
           D:  Number(scoreD)  * 2,
         },
         riskBarsByType: {},
-        // ❌ user_key는 서버가 쿠키로 도출 → 보내지 않음
       };
 
-      const { data } = await API.post("/str/attempt", examResult);
+      // ★ 핵심: 서버에 user_key를 명시적으로 보냄 (쿼리)
+      const { data } = await API.post("/str/attempt", examResult, {
+        params: { user_key: targetUserKey },
+      });
+
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
+        alert("검사 결과 저장에 실패했습니다.");
       }
     } catch (error) {
       console.error("검사 결과 저장 오류:", error);
+      alert("검사 결과 저장 중 오류가 발생했습니다.");
     }
   };
 

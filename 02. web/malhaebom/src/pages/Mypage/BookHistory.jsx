@@ -216,7 +216,7 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        // 보기 전용 공유링크(?user_key=...)면 그대로 사용, 아니면 인증으로 도출
+        // 1) 쿼리 우선, 없으면 세션에서 도출
         let userKey = userKeyFromQuery && userKeyFromQuery !== "guest"
           ? userKeyFromQuery
           : await ensureUserKey({ retries: 2, delayMs: 150 });
@@ -227,11 +227,9 @@ export default function BookHistory() {
           return;
         }
 
-        const req = userKeyFromQuery && userKeyFromQuery !== "guest"
-          ? API.get(`/str/history/all`, { params: { user_key: userKey } })
-          : API.get(`/str/history/all`); // 쿠키로 도출
+        // ★ 핵심: 항상 user_key를 파라미터로 명시 전달하여 쿠키 의존 최소화
+        const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
 
-        const { data } = await req;
         if (data?.ok) {
           setGroups(data.data || []);
         } else {
