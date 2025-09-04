@@ -57,7 +57,7 @@ const corsMiddleware = cors({
 });
 
 app.use(corsMiddleware);
-app.options("*", corsMiddleware); // 프리플라이트 처리
+app.options(/.*/, corsMiddleware);
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
