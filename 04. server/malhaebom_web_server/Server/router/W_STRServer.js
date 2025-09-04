@@ -1,4 +1,3 @@
-// Server/router/W_STRServer.js
 const express = require("express");
 const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
@@ -52,7 +51,7 @@ function toUtcSqlDatetime(date) {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
-// ▼ UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
+// UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
 function toKstLabelFromUtcDate(utcDate) {
   const k = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
@@ -96,7 +95,7 @@ router.use((req, _res, next) => {
   next();
 });
 
-/* ───── (중요) story_key/제목 정규화: 슬러그 표준화 ───── */
+/* ───── 제목/슬러그 정규화 ───── */
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
   let x = nspace(s);
@@ -107,20 +106,39 @@ function ntitle(s){
   x = x.replaceAll("할머니와바나나","할머니와 바나나");
   return x;
 }
+
+// ※ 표준 슬러그를 짧게: 'kkong_boribap'
 const BASE_STORIES = [
-  { key: "mother_gloves",     title: "어머니의 벙어리 장갑" },
-  { key: "father_wedding",    title: "아버지와 결혼식" },
-  { key: "sons_bread",        title: "아들의 호빵" },
-  { key: "grandma_banana",    title: "할머니와 바나나" },
-  { key: "kkongdang_boribap", title: "꽁당 보리밥" },
+  { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
+  { key: "father_wedding", title: "아버지와 결혼식" },
+  { key: "sons_bread",     title: "아들의 호빵" },
+  { key: "grandma_banana", title: "할머니와 바나나" },
+  { key: "kkong_boribap",  title: "꽁당 보리밥" }, // ← 변경
 ];
+
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
+
+// 과거/타 코드의 긴 슬러그도 흡수
+const LEGACY_SLUG_MAP = new Map([
+  ["kkongdang_boribap", "kkong_boribap"], // 17자 → 13자
+]);
+
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
-  if (SLUG_TO_TITLE.has(story_key_or_title)) return story_key_or_title; // 이미 슬러그
+  const raw = String(story_key_or_title || "").trim();
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw); // 레거시 치환
+  if (SLUG_TO_TITLE.has(raw)) return raw;                         // 이미 표준 슬러그
+
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
-  return TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2) || story_key_or_title;
+  const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
+  if (byTitle) return byTitle;
+
+  // 혹시 레거시 again
+  if (LEGACY_SLUG_MAP.has(t1)) return LEGACY_SLUG_MAP.get(t1);
+  if (LEGACY_SLUG_MAP.has(t2)) return LEGACY_SLUG_MAP.get(t2);
+
+  return raw; // 최후의 수단(서버-클라 양쪽에서 다시 정규화됨)
 }
 
 /* 디버그: 내가 인식한 user_key */
@@ -145,7 +163,6 @@ router.post("/attempt", async (req, res) => {
       storyTitle,
       storyKey,
       attemptTime,
-      // clientKst,  // ★ 더 이상 사용하지 않음
       score,
       total,
       byCategory = {},
@@ -160,7 +177,6 @@ router.post("/attempt", async (req, res) => {
     // 2) 쿼리/헤더/바디 주장값
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
-    // 규칙: 쿠키 있으면 쿠키 사용(다르면 403), 없으면 claimedKey(guest 금지) 사용
     let user_key = null;
     if (authedKey) {
       if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
@@ -178,20 +194,20 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // 입력값 표준화
+    // 입력값 표준화 (레거시 슬러그도 흡수)
     const slug = toSlugFromAny(storyKey, storyTitle);
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
 
-    // client_utc + client_kst(라벨) 생성
-    let utcDate;
-    if (attemptTime) {
-      const t = new Date(attemptTime);
-      utcDate = isNaN(t.getTime()) ? new Date() : t;
-    } else {
-      utcDate = new Date();
-    }
+    // 시간값 생성
+    const utcDate = (() => {
+      if (attemptTime) {
+        const t = new Date(attemptTime);
+        return isNaN(t.getTime()) ? new Date() : t;
+      }
+      return new Date();
+    })();
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
-    const clientKstLabel = toKstLabelFromUtcDate(utcDate); // ★ 변경: 항상 서버가 만든 라벨만 사용
+    const clientKstLabel = toKstLabelFromUtcDate(utcDate);
 
     // 다음 회차 계산(슬러그 기준)
     const [rows] = await conn.query(
@@ -216,13 +232,13 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        slug,
+        slug,                // ← 짧은 표준 슬러그 저장
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
         clientUtcStr,
-        clientKstLabel, // ★ 항상 'YYYY년 MM월 DD일 HH:MM'
+        clientKstLabel,      // 'YYYY년 MM월 DD일 HH:MM'
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -262,7 +278,7 @@ router.get("/history/all", async (req, res) => {
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
-    // 서버에서 슬러그로 그룹핑
+    // 슬러그로 그룹핑 (레거시도 흡수)
     const map = new Map();
     for (const r of rows) {
       const slug  = toSlugFromAny(r.story_key, r.story_title);

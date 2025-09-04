@@ -1,4 +1,3 @@
-// 02. web/malhaebom/src/pages/Story/Exam/ResultExam.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
@@ -7,21 +6,21 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
+// 표준 슬러그를 짧은 값으로 통일
 const TITLE_TO_KEY = {
-  // 표준 표기
   "어머니의 벙어리 장갑": "mother_gloves",
   "아버지와 결혼식": "father_wedding",
   "아들의 호빵": "sons_bread",
   "할머니와 바나나": "grandma_banana",
-  "꽁당 보리밥": "kkongdang_boribap",
+  "꽁당 보리밥": "kkong_boribap",
 
-  // ▼ 흔한 변형(띄어쓰기/오타)을 안전망으로 추가
-  "꽁당보리밥": "kkongdang_boribap",
-  "병어리 장갑": "mother_gloves",       // 혹시 모를 오타
-  "어머니와 벙어리 장갑": "mother_gloves"
+  // 안전망(띄어쓰기/오타/레거시)
+  "꽁당보리밥": "kkong_boribap",
+  "병어리 장갑": "mother_gloves",
+  "어머니와 벙어리 장갑": "mother_gloves",
 };
 
-/* 프론트에서도 서버와 동일한 정규화 로직 적용 */
+// 서버와 동일 정규화
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
   let x = nspace(s);
@@ -32,20 +31,23 @@ function ntitle(s){
   x = x.replaceAll("할머니와바나나","할머니와 바나나");
   return x;
 }
+
+// 클라에서도 슬러그 확정 (레거시도 흡수)
 function toSlugOnClient(storyKeyCandidate, titleCandidate){
-  // 1) 이미 슬러그인 경우(영문 키)에 해당하면 그대로
-  if (["mother_gloves","father_wedding","sons_bread","grandma_banana","kkongdang_boribap"].includes(storyKeyCandidate)) {
-    return storyKeyCandidate;
-  }
-  // 2) 제목 기준으로 먼저 정규화 후 매핑
+  const SLUGS = ["mother_gloves","father_wedding","sons_bread","grandma_banana","kkong_boribap"];
+  const LEGACY = new Map([["kkongdang_boribap","kkong_boribap"]]);
+
+  if (LEGACY.has(storyKeyCandidate)) return LEGACY.get(storyKeyCandidate);
+  if (SLUGS.includes(storyKeyCandidate)) return storyKeyCandidate;
+
   const t = ntitle(titleCandidate);
   if (TITLE_TO_KEY[t]) return TITLE_TO_KEY[t];
 
-  // 3) 혹시 storyKeyCandidate가 제목이 들어온 경우도 처리
   const t2 = ntitle(storyKeyCandidate);
   if (TITLE_TO_KEY[t2]) return TITLE_TO_KEY[t2];
 
-  // 4) 끝까지 못 찾으면 그대로(서버가 한 번 더 정규화함)
+  if (LEGACY.has(t2)) return LEGACY.get(t2);
+
   return storyKeyCandidate || "unknown_story";
 }
 
@@ -60,7 +62,7 @@ export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
   const [bookTitle, setBookTitle] = useState("");
   const navigate = useNavigate();
-  const savedOnceRef = useRef(false); // 이 화면에 진입할 때 1회만 저장
+  const savedOnceRef = useRef(false);
 
   const query = new URLSearchParams(window.location.search);
   const userKeyFromUrl = (query.get("user_key") || "").trim();
@@ -69,7 +71,6 @@ export default function ResultExam() {
 
   useEffect(() => {
     AOS.init();
-    // ▼ 저장된 제목을 정규화해서 상태에 저장
     const raw = localStorage.getItem("bookTitle") || "동화";
     const fixed = ntitle(raw);
     setBookTitle(fixed);
@@ -116,15 +117,14 @@ export default function ResultExam() {
 
   async function saveToBookHistory(resolvedUserKey) {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
-    const title = ntitle(rawTitle); // 정규화된 제목
-    // ▼ 프론트에서 슬러그 확정 (서버와 동일 규칙)
+    const title = ntitle(rawTitle);
     const storyKey = toSlugOnClient(TITLE_TO_KEY[title], title);
 
     const examResult = {
       storyTitle: title,
       storyKey,
-      attemptTime: new Date().toISOString(), // 서버가 UTC -> SQL/KST 라벨 생성
-      clientKst: nowKstString(),             // 서버가 무시하고 라벨 재생성함(괜찮음)
+      attemptTime: new Date().toISOString(),
+      clientKst: nowKstString(),
       score: total,
       total: 40,
       byCategory: {
@@ -150,18 +150,22 @@ export default function ResultExam() {
       headers: { "x-user-key": resolvedUserKey },
     };
 
-    console.log("[ResultExam] save payload =", { examResult, cfg });
-    const { data } = await API.post("/str/attempt", examResult, cfg);
-    console.log("[ResultExam] save response =", data);
-    if (!data?.ok) {
-      console.error("검사 결과 저장 실패:", data);
-      alert("검사 결과 저장에 실패했습니다.");
+    try{
+      console.log("[ResultExam] save payload =", { examResult, cfg });
+      const { data } = await API.post("/str/attempt", examResult, cfg);
+      console.log("[ResultExam] save response =", data);
+      if (!data?.ok) {
+        console.error("검사 결과 저장 실패:", data);
+        alert("검사 결과 저장에 실패했습니다.");
+      }
+    }catch(err){
+      console.error("검사 결과 저장 오류:", err?.response?.data || err);
+      alert("검사 결과 저장 중 오류가 발생했습니다.");
     }
   }
 
   useEffect(() => {
     (async () => {
-      // ▼ 총점이 0이어도 저장은 시도 (일부 케이스에서 타이밍 이슈 방지)
       if (savedOnceRef.current) return;
       savedOnceRef.current = true;
 
@@ -174,20 +178,12 @@ export default function ResultExam() {
         return;
       }
 
-      try {
-        await saveToBookHistory(targetUserKey);
-      } catch (error) {
-        console.error("검사 결과 저장 오류:", error);
-        alert("검사 결과 저장 중 오류가 발생했습니다.");
-      }
+      await saveToBookHistory(targetUserKey);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [total]); // total이 계산된 뒤 한 번만 실행
-  
+  }, [total]);
 
-  const goHome = () => {
-    location.href = "/";
-  };
+  const goHome = () => { location.href = "/"; };
 
   return (
     <div className="content">
