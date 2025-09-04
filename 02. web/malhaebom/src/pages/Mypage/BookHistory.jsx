@@ -1,61 +1,43 @@
-// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
 
-/** 표준 슬러그/제목(표시는 여기 기준) */
+/** 표준 목록(표시 제목은 여기 기준) */
 const baseStories = [
-  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" }, // ← 공백 포함
+  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" },
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",        story_title: "아들의 호빵" },
   { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 공백 압축 */
+/* ─────────── 유틸 ─────────── */
 function normalizeSpace(s) {
   return String(s || "").replace(/\s+/g, " ").trim();
 }
-
-/** 과거 데이터 정규화(오타/띄어쓰기/조사 등) → 표준제목 */
 function normalizeKoreanTitle(s) {
   let x = normalizeSpace(s);
-  // 흔한 오타/변형 교정
   x = x.replaceAll("병어리", "벙어리");
   x = x.replaceAll("어머니와", "어머니의");
   x = x.replaceAll("벙어리장갑", "벙어리 장갑");
   x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
   x = x.replaceAll("할머니와바나나", "할머니와 바나나");
-  // 양끝 공백 재정리
   return normalizeSpace(x);
 }
-
-/** 기본 매핑: (정규화된)제목 → 슬러그  */
 const titleToSlugBase = new Map(
   baseStories.map((b) => [normalizeKoreanTitle(b.story_title), b.story_key])
 );
-
-/** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 반환 */
 function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
   const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
   const raw = normalizeSpace(story_key_or_title);
-  if (slugToTitle.has(raw)) return raw; // 이미 표준 슬러그
+  if (slugToTitle.has(raw)) return raw; // 이미 슬러그
 
-  // 제목 후보 정규화 → 슬러그 탐색
   const t1 = normalizeKoreanTitle(raw);
   const t2 = normalizeKoreanTitle(story_title_fallback);
-  const slug =
-    titleToSlugBase.get(t1) ||
-    titleToSlugBase.get(t2) ||
-    null;
-
-  // 못 찾으면 원본 유지(뒤에서 DB-only 카드로 등장)
-  return slug || raw;
+  return titleToSlugBase.get(t1) || titleToSlugBase.get(t2) || raw;
 }
-
-/** MySQL DATETIME(UTC) 파싱 → Date(UTC) */
 function parseSqlUtc(s) {
   if (!s) return null;
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
@@ -64,16 +46,12 @@ function parseSqlUtc(s) {
   const dt = new Date(Date.UTC(+Y, +M - 1, +D, +h, +m2, +s2));
   return isNaN(dt.getTime()) ? null : dt;
 }
-
-/** Date(UTC) → KST 표기 */
 function formatKst(dtUtc) {
   if (!dtUtc) return "";
   const k = new Date(dtUtc.getTime() + 9 * 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
   return `${k.getFullYear()}-${pad(k.getMonth() + 1)}-${pad(k.getDate())} ${pad(k.getHours())}:${pad(k.getMinutes())}:${pad(k.getSeconds())}`;
 }
-
-/** 0~4 점수 통일 */
 function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type }) {
   const getCorrect = (obj, key) => {
     const v = obj?.[key];
@@ -101,7 +79,6 @@ function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type })
 
   return { scoreAD: A, scoreAI: AI, scoreB: B, scoreC: C, scoreD: D };
 }
-
 function rowToCardData(row) {
   const displayTime =
     (row?.client_kst || "").trim() ||
@@ -123,6 +100,7 @@ function rowToCardData(row) {
   };
 }
 
+/* ─────────── 상세 카드 ─────────── */
 function ResultDetailCard({ data }) {
   if (!data) return null;
 
@@ -149,7 +127,6 @@ function ResultDetailCard({ data }) {
     "당신은 단언화행의 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 대화하는 인물들의 말에 대한 의도파악과 관련하여 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해 인물대사 의도파악학습으로 점수를 올릴 수 있습니다.",
     "당신은 의례화화행 점수가 낮습니다.\n기본 대화에 대한 인식이 떨어져서 동화에서 인물들이 상황에 맞는 자신의 감정을 표현하는 말에 대한 인지능력이 부족해보입니다.\n선생님과의 프로그램을 통해  인물들의 상황 및 정서 파악 학습으로 점수를 올릴 수 있습니다.",
   ];
-
   const opinions_guide = [
     "A-요구(직접)가 부족합니다.",
     "A-요구(간접)가 부족합니다.",
@@ -183,6 +160,7 @@ function ResultDetailCard({ data }) {
   );
 }
 
+/* ─────────── 메인 컴포넌트 ─────────── */
 export default function BookHistory() {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [openStoryId, setOpenStoryId] = useState(null);
@@ -200,7 +178,7 @@ export default function BookHistory() {
     const merging = new Map();
 
     for (const g of groups) {
-      const slug = toSlugFromAny(g.story_key, g.story_title); // ← 핵심: 과거 한글키 교정
+      const slug = toSlugFromAny(g.story_key, g.story_title);
 
       if (!merging.has(slug)) {
         merging.set(slug, {
@@ -213,7 +191,6 @@ export default function BookHistory() {
       for (const r of (g.records || [])) holder.records.push(rowToCardData(r));
     }
 
-    // 기본 목록(빈 카드 가능) + DB-only 키 추가
     const ordered = baseStories.map((b) => ({
       story_key: b.story_key,
       story_title: b.story_title,
@@ -223,7 +200,6 @@ export default function BookHistory() {
       if (!baseStories.some((b) => b.story_key === slug)) ordered.push(g);
     }
 
-    // 레코드 최신순 정렬
     for (const it of ordered) {
       it.records.sort((a, b) => {
         const ao = Number(a.client_attempt_order || 0);
@@ -238,7 +214,7 @@ export default function BookHistory() {
       console.log("groups(raw)", groups);
       console.log("ordered(final)", ordered);
       console.groupEnd();
-      window.__STR_HISTORY__ = { groups, ordered }; // 콘솔에서 확인용
+      window.__STR_HISTORY__ = { groups, ordered };
     }
 
     return ordered;
@@ -258,13 +234,19 @@ export default function BookHistory() {
         let userKey = userKeyFromQuery || (await ensureUserKey({ retries: 2, delayMs: 150 }));
         if (DEBUG) console.log("[BookHistory] userKey resolved =", userKey);
 
+        // 디버그 변수는 무조건 박자(조기 리턴이어도)
+        window.__STR_HISTORY_RAW__ = { stage: "userKey", userKey };
+
         if (!userKey || userKey === "guest") {
           setGroups([]);
           setLoading(false);
+          window.__STR_HISTORY_RAW__ = { stage: "no-userkey", userKey };
           return;
         }
 
         const cfg = { params: { user_key: userKey }, headers: { "x-user-key": userKey } };
+        if (DEBUG) console.log("[BookHistory] GET /str/history/all", cfg);
+
         const { data } = await API.get(`/str/history/all`, cfg);
 
         if (DEBUG) {
@@ -272,14 +254,16 @@ export default function BookHistory() {
           console.log("status", data?.ok, "groups#", data?.data?.length);
           console.log("data", data);
           console.groupEnd();
-          window.__STR_HISTORY_RAW__ = data;
         }
+        // 성공/실패 상관없이 원본을 전역으로
+        window.__STR_HISTORY_RAW__ = data;
 
         if (data?.ok) setGroups(data.data || []);
         else setGroups([]);
       } catch (err) {
         console.error("history/all 에러:", err);
         setGroups([]);
+        window.__STR_HISTORY_RAW__ = { stage: "error", error: String(err?.message || err) };
       } finally {
         setLoading(false);
       }
