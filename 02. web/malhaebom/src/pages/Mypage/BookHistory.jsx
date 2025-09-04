@@ -4,9 +4,9 @@ import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.7";
+window.__BH_VERSION__ = "BookHistory@v3.8";
 
-// ====== 서버와 동일한 정규화 ======
+// ====== 서버와 동일 정규화 ======
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
   let x = nspace(s);
@@ -220,10 +220,21 @@ function BookHistory(){
     (async ()=>{
       try{
         setLoading(true);
+
+        // URL에 guest 들어온 경우 정리
+        try {
+          const url = new URL(window.location.href);
+          if ((url.searchParams.get("user_key") || "").toLowerCase() === "guest") {
+            url.searchParams.delete("user_key");
+            window.history.replaceState({}, "", url.toString());
+          }
+        } catch (_e) {}
+
         const key = await ensureUserKey({ retries:2, delayMs:150 });
         setUsedUserKey(key || "(cookie only)");
 
-        const cfg = key
+        const isReal = !!key && key.toLowerCase() !== "guest";
+        const cfg = isReal
           ? { params:{ user_key:key, _t: Date.now() }, headers:{ "x-user-key":key } }
           : { params:{ _t: Date.now() } };
 
@@ -247,7 +258,7 @@ function BookHistory(){
     })();
   },[]);
 
-  // 서버에서 넘어온 story_key를 다시 안전 정규화(보수적)
+  // 서버에서 넘어온 story_key를 다시 안전 정규화
   const mergedStories = useMemo(()=>{
     const map = new Map(
       (groups||[]).map(g => {
@@ -266,7 +277,6 @@ function BookHistory(){
         ordered.push({ story_key: slug, story_title: g.story_title || slug, records: g.records || [] });
       }
     }
-    // 회차/최신순
     for (const it of ordered){
       it.records.sort((a,b)=>{
         const ao = Number(a.client_attempt_order||0);

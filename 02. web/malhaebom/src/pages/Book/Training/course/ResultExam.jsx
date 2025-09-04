@@ -7,7 +7,7 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-// ====== 서버와 동일한 정규화 ======
+// ====== 서버와 동일 정규화 ======
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
   let x = nspace(s);
@@ -61,9 +61,6 @@ export default function ResultExam() {
   const navigate = useNavigate();
   const savedOnceRef = useRef(false);
 
-  const query = new URLSearchParams(window.location.search);
-  const userKeyFromUrl = (query.get("user_key") || "").trim();
-
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   useEffect(() => {
@@ -108,11 +105,11 @@ export default function ResultExam() {
   async function saveToBookHistory(resolvedUserKey, axiosCfg = {}) {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
     const title = ntitle(rawTitle);
-    const slug  = toSlugFromAny("", title); // ← ★ 서버와 동일 규칙으로 슬러그 생성
+    const slug  = toSlugFromAny("", title); // 서버와 동일 규칙으로 슬러그 생성
 
     const examResult = {
       storyTitle: title,
-      storyKey: slug,                 // ← ★ 슬러그로 고정
+      storyKey: slug,                 // 슬러그로 고정
       attemptTime: new Date().toISOString(),
       clientKst: nowKstString(),
       score: total,
@@ -147,26 +144,20 @@ export default function ResultExam() {
       if (savedOnceRef.current) return;
       savedOnceRef.current = true;
 
-      let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
-      if (!targetUserKey) targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
-      if (!targetUserKey) {
+      let key = await ensureUserKey({ retries: 3, delayMs: 200 });
+      if (!key) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
       }
 
       try {
-        // 서버의 실제 키 확인
-        let usedKey = targetUserKey;
-        let isAuthed = false;
-        try {
-          const who = await API.get("/str/whoami", { params:{ user_key: targetUserKey } });
-          usedKey = (who?.data?.used || usedKey || "").trim();
-          isAuthed = !!who?.data?.isAuthed;
-        } catch (_e) {}
+        // guest가 아니면 항상 user_key/x-user-key 전송
+        const isReal = !!key && key.toLowerCase() !== "guest";
+        const cfg = isReal
+          ? { params:{ user_key: key }, headers:{ "x-user-key": key } }
+          : {};
 
-        // Bearer/쿠키 인증이 있으면 충돌 방지 위해 추가 전달 X
-        const cfg = isAuthed ? {} : { params:{ user_key: usedKey }, headers:{ "x-user-key": usedKey } };
-        await saveToBookHistory(usedKey, cfg);
+        await saveToBookHistory(key, cfg);
       } catch (error) {
         console.error("검사 결과 저장 오류:", error?.response?.data || error);
         alert("검사 결과 저장 중 오류가 발생했습니다.");

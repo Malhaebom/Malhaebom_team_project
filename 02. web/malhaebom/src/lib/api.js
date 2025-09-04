@@ -53,7 +53,7 @@ function getUserKeyFromUrl() {
 async function getKeyFromWhoAmI() {
   try {
     const { data } = await API.get("/str/whoami");
-    const k = (data?.used || data?.identity?.user_key || "").trim();
+    const k = (data?.identity?.user_key || data?.used || "").trim();
     if (k && k.toLowerCase() !== "guest") return k;
   } catch (_e) {}
   return null;

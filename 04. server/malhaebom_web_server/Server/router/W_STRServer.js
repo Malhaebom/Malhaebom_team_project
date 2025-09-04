@@ -2,6 +2,7 @@
 const express = require("express");
 const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use((req, _res, next) => {
     host: req.headers.host,
     cookie: req.headers.cookie ? "(present)" : "(none)",
     "x-user-key": req.headers["x-user-key"] || "(none)",
+    authorization: req.headers.authorization ? "(present)" : "(none)",
   });
   if (req.method !== "GET") {
     try { console.log("body:", JSON.stringify(req.body, null, 2)); } catch { console.log("body:(unprintable)"); }
@@ -33,46 +35,140 @@ router.use((req, _res, next) => {
   next();
 });
 
-// ───────── 유틸 (동일)
-function safeParseJSON(jsonVal, fallback = null) { /* 생략: 기존 그대로 */ }
+// ───────── 유틸
+function safeParseJSON(jsonVal, fallback = null) {
+  try {
+    if (jsonVal == null) return fallback;
+    if (typeof jsonVal === "object") return jsonVal;
+    const s = String(jsonVal).trim();
+    if (!s) return fallback;
+    const once = JSON.parse(s);
+    if (typeof once === "string") {
+      try { return JSON.parse(once); } catch { return fallback; }
+    }
+    return once ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 const toNumber = (n, d = 0) => (Number.isFinite(Number(n)) ? Number(n) : d);
-const toStrOrNull = (s) => { /* 생략 */ };
+const toStrOrNull = (s) => {
+  if (s == null) return null;
+  const t = String(s).trim();
+  return t ? t : null;
+};
 const pad2 = (n) => String(n).padStart(2, "0");
 const isGuestKey = (k) => !!k && String(k).trim().toLowerCase() === "guest";
-function toUtcSqlDatetime(date) { /* 생략 */ }
-function toKstLabelFromUtcDate(utcDate) { /* 생략 */ }
-function composeUserKey(login_type, login_id) { /* 생략 */ }
-async function deriveUserKeyFromAuth(req) { /* 생략 */ }
 
-// ───────── 제목/슬러그 정규화 (동일)
-function nspace(s){ /* 생략 */ }
-function ntitle(s){ /* 생략 */ }
-function squashSpaces(s="") { /* 생략 */ }
-function normalizeKoTitleCore(s="") { /* 생략 */ }
-const BASE_STORIES = [ /* 생략 */ ];
+function toUtcSqlDatetime(date) {
+  const d = (date instanceof Date) ? date : new Date(date);
+  if (isNaN(d.getTime())) return null;
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth()+1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+}
+function toKstLabelFromUtcDate(utcDate) {
+  const d = (utcDate instanceof Date) ? utcDate : new Date(utcDate);
+  if (isNaN(d.getTime())) return "";
+  const k = new Date(d.getTime() + 9*60*60*1000);
+  return `${k.getFullYear()}년 ${pad2(k.getMonth()+1)}월 ${pad2(k.getDate())}일 ${pad2(k.getHours())}:${pad2(k.getMinutes())}`;
+}
+function composeUserKey(login_type, login_id) {
+  if (!login_type || !login_id) return null;
+  return `${String(login_type).toLowerCase()}:${String(login_id)}`;
+}
+
+// Authorization: Bearer <jwt> 또는 쿠키의 JWT, 또는 헤더/쿼리의 x-user-key / user_key
+async function deriveUserKeyFromAuth(req) {
+  // 1) Authorization Bearer
+  try {
+    const h = req.headers.authorization || "";
+    if (h.startsWith("Bearer ")) {
+      const token = h.slice(7);
+      const p = jwt.verify(token, JWT_SECRET);
+      const { login_type, login_id, uid } = p || {};
+      const keyByType = composeUserKey(login_type, login_id);
+      if (keyByType) return keyByType;
+      if (uid != null) return `uid:${uid}`;
+    }
+  } catch (_e) {}
+
+  // 2) Cookie JWT
+  try {
+    const raw = req.headers.cookie || "";
+    const ck = cookie.parse(raw || "");
+    const t = ck[COOKIE_NAME];
+    if (t) {
+      const p = jwt.verify(t, JWT_SECRET);
+      const { login_type, login_id, uid } = p || {};
+      const keyByType = composeUserKey(login_type, login_id);
+      if (keyByType) return keyByType;
+      if (uid != null) return `uid:${uid}`;
+    }
+  } catch (_e) {}
+
+  // 3) 헤더/쿼리 바디 직접키 (여기까지 오면 신뢰도 보조)
+  const direct = (req.headers["x-user-key"] || req.query.user_key || req.body?.user_key || "").trim();
+  if (direct && direct.toLowerCase() !== "guest") return direct;
+
+  return null;
+}
+
+// ───────── 제목/슬러그 정규화
+function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ntitle(s){
+  let x = nspace(s);
+  x = x.replaceAll("병어리","벙어리");
+  x = x.replaceAll("어머니와","어머니의");
+  x = x.replaceAll("벙어리장갑","벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나","할머니와 바나나");
+  return x;
+}
+function squashSpaces(s="") { return String(s||"").replace(/\s+/g," ").trim(); }
+function normalizeKoTitleCore(s="") { return ntitle(s).replace(/\s+/g,""); }
+
+const BASE_STORIES = [
+  { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
+  { key: "father_wedding", title: "아버지와 결혼식" },
+  { key: "sons_bread",     title: "아들의 호빵" },
+  { key: "grandma_banana", title: "할머니와 바나나" },
+  { key: "kkong_boribap",  title: "꽁당 보리밥" },
+];
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
 const KOCORE_TO_SLUG = new Map(BASE_STORIES.map(b => [normalizeKoTitleCore(b.title), b.key]));
 const LEGACY_SLUG_MAP = new Map([
-  ["kkongdang_boribap","kkong_boribap"],["kkong boribap","kkong_boribap"],["kkongboribap","kkong_boribap"],
+  ["kkongdang_boribap","kkong_boribap"],
+  ["kkong boribap","kkong_boribap"],
+  ["kkongboribap","kkong_boribap"],
 ]);
-function toSlugFromAny(story_key_or_title, story_title_fallback=""){ /* 생략 */ }
 
-// ───────── whoami
+function toSlugFromAny(story_key_or_title, story_title_fallback=""){
+  const raw = String(story_key_or_title || "").trim();
+  const fall = String(story_title_fallback || "").trim();
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
+  if (SLUG_TO_TITLE.has(raw)) return raw;
+  const title = ntitle(raw || fall);
+  const exact = TITLE_TO_SLUG.get(title);
+  if (exact) return exact;
+  const core = normalizeKoTitleCore(title);
+  const byCore = KOCORE_TO_SLUG.get(core);
+  if (byCore) return byCore;
+  return nspace(raw || fall || "story");
+}
+
+// ───────── whoami (서버 기준만 신뢰)
 router.get("/whoami", async (req, res) => {
   try {
     const authedKey = await deriveUserKeyFromAuth(req);
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || "").trim() || null;
     const used = authedKey || claimedKey || null;
-    console.log("[whoami] authedKey:", authedKey, "claimedKey:", claimedKey, "=> used:", used);
-    return res.json({ ok:true, isAuthed:!!authedKey, authedKey, claimedKey, used });
+    return res.json({ ok:true, isAuthed:!!authedKey, authedKey, claimedKey, used, identity: { user_key: used } });
   } catch (e) {
-    console.error("[whoami] error:", e);
     return res.status(500).json({ ok:false, error:"whoami_error", detail:String(e) });
   }
 });
 
-// ───────── 결과 저장
+// ───────── 결과 저장  (story_key=slug 로 고정)
 router.post("/attempt", async (req, res) => {
   let conn;
   try {
@@ -95,24 +191,17 @@ router.post("/attempt", async (req, res) => {
     console.groupEnd();
 
     if (!user_key || isGuestKey(user_key)) {
-      console.warn("[attempt] reject: not_authed");
       return res.status(401).json({ ok:false, error:"not_authed" });
     }
-
     if (!storyKey && !storyTitle) {
-      console.warn("[attempt] reject: missing_storyKey_and_title");
       return res.status(400).json({ ok:false, error:"missing_storyKey_and_title" });
     }
 
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
-    const canonicalTitle = SLUG_TO_SLUG_TO_TITLE_LOG("attempt", slug) || ntitle(storyTitle || storyKey || slug);
-    function SLUG_TO_SLUG_TO_TITLE_LOG(tag, s){
-      const t = SLUG_TO_TITLE.get(s);
-      console.log(`[${tag}] slug:${s} -> title:`, t || "(fallback)");
-      return t;
-    }
+    const titleKo = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
 
-    const dbStoryKey = canonicalTitle;
+    const dbStoryKey   = slug;     // 핵심: slug
+    const dbStoryTitle = titleKo;  // 한글 제목
 
     const utcDate = attemptTime && !isNaN(new Date(attemptTime).getTime())
       ? new Date(attemptTime) : new Date();
@@ -124,7 +213,6 @@ router.post("/attempt", async (req, res) => {
          FROM tb_story_result
         WHERE TRIM(user_key)=TRIM(?)`, [user_key]
     );
-    console.log("[attempt] existing rows for user:", rows.length);
 
     let last_order = 0;
     for (const r of rows) {
@@ -134,20 +222,12 @@ router.post("/attempt", async (req, res) => {
     const nextAttempt = last_order + 1;
 
     const payload = [
-      user_key, dbStoryKey, canonicalTitle, nextAttempt,
+      user_key, dbStoryKey, dbStoryTitle, nextAttempt,
       toNumber(score, 0), toNumber(total, 40),
       clientUtcStr, clientKstLabel,
       JSON.stringify(byCategory || {}), JSON.stringify(byType || {}),
       JSON.stringify(riskBars || {}), JSON.stringify(riskBarsByType || {}),
     ];
-    console.groupCollapsed("[attempt] INSERT values");
-    console.log({
-      user_key, dbStoryKey, canonicalTitle, nextAttempt,
-      score: toNumber(score,0), total: toNumber(total,40),
-      clientUtcStr, clientKstLabel,
-      byCategory, byType, riskBars, riskBarsByType,
-    });
-    console.groupEnd();
 
     await conn.query(
       `INSERT INTO tb_story_result
@@ -232,17 +312,8 @@ router.get("/history/all", async (req, res) => {
       });
     }
 
-    const debug = req.query.debug === "1";
     const data = Array.from(map.values());
-    const resp = { ok:true, data };
-    if (debug) {
-      resp.__debug = {
-        input_primaryKey: primaryKey,
-        raw_rowCount: rows.length,
-        raw_rows_sample: rows.slice(0,5),
-      };
-    }
-    return res.json(resp);
+    return res.json({ ok:true, data });
   } catch (err) {
     console.error("[/str/history/all] error:", err);
     return res.status(500).json({ ok:false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
