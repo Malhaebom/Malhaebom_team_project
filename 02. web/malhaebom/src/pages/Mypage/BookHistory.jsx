@@ -1,8 +1,11 @@
+// web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
+// 로드 확인용 버전 마커
+window.__BH_VERSION__ = "BookHistory@v3";
 
 /** 표준 슬러그/제목(표시는 여기 기준) */
 const baseStories = [
@@ -14,26 +17,6 @@ const baseStories = [
 ];
 
 /* ────────── 유틸 ────────── */
-function normalizeSpace(s){return String(s||"").replace(/\s+/g," ").trim();}
-function normalizeKoreanTitle(s){
-  let x = normalizeSpace(s);
-  x = x.replaceAll("병어리","벙어리");
-  x = x.replaceAll("어머니와","어머니의");
-  x = x.replaceAll("벙어리장갑","벙어리 장갑");
-  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
-  x = x.replaceAll("할머니와바나나","할머니와 바나나");
-  return x;
-}
-const titleToSlugBase = new Map(
-  baseStories.map(b => [normalizeKoreanTitle(b.story_title), b.story_key])
-);
-function toSlugFromAny(story_key_or_title, story_title_fallback=""){
-  const slugToTitle = new Map(baseStories.map(b=>[b.story_key,b.story_title]));
-  if (slugToTitle.has(story_key_or_title)) return story_key_or_title; // 이미 슬러그
-  const t1 = normalizeKoreanTitle(story_key_or_title);
-  const t2 = normalizeKoreanTitle(story_title_fallback);
-  return titleToSlugBase.get(t1) || titleToSlugBase.get(t2) || story_key_or_title;
-}
 function parseSqlUtc(s){
   if(!s) return null;
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
@@ -126,7 +109,7 @@ export default function BookHistory(){
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
 
-  const [groups, setGroups] = useState([]);       // 서버 응답 원본
+  const [groups, setGroups] = useState([]);       // 서버 응답 원본(슬러그 key)
   const [loading, setLoading] = useState(true);
   const [usedUserKey, setUsedUserKey] = useState("");
 
@@ -141,13 +124,12 @@ export default function BookHistory(){
       try{
         setLoading(true);
 
-        // 1) user_key 확보 (실패해도 쿠키만으로 조회 시도)
+        // 1) user_key 확보 (없어도 쿠키만으로 조회 가능)
         const key = await ensureUserKey({ retries:2, delayMs:150 });
         setUsedUserKey(key || "(cookie only)");
 
-        // 2) key가 있으면 params/header 포함, 없으면 쿠키만
+        // 2) key가 있으면 명시 전달
         const cfg = key ? { params:{ user_key:key }, headers:{ "x-user-key":key } } : {};
-
         const { data } = await API.get("/str/history/all", cfg);
 
         if (DEBUG){
@@ -155,7 +137,7 @@ export default function BookHistory(){
           console.log("status", data?.ok, "groups#", data?.data?.length);
           console.log("data", data);
           console.groupEnd();
-          window.__STR_HISTORY_RAW__ = data;
+          window.__STR_HISTORY_RAW__ = data; // ← 콘솔에서 확인 가능
         }
 
         setGroups(data?.ok ? (data.data || []) : []);
@@ -168,34 +150,24 @@ export default function BookHistory(){
     })();
   },[]);
 
-  // 서버 그룹 → 카드용으로 병합(제목 정규화 + DB-only 키 추가)
+  // 서버가 슬러그로 보내주므로 단순 병합
   const mergedStories = useMemo(()=>{
-    const slugToTitle = new Map(baseStories.map(b=>[b.story_key,b.story_title]));
-    const merging = new Map(); // slug -> { story_key, story_title, records: [] }
-
-    for (const g of groups){
-      const slug = toSlugFromAny(g.story_key, g.story_title);
-      if (!merging.has(slug)){
-        merging.set(slug, {
-          story_key: slug,
-          story_title: slugToTitle.get(slug) || normalizeKoreanTitle(g.story_title || slug),
-          records: [],
-        });
-      }
-      const holder = merging.get(slug);
-      for (const r of g.records || []) holder.records.push(rowToCardData(r));
-    }
-
-    const ordered = baseStories.map(b=>({
+    const map = new Map(groups.map(g => [g.story_key, g])); // g.story_key = slug
+    const ordered = baseStories.map(b => ({
       story_key: b.story_key,
       story_title: b.story_title,
-      records: merging.get(b.story_key)?.records || [],
+      records: (map.get(b.story_key)?.records || []).map(rowToCardData),
     }));
-
-    for (const [slug, g] of merging.entries()){
-      if (!baseStories.some(b=>b.story_key===slug)) ordered.push(g);
+    for (const [slug, g] of map.entries()){
+      if (!baseStories.some(b=>b.story_key===slug)){
+        ordered.push({
+          story_key: slug,
+          story_title: g.story_title || slug,
+          records: (g.records || []).map(rowToCardData),
+        });
+      }
     }
-
+    // 회차/최신순 정렬
     for (const it of ordered){
       it.records.sort((a,b)=>{
         const ao = Number(a.client_attempt_order||0);
@@ -204,15 +176,13 @@ export default function BookHistory(){
         return String(b.id).localeCompare(String(a.id));
       });
     }
-
     if (DEBUG){
       console.groupCollapsed("%c[BookHistory] mergedStories","color:#0aa");
       console.log("groups(raw)", groups);
       console.log("ordered(final)", ordered);
       console.groupEnd();
-      window.__STR_HISTORY__ = { groups, ordered };
+      window.__STR_HISTORY__ = { groups, ordered }; // ← 콘솔에서 확인 가능
     }
-
     return ordered;
   },[groups]);
 
@@ -225,7 +195,8 @@ export default function BookHistory(){
 
         {DEBUG && (
           <div style={{ background:"#F3F4F6", border:"1px solid #E5E7EB", borderRadius:8, padding:"8px 10px", marginBottom:12, color:"#374151", fontSize:13 }}>
-            <div><b>DEBUG</b> userKey: {usedUserKey}</div>
+            <div><b>DEBUG</b> version: {window.__BH_VERSION__}</div>
+            <div>userKey: {usedUserKey}</div>
             <div>groups#: {groups?.length || 0}</div>
           </div>
         )}

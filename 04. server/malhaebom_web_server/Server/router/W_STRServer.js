@@ -84,6 +84,33 @@ router.use((req, _res, next) => {
   next();
 });
 
+/* ───── (중요) story_key/제목 정규화: 슬러그 표준화 ───── */
+function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ntitle(s){
+  let x = nspace(s);
+  x = x.replaceAll("병어리","벙어리");
+  x = x.replaceAll("어머니와","어머니의");
+  x = x.replaceAll("벙어리장갑","벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나","할머니와 바나나");
+  return x;
+}
+const BASE_STORIES = [
+  { key: "mother_gloves",     title: "어머니의 벙어리 장갑" },
+  { key: "father_wedding",    title: "아버지와 결혼식" },
+  { key: "sons_bread",        title: "아들의 호빵" },
+  { key: "grandma_banana",    title: "할머니와 바나나" },
+  { key: "kkongdang_boribap", title: "꽁당 보리밥" },
+];
+const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
+const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
+function toSlugFromAny(story_key_or_title, story_title_fallback=""){
+  if (SLUG_TO_TITLE.has(story_key_or_title)) return story_key_or_title; // 이미 슬러그
+  const t1 = ntitle(story_key_or_title);
+  const t2 = ntitle(story_title_fallback);
+  return TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2) || story_key_or_title;
+}
+
 /* 디버그: 내가 인식한 user_key */
 router.get("/whoami", async (req, res) => {
   const authedKey = await deriveUserKeyFromAuth(req);
@@ -96,6 +123,72 @@ router.get("/whoami", async (req, res) => {
   });
 });
 
+/* 테스트 데이터 추가 (개발용) 그대로 사용 가능 */
+router.post("/test-data", async (req, res) => {
+  try {
+    const { user_key = "test_user" } = req.body;
+
+    const testData = [
+      {
+        user_key,
+        story_key: "mother_gloves",
+        story_title: "어머니의 벙어리 장갑",
+        client_attempt_order: 1,
+        score: 32,
+        total: 40,
+        client_utc: toUtcSqlDatetime(new Date()),
+        client_kst: "2024-01-15 14:30:00",
+        by_category: JSON.stringify({ B: { correct: 3 }, C: { correct: 4 }, D: { correct: 4 } }),
+        by_type: JSON.stringify({ "직접화행": { correct: 4 }, "간접화행": { correct: 4 } }),
+        risk_bars: JSON.stringify({ A: 8, AI: 8, B: 6, C: 8, D: 8 }),
+        risk_bars_by_type: JSON.stringify({ "직접화행": 0.2, "간접화행": 0.2 })
+      },
+      {
+        user_key,
+        story_key: "father_wedding",
+        story_title: "아버지와 결혼식",
+        client_attempt_order: 1,
+        score: 28,
+        total: 40,
+        client_utc: toUtcSqlDatetime(new Date(Date.now() - 86400000)),
+        client_kst: "2024-01-14 10:15:00",
+        by_category: JSON.stringify({ B: { correct: 3 }, C: { correct: 3 }, D: { correct: 4 } }),
+        by_type: JSON.stringify({ "직접화행": { correct: 4 }, "간접화행": { correct: 3 } }),
+        risk_bars: JSON.stringify({ A: 8, AI: 6, B: 6, C: 6, D: 8 }),
+        risk_bars_by_type: JSON.stringify({ "직접화행": 0.2, "간접화행": 0.4 })
+      }
+    ];
+
+    for (const data of testData) {
+      await pool.query(
+        `INSERT INTO tb_story_result
+         (user_key, story_key, story_title, client_attempt_order, score, total, client_utc, client_kst,
+          by_category, by_type, risk_bars, risk_bars_by_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          data.user_key,
+          data.story_key,
+          data.story_title,
+          data.client_attempt_order,
+          data.score,
+          data.total,
+          data.client_utc,
+          data.client_kst,
+          data.by_category,
+          data.by_type,
+          data.risk_bars,
+          data.risk_bars_by_type,
+        ]
+      );
+    }
+
+    res.json({ ok: true, message: "테스트 데이터가 추가되었습니다.", user_key });
+  } catch (err) {
+    console.error("[/str/test-data] error:", err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
   let conn;
@@ -105,8 +198,8 @@ router.post("/attempt", async (req, res) => {
     const {
       storyTitle,
       storyKey,
-      attemptTime,     // ISO string 기대 (없을 수 있음)
-      clientKst,       // 표시용 문자열 (선택)
+      attemptTime,
+      clientKst,
       score,
       total,
       byCategory = {},
@@ -121,7 +214,7 @@ router.post("/attempt", async (req, res) => {
     // 2) 쿼리/헤더/바디 주장값
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
-    // 규칙: 쿠키가 있으면 쿠키 사용(다르면 403). 없으면 claimedKey(guest 금지) 사용.
+    // 규칙: 쿠키 있으면 쿠키 사용(다르면 403), 없으면 claimedKey(guest 금지) 사용
     let user_key = null;
     if (authedKey) {
       if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
@@ -139,6 +232,10 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
+    // ★ 입력값을 표준화: 슬러그/제목 확정
+    const slug = toSlugFromAny(storyKey, storyTitle);
+    const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
+
     // client_utc(NOT NULL) 보정
     let clientUtcStr;
     if (attemptTime) {
@@ -148,16 +245,21 @@ router.post("/attempt", async (req, res) => {
       clientUtcStr = toUtcSqlDatetime(new Date());
     }
 
-    // 다음 회차 계산 (user_key, story_key 별)
-    const [lastRows] = await conn.query(
-      `SELECT COALESCE(MAX(client_attempt_order), 0) AS last_order
+    // ★ 다음 회차: 유저의 모든 결과 중 slug로 환산해 비교(과거 한글키 포함)
+    const [rows] = await conn.query(
+      `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
-        WHERE TRIM(user_key)=TRIM(?) AND story_key=?`,
-      [user_key, storyKey]
+        WHERE TRIM(user_key)=TRIM(?)`,
+      [user_key]
     );
-    const nextAttempt = Number(lastRows?.[0]?.last_order || 0) + 1;
-
-    const story_title = storyTitle || storyKey;
+    let last_order = 0;
+    for (const r of rows) {
+      const rslug = toSlugFromAny(r.story_key, r.story_title);
+      if (rslug === slug) {
+        last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
+      }
+    }
+    const nextAttempt = last_order + 1;
 
     await conn.query(
       `INSERT INTO tb_story_result
@@ -166,8 +268,8 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        storyKey,
-        story_title,
+        slug,                       // ← 슬러그로 저장
+        canonicalTitle,             // ← 표준 제목으로 저장
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
@@ -180,7 +282,7 @@ router.post("/attempt", async (req, res) => {
       ]
     );
 
-    return res.json({ ok: true, user_key, story_key: storyKey, attempt_order: nextAttempt });
+    return res.json({ ok: true, user_key, story_key: slug, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
     return res.status(500).json({
@@ -208,21 +310,20 @@ router.get("/history/all", async (req, res) => {
              client_utc, client_kst, by_category, by_type, risk_bars, risk_bars_by_type
         FROM tb_story_result
        WHERE TRIM(user_key)=TRIM(?)
-       ORDER BY story_key ASC, client_utc DESC, id DESC
+       ORDER BY client_utc DESC, id DESC
     `;
     const [rows] = await pool.query(sql, [user_key]);
 
-    const map = new Map();
+    // ★ 서버에서 슬러그로 그룹핑(과거 한글키도 흡수)
+    const map = new Map(); // slug -> group
     for (const r of rows) {
-      const sk = r.story_key || "(unknown)";
-      if (!map.has(sk)) {
-        map.set(sk, {
-          story_key: r.story_key,
-          story_title: toStrOrNull(r.story_title),
-          records: [],
-        });
+      const slug  = toSlugFromAny(r.story_key, r.story_title);
+      const title = SLUG_TO_TITLE.get(slug) || ntitle(r.story_title || slug);
+
+      if (!map.has(slug)) {
+        map.set(slug, { story_key: slug, story_title: title, records: [] });
       }
-      map.get(sk).records.push({
+      map.get(slug).records.push({
         id: r.id,
         client_kst: toStrOrNull(r.client_kst),
         client_utc: toStrOrNull(r.client_utc),
