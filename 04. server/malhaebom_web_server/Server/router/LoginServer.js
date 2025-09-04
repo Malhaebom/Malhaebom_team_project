@@ -38,13 +38,12 @@ const pool = mysql.createPool({
  * 캐시 방지(이 라우터 전역)
  * ========================= */
 router.use((req, res, next) => {
-  // 홈/마이페이지의 /me 결과가 304로 굳지 않도록 절대 캐시 금지
   res.set({
     "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
     "Pragma": "no-cache",
     "Expires": "0",
     "Surrogate-Control": "no-store",
-    "Vary": "Cookie", // 쿠키 유무에 따라 응답 달라짐
+    "Vary": "Cookie",
   });
   next();
 });
@@ -55,7 +54,6 @@ router.use((req, res, next) => {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-
 function setAuthCookie(res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
@@ -65,7 +63,6 @@ function setAuthCookie(res, token) {
     path    : "/",
   });
 }
-
 function clearAuthCookie(res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
@@ -73,6 +70,10 @@ function clearAuthCookie(res) {
     sameSite: "lax",
     path    : "/",
   });
+}
+function composeUserKey(login_type, login_id) {
+  if (!login_type || !login_id) return null;
+  return login_type === "local" ? String(login_id) : `${login_type}:${login_id}`;
 }
 
 /* =========================
@@ -109,13 +110,13 @@ router.post("/login", async (req, res) => {
     const token = sign({ uid: u.user_id, typ: "local" });
     setAuthCookie(res, token);
 
-    // 로그인 응답도 캐시되면 안 됨(전역 미들웨어로 이미 설정됨)
     return res.json({
       ok: true,
       userId: u.user_id,
       loginId: u.login_id,
       nick: u.nick,
       loginType: "local",
+      userKey: composeUserKey("local", u.login_id),
       cookie: { name: COOKIE_NAME, secure: SECURE_COOKIE, sameSite: "lax" },
     });
   } catch (err) {
@@ -141,7 +142,6 @@ router.get("/me", async (req, res) => {
     const token = req.cookies?.[COOKIE_NAME];
 
     if (!token) {
-      // 쿠키 없으면 비인증
       return res.json({ ok: false, isAuthed: false });
     }
 
@@ -166,6 +166,7 @@ router.get("/me", async (req, res) => {
     }
 
     const u = rows[0];
+    const userKey = composeUserKey(u.login_type, u.login_id);
     return res.json({
       ok: true,
       isAuthed: true,
@@ -173,6 +174,7 @@ router.get("/me", async (req, res) => {
       userId: u.user_id,
       loginId: u.login_id,
       nick: u.nick,
+      userKey,
     });
   } catch (err) {
     console.error("[/userLogin/me] error:", err);

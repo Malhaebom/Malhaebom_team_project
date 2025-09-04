@@ -1,7 +1,13 @@
+// Server/router/STRouter.js
 const express = require("express");
 const mysql = require("mysql2/promise");
+const jwt = require("jsonwebtoken");
 
 const router = express.Router();
+
+/* ==== 공통 ENV / DB ==== */
+const JWT_SECRET  = process.env.JWT_SECRET  || "malhaebom_sns";
+const COOKIE_NAME = process.env.COOKIE_NAME || "mb_access";
 
 const DB_CONFIG = {
   host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
@@ -16,6 +22,7 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+/* ==== 유틸 ==== */
 function safeParseJSON(jsonStr, fallback = null) {
   try {
     if (jsonStr == null) return fallback;
@@ -31,6 +38,32 @@ const toStrOrNull = (s) => {
   const v = String(s).trim();
   return v.length ? v : null;
 };
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function composeUserKey(login_type, login_id) {
+  if (!login_type || !login_id) return null;
+  return login_type === "local" ? String(login_id) : `${login_type}:${login_id}`;
+}
+
+async function deriveUserKeyFromAuth(req) {
+  try {
+    const token = req.cookies?.[COOKIE_NAME];
+    if (!token) return null;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const [rows] = await pool.query(
+      `SELECT login_id, login_type
+         FROM tb_user
+        WHERE user_id = ?
+        LIMIT 1`,
+      [decoded.uid]
+    );
+    if (!rows.length) return null;
+    const { login_id, login_type } = rows[0];
+    return composeUserKey(login_type, login_id);
+  } catch (e) {
+    return null;
+  }
+}
 
 router.use((req, _res, next) => {
   if (process.env.NODE_ENV !== "production") {
@@ -39,7 +72,7 @@ router.use((req, _res, next) => {
   next();
 });
 
-// 결과 저장 (POST)
+/* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
   const conn = await pool.getConnection();
   try {
@@ -54,15 +87,22 @@ router.post("/attempt", async (req, res) => {
       byType = {},
       riskBars = {},
       riskBarsByType = {},
-      user_key: bodyUserKey
+      user_key: bodyUserKey,
     } = req.body || {};
 
-    // user_key를 명확하게 받음 (query > body > 없음)
-    const user_key = (req.query.user_key || bodyUserKey || "").trim();
+    // 1) 인증 쿠키로 우선 도출
+    const authedKey = await deriveUserKeyFromAuth(req);
 
-    // user_key가 없거나 guest면 저장하지 않음
+    // 2) 하위호환: 쿼리/바디에 온 값 (하지만 authedKey가 있으면 반드시 같아야 함)
+    const claimedKey = (req.query.user_key || bodyUserKey || "").trim() || null;
+
+    let user_key = authedKey || claimedKey;
+
     if (!user_key || user_key === "guest") {
-      return res.status(400).json({ ok: false, error: "로그인된 사용자만 저장 가능합니다." });
+      return res.status(401).json({ ok: false, error: "not_authed", detail: "로그인된 사용자만 저장 가능합니다." });
+    }
+    if (authedKey && claimedKey && authedKey !== claimedKey) {
+      return res.status(403).json({ ok: false, error: "mismatched_user_key" });
     }
     if (!storyKey || !attemptTime) {
       return res.status(400).json({ ok: false, error: "missing storyKey or attemptTime" });
@@ -77,7 +117,6 @@ router.post("/attempt", async (req, res) => {
     const nextAttempt = Number(r?.[0]?.last_order || 0) + 1;
 
     const utc = new Date(attemptTime);
-    const pad = (n) => String(n).padStart(2, "0");
     const client_utc =
       isNaN(utc.getTime())
         ? null
@@ -97,8 +136,8 @@ router.post("/attempt", async (req, res) => {
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
-        client_utc,
-        toStrOrNull(clientKst),
+        client_utc,                          // DATETIME 'YYYY-MM-DD HH:mm:ss'
+        toStrOrNull(clientKst),              // 문자열(KST 표기 저장 원하면 여기 사용)
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -115,11 +154,18 @@ router.post("/attempt", async (req, res) => {
   }
 });
 
-// ====== 유저 전체 히스토리(동화별 그룹) ======
+/* ==== 유저 전체 히스토리(동화별 그룹) ==== */
 router.get("/history/all", async (req, res) => {
-  const { user_key } = req.query;
-  if (!user_key) return res.status(400).json({ ok: false, error: "missing user_key" });
   try {
+    // 1) 쿼리 우선(관리용), 없으면 2) 인증 쿠키에서 도출
+    let user_key = (req.query.user_key || "").trim();
+    if (!user_key) {
+      user_key = await deriveUserKeyFromAuth(req);
+    }
+    if (!user_key) {
+      return res.status(401).json({ ok: false, error: "not_authed" });
+    }
+
     const sql = `
       SELECT id, user_key, story_key, story_title,
              client_attempt_order, score, total,
