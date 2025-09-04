@@ -113,7 +113,6 @@ function ntitle(s){
   return x;
 }
 
-// 표준 슬러그(짧은 키) 사용
 const BASE_STORIES = [
   { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
   { key: "father_wedding", title: "아버지와 결혼식" },
@@ -123,19 +122,14 @@ const BASE_STORIES = [
 ];
 const TITLE_TO_SLUG = new Map(BASE_STORIES.map(b => [ntitle(b.title), b.key]));
 const SLUG_TO_TITLE = new Map(BASE_STORIES.map(b => [b.key, b.title]));
-// 레거시 → 표준
 const LEGACY_SLUG_MAP = new Map([
-  ["kkongdang_boribap", "kkong_boribap"],
-]);
-// 저장 전용: 표준 → 레거시(ENUM 호환)
-const STORAGE_SLUG_MAP = new Map([
-  ["kkong_boribap", "kkongdang_boribap"],
+  ["kkongdang_boribap", "kkong_boribap"], // old → new
 ]);
 
 function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   const raw = String(story_key_or_title || "").trim();
-  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw); // old→new
-  if (SLUG_TO_TITLE.has(raw)) return raw;                         // already new
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
+  if (SLUG_TO_TITLE.has(raw)) return raw;
   const t1 = ntitle(story_key_or_title);
   const t2 = ntitle(story_title_fallback);
   const byTitle = TITLE_TO_SLUG.get(t1) || TITLE_TO_SLUG.get(t2);
@@ -144,18 +138,6 @@ function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   if (LEGACY_SLUG_MAP.has(t2)) return LEGACY_SLUG_MAP.get(t2);
   return raw;
 }
-
-/* 디버그: 내가 인식한 user_key */
-router.get("/whoami", async (req, res) => {
-  const authedKey = await deriveUserKeyFromAuth(req);
-  const claimedKey = (req.query.user_key || req.headers["x-user-key"] || req.body?.user_key || "").trim();
-  res.json({
-    ok: true,
-    authedKey: authedKey || null,
-    claimedKey: claimedKey || null,
-    used: authedKey || (!isGuestKey(claimedKey) ? claimedKey || null : null),
-  });
-});
 
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
@@ -176,45 +158,40 @@ router.post("/attempt", async (req, res) => {
       user_key: bodyUserKey,
     } = req.body || {};
 
-    // 인증 키 결정
+    // 인증
     const authedKey = await deriveUserKeyFromAuth(req);
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
-
     let user_key = null;
     if (authedKey) {
-      if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
+      if (claimedKey && String(claimedKey).toLowerCase() !== "guest" && claimedKey !== authedKey) {
         return res.status(403).json({ ok: false, error: "mismatched_user_key" });
       }
       user_key = authedKey;
     } else {
-      if (!claimedKey || isGuestKey(claimedKey)) {
+      if (!claimedKey || String(claimedKey).toLowerCase() === "guest") {
         return res.status(401).json({ ok: false, error: "not_authed", detail: "로그인된 사용자만 저장 가능합니다." });
       }
       user_key = claimedKey;
     }
 
-    // storyKey/Title 최소 한쪽은 필요
     if (!storyKey && !storyTitle) {
       return res.status(400).json({ ok: false, error: "missing_storyKey_and_title" });
     }
 
-    // 표준화(표시는 표준), 저장은 ENUM 호환용 레거시 키로
+    // 표준화: 슬러그(표시/비교용), 한글 제목(저장용)
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
-    const dbSlug = STORAGE_SLUG_MAP.get(slug) || slug; // ← 저장용
+
+    // ★★★ 저장은 앱과 동일하게 '한글 제목'을 story_key로 사용 ★★★
+    const dbStoryKey = canonicalTitle;
 
     // 시간
-    const utcDate = (() => {
-      if (attemptTime) {
-        const t = new Date(attemptTime);
-        return isNaN(t.getTime()) ? new Date() : t;
-      }
-      return new Date();
-    })();
+    const utcDate = attemptTime && !isNaN(new Date(attemptTime).getTime())
+      ? new Date(attemptTime) : new Date();
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
     const clientKstLabel = toKstLabelFromUtcDate(utcDate);
 
-    // 다음 회차 계산
+    // 다음 회차(슬러그 기준 비교)
     const [rows] = await conn.query(
       `SELECT story_key, story_title, client_attempt_order
          FROM tb_story_result
@@ -223,10 +200,8 @@ router.post("/attempt", async (req, res) => {
     );
     let last_order = 0;
     for (const r of rows) {
-      const rslug = toSlugFromAny(r.story_key, r.story_title);
-      if (rslug === slug) {
-        last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
-      }
+      const rslug = toSlugFromAny(r.story_key, r.story_title); // DB에 한글/옛키/슬러그 어떤 형태든 흡수
+      if (rslug === slug) last_order = Math.max(last_order, Number(r.client_attempt_order || 0));
     }
     const nextAttempt = last_order + 1;
 
@@ -237,7 +212,7 @@ router.post("/attempt", async (req, res) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         user_key,
-        dbSlug,                // ← 저장은 레거시 키
+        dbStoryKey,                // ← 한글 제목으로 저장 (앱과 동일)
         canonicalTitle,
         nextAttempt,
         toNumber(score, 0),
@@ -254,11 +229,7 @@ router.post("/attempt", async (req, res) => {
     return res.json({ ok: true, user_key, story_key: slug, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.code || "db_error",
-      detail: err.sqlMessage || String(err),
-    });
+    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
   } finally {
     if (conn) conn.release();
   }

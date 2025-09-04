@@ -117,52 +117,43 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
-  async function saveToBookHistory(resolvedUserKey) {
-    const rawTitle = localStorage.getItem("bookTitle") || "동화";
-    const title = ntitle(rawTitle);
+async function saveToBookHistory(resolvedUserKey) {
+  const rawTitle = localStorage.getItem("bookTitle") || "동화";
+  const title = ntitle(rawTitle);              // "꽁당 보리밥" 형태
 
-    // 저장용 storyKey (localStorage 우선 → 제목 매핑 → 레거시치환)
-    const lsKey = (localStorage.getItem("storyKey") || "").trim();
-    const storyKeyCandidate = lsKey || TITLE_TO_KEY[title] || "";
-    const storyKeyStd = toSlugOnClient(storyKeyCandidate, title);
-    const storyKeySend = toStorageSlug(storyKeyStd);
+  // (슬러그는 화면/정렬용일 뿐, 전송키는 제목으로 통일)
+  const examResult = {
+    storyTitle: title,
+    storyKey: title,                           // ← 여기만 변경!
+    attemptTime: new Date().toISOString(),
+    clientKst: nowKstString(),
+    score: total,
+    total: 40,
+    byCategory: {
+      A:  { correct: Number(scoreAD), total: 4 },
+      AI: { correct: Number(scoreAI), total: 4 },
+      B:  { correct: Number(scoreB),  total: 4 },
+      C:  { correct: Number(scoreC),  total: 4 },
+      D:  { correct: Number(scoreD),  total: 4 },
+    },
+    byType: {},
+    riskBars: {
+      A:  Number(scoreAD) * 2,
+      AI: Number(scoreAI) * 2,
+      B:  Number(scoreB)  * 2,
+      C:  Number(scoreC)  * 2,
+      D:  Number(scoreD)  * 2,
+    },
+    riskBarsByType: {},
+  };
 
-    const examResult = {
-      storyTitle: title,
-      storyKey: storyKeySend,          // ← 서버 ENUM 호환
-      attemptTime: new Date().toISOString(),
-      clientKst: nowKstString(),
-      score: total,
-      total: 40,
-      byCategory: {
-        A:  { correct: Number(scoreAD), total: 4 },
-        AI: { correct: Number(scoreAI), total: 4 },
-        B:  { correct: Number(scoreB),  total: 4 },
-        C:  { correct: Number(scoreC),  total: 4 },
-        D:  { correct: Number(scoreD),  total: 4 },
-      },
-      byType: {},
-      riskBars: {
-        A:  Number(scoreAD) * 2,
-        AI: Number(scoreAI) * 2,
-        B:  Number(scoreB)  * 2,
-        C:  Number(scoreC)  * 2,
-        D:  Number(scoreD)  * 2,
-      },
-      riskBarsByType: {},
-    };
-
-    const cfg = {
-      params:  { user_key: resolvedUserKey },
-      headers: { "x-user-key": resolvedUserKey },
-    };
-
-    const { data } = await API.post("/str/attempt", examResult, cfg);
-    if (!data?.ok) {
-      console.error("검사 결과 저장 실패:", data);
-      alert("검사 결과 저장에 실패했습니다.");
-    }
+  const cfg = { params:{ user_key: resolvedUserKey }, headers:{ "x-user-key": resolvedUserKey } };
+  const { data } = await API.post("/str/attempt", examResult, cfg);
+  if (!data?.ok) {
+    console.error("검사 결과 저장 실패:", data);
+    alert("검사 결과 저장에 실패했습니다.");
   }
+}
 
   useEffect(() => {
     (async () => {
