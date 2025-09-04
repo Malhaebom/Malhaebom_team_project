@@ -5,6 +5,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
 const cookieParser = require("cookie-parser");
+const { createProxyMiddleware } = require("http-proxy-middleware"); // ★ 프록시 미들웨어
 
 // ✅ 라우터
 const loginRouter = require("./router/LoginServer.js");
@@ -28,6 +29,9 @@ const FIXED_ORIGIN = "http://211.188.63.38:4000";
 // SERVER_ORIGIN / PUBLIC_BASE_URL 을 고정값으로 덮어씁니다.
 const SERVER_ORIGIN = FIXED_ORIGIN;
 const PUBLIC_BASE_URL = FIXED_ORIGIN;
+
+// ★ 게이트웨이 파이썬 서버(내부) 주소 — 기본 127.0.0.1:4100
+const GW_TARGET = process.env.GW_TARGET || "http://127.0.0.1:4010";
 
 // 프록시 신뢰(로드밸런서/ngrok 뒤에서 HTTPS 감지)
 app.set("trust proxy", true);
@@ -115,6 +119,32 @@ app.get("/auth/meta", (_req, res) => {
 });
 
 /* =========================
+ * /gw 프록시 (→ 127.0.0.1:4010)
+ * ========================= */
+// 반드시 라우터보다 "위"에 두세요(404 전에 매칭되도록)
+app.use(
+  "/gw",
+  createProxyMiddleware({
+    target: GW_TARGET,              // 내부 게이트웨이
+    changeOrigin: true,
+    pathRewrite: { "^/gw": "" },    // /gw/ir/analyze → /ir/analyze
+    xfwd: true,                     // X-Forwarded-* 헤더 추가
+    logLevel: "warn",
+    proxyTimeout: 120000,           // 게이트웨이 응답 대기(120s)
+    timeout: 120000,                // 소켓 타임아웃(120s)
+    onProxyReq(proxyReq, req) {
+      console.log(`[GW] ${req.method} ${req.originalUrl} -> ${GW_TARGET}`);
+    },
+    onError(err, req, res) {
+      console.error("[GW] proxy error:", err?.message);
+      if (!res.headersSent) {
+        res.status(502).json({ ok: false, error: "BadGateway", message: "gateway proxy error" });
+      }
+    },
+  })
+);
+
+/* =========================
  * 라우터 마운트
  * ========================= */
 app.use("/userLogin", loginRouter);
@@ -145,6 +175,7 @@ app.listen(PORT, HOST, () => {
   console.log(`Health check: ${SERVER_ORIGIN}/ping`);
   console.log(`OAuth redirect base: ${PUBLIC_BASE_URL}`);
   console.log(`CORS allowed: ${ALLOWED_ORIGINS.join(", ")}`);
+  console.log(`GW proxy → ${GW_TARGET} (mount: /gw)`);
 });
 
 process.on("SIGINT", () => {
