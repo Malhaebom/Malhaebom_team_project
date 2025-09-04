@@ -1,22 +1,13 @@
-// routes/str.js
+// Server/router/str.js
 const express = require("express");
-const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
 const cookie = require("cookie");
+const pool = require("./db");
 
 const router = express.Router();
 
 const JWT_SECRET  = process.env.JWT_SECRET  || "malhaebom_sns";
 const COOKIE_NAME = process.env.COOKIE_NAME || "mb_access";
-
-const DB_CONFIG = {
-  host    : process.env.DB_HOST     || "project-db-campus.smhrd.com",
-  port    : Number(process.env.DB_PORT || 3307),
-  user    : process.env.DB_USER     || "campus_25SW_BD_p3_3",
-  password: process.env.DB_PASSWORD || "smhrd3",
-  database: process.env.DB_NAME     || "campus_25SW_BD_p3_3",
-};
-const pool = mysql.createPool({ ...DB_CONFIG, waitForConnections:true, connectionLimit:10 });
 
 // ───────── 공통 로그 미들웨어
 router.use((req, _res, next) => {
@@ -71,45 +62,36 @@ function toKstLabelFromUtcDate(utcDate) {
   const k = new Date(d.getTime() + 9*60*60*1000);
   return `${k.getFullYear()}년 ${pad2(k.getMonth()+1)}월 ${pad2(k.getDate())}일 ${pad2(k.getHours())}:${pad2(k.getMinutes())}`;
 }
-function composeUserKey(login_type, login_id) {
-  if (!login_type || !login_id) return null;
-  return `${String(login_type).toLowerCase()}:${String(login_id)}`;
-}
 
-// Authorization: Bearer <jwt> 또는 쿠키의 JWT, 또는 헤더/쿼리의 x-user-key / user_key
+// Authorization 우선순위: x-user-key → JWT(Authorization) → JWT(Cookie) → query/body
 async function deriveUserKeyFromAuth(req) {
-  // 1) Authorization Bearer
+  // 1) 명시 헤더(최우선) — 이미 로그인 아이디 형태로 온다고 가정
+  const explicit = (req.headers["x-user-key"] || "").trim();
+  if (explicit) return explicit;
+
+  // 2) Authorization: Bearer <jwt>
   try {
     const h = req.headers.authorization || "";
     if (h.startsWith("Bearer ")) {
-      const token = h.slice(7);
-      const p = jwt.verify(token, JWT_SECRET);
-      const { login_type, login_id, uid } = p || {};
-      const keyByType = composeUserKey(login_type, login_id);
-      if (keyByType) return keyByType;
-      if (uid != null) return `uid:${uid}`;
+      const p = jwt.verify(h.slice(7), JWT_SECRET);
+      if (p?.login_id) return String(p.login_id);
     }
-  } catch (_e) {}
+  } catch {}
 
-  // 2) Cookie JWT
+  // 3) Cookie JWT
   try {
     const raw = req.headers.cookie || "";
     const ck = cookie.parse(raw || "");
-    const t = ck[COOKIE_NAME];
+    const t  = ck[COOKIE_NAME];
     if (t) {
       const p = jwt.verify(t, JWT_SECRET);
-      const { login_type, login_id, uid } = p || {};
-      const keyByType = composeUserKey(login_type, login_id);
-      if (keyByType) return keyByType;
-      if (uid != null) return `uid:${uid}`;
+      if (p?.login_id) return String(p.login_id);
     }
-  } catch (_e) {}
+  } catch {}
 
-  // 3) 헤더/쿼리 바디 직접키 (여기까지 오면 신뢰도 보조)
-  const direct = (req.headers["x-user-key"] || req.query.user_key || req.body?.user_key || "").trim();
-  if (direct && direct.toLowerCase() !== "guest") return direct;
-
-  return null;
+  // 4) query/body 백업
+  const fallback = (req.query.user_key || req.body?.user_key || "").trim();
+  return fallback || null;
 }
 
 // ───────── 제목/슬러그 정규화
@@ -156,7 +138,7 @@ function toSlugFromAny(story_key_or_title, story_title_fallback=""){
   return nspace(raw || fall || "story");
 }
 
-// ───────── whoami (서버 기준만 신뢰)
+// ───────── whoami
 router.get("/whoami", async (req, res) => {
   try {
     const authedKey = await deriveUserKeyFromAuth(req);
@@ -168,7 +150,7 @@ router.get("/whoami", async (req, res) => {
   }
 });
 
-// ───────── 결과 저장  (story_key=slug 로 고정)
+// ───────── 결과 저장
 router.post("/attempt", async (req, res) => {
   let conn;
   try {
@@ -200,8 +182,8 @@ router.post("/attempt", async (req, res) => {
     const slug = toSlugFromAny(storyKey || "", storyTitle || "");
     const titleKo = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey || slug);
 
-    const dbStoryKey   = slug;     // 핵심: slug
-    const dbStoryTitle = titleKo;  // 한글 제목
+    const dbStoryKey   = slug;
+    const dbStoryTitle = titleKo;
 
     const utcDate = attemptTime && !isNaN(new Date(attemptTime).getTime())
       ? new Date(attemptTime) : new Date();
@@ -279,13 +261,6 @@ router.get("/history/all", async (req, res) => {
     console.log("rowCount:", rows.length);
     console.log("sample[0..2]:", rows.slice(0,3));
     console.groupEnd();
-
-    // 컬럼 타입 확인 로그
-    if (rows[0]) {
-      const r = rows[0];
-      const types = Object.fromEntries(Object.entries(r).map(([k,v]) => [k, v===null?"null":typeof v]));
-      console.log("[history/all] typeof first row:", types);
-    }
 
     if ((!rows || rows.length === 0) && authedKey && claimedKey && authedKey !== claimedKey) {
       console.warn("[history/all] 0 rows with primaryKey, retry authedKey");
