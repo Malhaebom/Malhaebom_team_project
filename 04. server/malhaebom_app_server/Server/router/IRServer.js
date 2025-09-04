@@ -193,7 +193,6 @@ router.post("/attempt", async (req, res) => {
     const {
       attemptTime, clientKst,
       interviewTitle, title,
-      attemptOrder, clientRound,
       score, total,
       byCategory,
       riskBars,
@@ -204,30 +203,81 @@ router.post("/attempt", async (req, res) => {
     const clientUtc = new Date(attemptTime);
     if (isNaN(clientUtc.getTime())) return res.status(400).json({ ok: false, error: "invalid attemptTime" });
 
+    const normalizedTitle = normalizeTitle(interviewTitle || title || "");
     const rb = riskBars || computeRiskBars(byCategory || {});
     const mysqlClientUtc = isoToMysqlDatetime(clientUtc.toISOString());
     if (!mysqlClientUtc) return res.status(400).json({ ok: false, error: "invalid attemptTime (to mysql)" });
 
-    const sql = `
-      INSERT INTO tb_interview_result
-      (user_key, client_round, title, score, total, client_utc, client_kst, risk_bars)
-      VALUES
-      (:user_key, :client_round, :title, :score, :total, :client_utc, :client_kst, :risk_bars)
-    `;
-    const params = {
-      user_key: idn.ok ? idn.user_key : "guest",
-      client_round: (attemptOrder ?? clientRound) ?? null,
-      title: normalizeTitle(interviewTitle || title || ""),
-      score: Number(score ?? 0),
-      total: Number(total ?? 0),
-      client_utc: mysqlClientUtc,
-      client_kst: clientKst || formatKst(clientUtc),
-      risk_bars: JSON.stringify(rb || {}),
-    };
+    const user_key = idn.ok ? idn.user_key : "guest";
 
     const conn = await pool.getConnection();
     try {
-      const [ret] = await conn.execute(sql, params);
+      // ➊ 동일 시도 존재하면 그대로 반환 (idempotent)
+      const [dupRows] = await conn.execute(
+        `SELECT id, user_key, client_round, title, score, total,
+                client_utc, client_kst, risk_bars, created_at
+           FROM tb_interview_result
+          WHERE user_key = :user_key
+            AND title    = :title
+            AND client_utc = :client_utc
+          LIMIT 1`,
+        { user_key, title: normalizedTitle, client_utc: mysqlClientUtc }
+      );
+
+      if (dupRows.length) {
+        const row = dupRows[0];
+        const risk = safeParseJSON(row.risk_bars, {});
+        const byCatRestored = barsToCategoryStats(risk);
+        const serverOrder = await computeServerOrder(conn, {
+          user_key: row.user_key,
+          client_utc: row.client_utc,
+          id: row.id,
+        });
+        const saved = {
+          title: row.title,
+          interviewTitle: row.title,
+          clientRound: row.client_round,
+          clientAttemptOrder: row.client_round,
+          score: Number(row.score ?? 0),
+          total: Number(row.total ?? 0),
+          attemptTime: new Date(row.client_utc).toISOString(),
+          clientKst: row.client_kst || formatKst(new Date(row.client_utc)),
+          riskBars: risk,
+          byCategory: byCatRestored,
+          serverAttemptOrder: serverOrder,
+          createdAt: row.created_at,
+          deduped: true, // ★ 중복 차단됨 표시
+        };
+        return res.json({ ok: true, saved });
+      }
+
+      // ➋ 회차는 서버가 결정 (클라 값 무시)
+      const [nextRows] = await conn.execute(
+        `SELECT COALESCE(MAX(client_round), 0) + 1 AS next
+           FROM tb_interview_result
+          WHERE user_key = :user_key AND title = :title`,
+        { user_key, title: normalizedTitle }
+      );
+      const nextRound = Number(nextRows?.[0]?.next ?? 1);
+
+      // ➌ INSERT
+      const [ret] = await conn.execute(
+        `INSERT INTO tb_interview_result
+           (user_key, client_round, title, score, total, client_utc, client_kst, risk_bars)
+         VALUES
+           (:user_key, :client_round, :title, :score, :total, :client_utc, :client_kst, :risk_bars)`,
+        {
+          user_key,
+          client_round: nextRound,
+          title: normalizedTitle,
+          score: Number(score ?? 0),
+          total: Number(total ?? 0),
+          client_utc: mysqlClientUtc,
+          client_kst: clientKst || formatKst(clientUtc),
+          risk_bars: JSON.stringify(rb || {}),
+        }
+      );
+
       const insertedId = ret.insertId;
 
       const [rows] = await conn.execute(
@@ -240,29 +290,15 @@ router.post("/attempt", async (req, res) => {
       );
       const row = rows[0];
 
-      // 서버 회차 계산(최신=1)
       const serverOrder = await computeServerOrder(conn, {
         user_key: row.user_key,
         client_utc: row.client_utc,
         id: row.id,
       });
-
       const risk = safeParseJSON(row.risk_bars, {});
       const byCatRestored = barsToCategoryStats(risk);
 
-      const debugText = [
-        "=============== [IR Attempt] ===============",
-        `서버 회차    : ${serverOrder}회차`,
-        `클라 회차    : ${row.client_round ?? ""}`,
-        `제목         : ${row.title || "(없음)"}`,
-        `점수/총점    : ${Number(row.score ?? 0)}/${Number(row.total ?? 0)}`,
-        `Client KST   : ${row.client_kst || formatKst(new Date(row.client_utc))}`,
-        `riskBars     : ${prettyRiskBars(risk)}`,
-        "============================================",
-      ].join("\n");
-
       const saved = {
-        // 호환 필드
         title: row.title,
         interviewTitle: row.title,
         clientRound: row.client_round,
@@ -273,9 +309,7 @@ router.post("/attempt", async (req, res) => {
         clientKst: row.client_kst || formatKst(new Date(row.client_utc)),
         riskBars: risk,
         byCategory: byCatRestored,
-        // 편의
         serverAttemptOrder: serverOrder,
-        debugText,
         createdAt: row.created_at,
       };
 
