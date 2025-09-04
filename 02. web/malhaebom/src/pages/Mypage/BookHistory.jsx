@@ -7,17 +7,17 @@ const DEBUG = true;
 
 /** 표준 슬러그/제목(표시는 여기 기준) */
 const baseStories = [
-  { story_key: "mother_gloves",     story_title: "어머니의 벙어리장갑" },
+  { story_key: "mother_gloves",     story_title: "어머니의 벙어리 장갑" }, // ← 공백 포함
   { story_key: "father_wedding",    story_title: "아버지와 결혼식" },
   { story_key: "sons_bread",        story_title: "아들의 호빵" },
   { story_key: "grandma_banana",    story_title: "할머니와 바나나" },
   { story_key: "kkongdang_boribap", story_title: "꽁당 보리밥" },
 ];
 
-/** 기본 매핑: 제목 → 슬러그 */
-const titleToSlugBase = new Map(
-  baseStories.map((b) => [normalizeSpace(b.story_title), b.story_key])
-);
+/** 공백 압축 */
+function normalizeSpace(s) {
+  return String(s || "").replace(/\s+/g, " ").trim();
+}
 
 /** 과거 데이터 정규화(오타/띄어쓰기/조사 등) → 표준제목 */
 function normalizeKoreanTitle(s) {
@@ -28,27 +28,31 @@ function normalizeKoreanTitle(s) {
   x = x.replaceAll("벙어리장갑", "벙어리 장갑");
   x = x.replaceAll("꽁당보리밥", "꽁당 보리밥");
   x = x.replaceAll("할머니와바나나", "할머니와 바나나");
-  return x;
+  // 양끝 공백 재정리
+  return normalizeSpace(x);
 }
+
+/** 기본 매핑: (정규화된)제목 → 슬러그  */
+const titleToSlugBase = new Map(
+  baseStories.map((b) => [normalizeKoreanTitle(b.story_title), b.story_key])
+);
 
 /** 제목/슬러그 추론: (1) 이미 슬러그면 그대로 (2) 제목이면 정규화 후 슬러그 반환 */
 function toSlugFromAny(story_key_or_title, story_title_fallback = "") {
   const slugToTitle = new Map(baseStories.map((b) => [b.story_key, b.story_title]));
-  // 이미 표준 슬러그?
-  if (slugToTitle.has(story_key_or_title)) return story_key_or_title;
+  const raw = normalizeSpace(story_key_or_title);
+  if (slugToTitle.has(raw)) return raw; // 이미 표준 슬러그
 
   // 제목 후보 정규화 → 슬러그 탐색
-  const t1 = normalizeKoreanTitle(story_key_or_title);
+  const t1 = normalizeKoreanTitle(raw);
   const t2 = normalizeKoreanTitle(story_title_fallback);
   const slug =
     titleToSlugBase.get(t1) ||
     titleToSlugBase.get(t2) ||
     null;
-  return slug || story_key_or_title; // 못 찾으면 원본 유지(뒤에서 DB-only 카드로 붙음)
-}
 
-function normalizeSpace(s) {
-  return String(s || "").replace(/\s+/g, " ").trim();
+  // 못 찾으면 원본 유지(뒤에서 DB-only 카드로 등장)
+  return slug || raw;
 }
 
 /** MySQL DATETIME(UTC) 파싱 → Date(UTC) */
@@ -196,8 +200,7 @@ export default function BookHistory() {
     const merging = new Map();
 
     for (const g of groups) {
-      // g.story_key에 한글제목/오타가 들어온 케이스 보정
-      const slug = toSlugFromAny(g.story_key, g.story_title);
+      const slug = toSlugFromAny(g.story_key, g.story_title); // ← 핵심: 과거 한글키 교정
 
       if (!merging.has(slug)) {
         merging.set(slug, {
@@ -207,10 +210,10 @@ export default function BookHistory() {
         });
       }
       const holder = merging.get(slug);
-      for (const r of g.records || []) holder.records.push(rowToCardData(r));
+      for (const r of (g.records || [])) holder.records.push(rowToCardData(r));
     }
 
-    // 기본 목록(빈 카드 가능) + DB에만 존재하는 키 추가
+    // 기본 목록(빈 카드 가능) + DB-only 키 추가
     const ordered = baseStories.map((b) => ({
       story_key: b.story_key,
       story_title: b.story_title,
@@ -235,8 +238,7 @@ export default function BookHistory() {
       console.log("groups(raw)", groups);
       console.log("ordered(final)", ordered);
       console.groupEnd();
-      // 빠르게 확인하려고 window에 노출
-      window.__STR_HISTORY__ = { groups, ordered };
+      window.__STR_HISTORY__ = { groups, ordered }; // 콘솔에서 확인용
     }
 
     return ordered;
