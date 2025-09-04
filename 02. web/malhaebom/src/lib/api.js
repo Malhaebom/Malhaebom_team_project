@@ -1,3 +1,4 @@
+// 02.web/malhaebom/src/lib/api.js
 import axios from "axios";
 
 const API = axios.create({
@@ -6,6 +7,7 @@ const API = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// GET 인증 엔드포인트 캐시 무력화 + 보조 헤더
 API.interceptors.request.use((config) => {
   const method = (config.method || "get").toLowerCase();
   if (method === "get") {
@@ -13,7 +15,8 @@ API.interceptors.request.use((config) => {
     if (
       url.startsWith("/userLogin/me") ||
       url.startsWith("/auth/") ||
-      url.startsWith("/userLogin/")
+      url.startsWith("/userLogin/") ||
+      url.startsWith("/str/")
     ) {
       const params = new URLSearchParams(config.params || {});
       params.set("_t", Date.now().toString());
@@ -29,9 +32,10 @@ API.interceptors.response.use(
   (res) => res,
   (err) => {
     const url = err?.config?.url;
+    const method = (err?.config?.method || "GET").toUpperCase();
     const status = err?.response?.status;
     const data = err?.response?.data;
-    console.error("[API ERROR]", (err?.config?.method || "GET").toUpperCase(), url, status, data);
+    console.error("[API ERROR]", method, url, status, data || err?.message);
     return Promise.reject(err);
   }
 );
@@ -49,7 +53,7 @@ function getUserKeyFromUrl() {
 async function getKeyFromWhoAmI() {
   try {
     const { data } = await API.get("/str/whoami");
-    const k = (data?.used || data?.authedKey || "").trim();
+    const k = (data?.used || data?.identity?.user_key || "").trim();
     if (k && k.toLowerCase() !== "guest") return k;
   } catch (_e) {}
   return null;
@@ -62,30 +66,27 @@ function extractUserKeyFromMe(data) {
   const loginType = (data.loginType || "").trim();
   const loginId   = (data.loginId || "").trim();
   if (!loginType || !loginId) return null;
-  return loginType === "local" ? loginId : `${loginType}:${loginId}`;
+  return loginType === "local" ? `local:${loginId}` : `${loginType}:${loginId}`;
 }
 
 export async function getUserKeyFromSession() {
-  // 1) URL 우선
+  // 1) URL
   const fromQuery = getUserKeyFromUrl();
   if (fromQuery) {
     sessionStorage.setItem("user_key", fromQuery);
     return fromQuery;
   }
-
-  // 2) 서버가 실제 사용하는 키를 항상 먼저 확인
+  // 2) whoami
   const who = await getKeyFromWhoAmI();
   if (who && who.toLowerCase() !== "guest") {
     const cached = (sessionStorage.getItem("user_key") || "").trim();
     if (who !== cached) sessionStorage.setItem("user_key", who);
     return who;
   }
-
   // 3) 캐시
   const cached = (sessionStorage.getItem("user_key") || "").trim();
   if (cached && cached.toLowerCase() !== "guest") return cached;
-
-  // 4) 구 방식(me) fallback
+  // 4) 구(me)
   try {
     const { data } = await API.get("/userLogin/me");
     const meKey = extractUserKeyFromMe(data);
@@ -94,7 +95,6 @@ export async function getUserKeyFromSession() {
       return meKey;
     }
   } catch (_e) {}
-
   return null;
 }
 

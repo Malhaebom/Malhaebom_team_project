@@ -1,3 +1,4 @@
+// 02.web/malhaebom/src/pages/ResultExam.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
@@ -6,7 +7,7 @@ import { useScores } from "../../../../ScoreContext.jsx";
 import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
-// 서버와 동일 정규화
+// ====== 서버와 동일한 정규화 ======
 function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
 function ntitle(s){
   let x = nspace(s);
@@ -16,6 +17,35 @@ function ntitle(s){
   x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
   x = x.replaceAll("할머니와바나나","할머니와 바나나");
   return x;
+}
+function normalizeKoTitleCore(s=""){ return ntitle(s).replace(/\s+/g,""); }
+const baseStories = [
+  { key: "mother_gloves",  title: "어머니의 벙어리 장갑" },
+  { key: "father_wedding", title: "아버지와 결혼식" },
+  { key: "sons_bread",     title: "아들의 호빵" },
+  { key: "grandma_banana", title: "할머니와 바나나" },
+  { key: "kkong_boribap",  title: "꽁당 보리밥" },
+];
+const TITLE_TO_SLUG = new Map(baseStories.map(b => [ntitle(b.title), b.key]));
+const SLUG_TO_TITLE = new Map(baseStories.map(b => [b.key, b.title]));
+const KOCORE_TO_SLUG = new Map(baseStories.map(b => [normalizeKoTitleCore(b.title), b.key]));
+const LEGACY_SLUG_MAP = new Map([
+  ["kkongdang_boribap","kkong_boribap"],
+  ["kkong boribap","kkong_boribap"],
+  ["kkongboribap","kkong_boribap"],
+]);
+function toSlugFromAny(story_key_or_title, story_title_fallback=""){
+  const raw = String(story_key_or_title || "").trim();
+  const fall = String(story_title_fallback || "").trim();
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
+  if (SLUG_TO_TITLE.has(raw)) return raw;
+  const title = ntitle(raw || fall);
+  const exact = TITLE_TO_SLUG.get(title);
+  if (exact) return exact;
+  const core = normalizeKoTitleCore(title);
+  const byCore = KOCORE_TO_SLUG.get(core);
+  if (byCore) return byCore;
+  return nspace(raw || fall || "story");
 }
 
 function nowKstString() {
@@ -41,7 +71,6 @@ export default function ResultExam() {
     const raw = localStorage.getItem("bookTitle") || "동화";
     const fixed = ntitle(raw);
     setBookTitle(fixed);
-
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -53,13 +82,11 @@ export default function ResultExam() {
     const sB  = Number(scoreB)  * 2;
     const sC  = Number(scoreC)  * 2;
     const sD  = Number(scoreD)  * 2;
-
     const arr = [sAD, sAI, sB, sC, sD];
     const total = arr.reduce((a, b) => a + b, 0);
     const minScore = Math.min(...arr);
     const lowIndex = arr.indexOf(minScore);
     const isPassed = total >= 28;
-
     return { total, isPassed, lowIndex };
   }, [scoreAD, scoreAI, scoreB, scoreC, scoreD]);
 
@@ -80,11 +107,12 @@ export default function ResultExam() {
 
   async function saveToBookHistory(resolvedUserKey, axiosCfg = {}) {
     const rawTitle = localStorage.getItem("bookTitle") || "동화";
-    const title = ntitle(rawTitle); // "꽁당 보리밥"
+    const title = ntitle(rawTitle);
+    const slug  = toSlugFromAny("", title); // ← ★ 서버와 동일 규칙으로 슬러그 생성
 
     const examResult = {
       storyTitle: title,
-      storyKey: title, // 서버가 제목을 저장키로 사용
+      storyKey: slug,                 // ← ★ 슬러그로 고정
       attemptTime: new Date().toISOString(),
       clientKst: nowKstString(),
       score: total,
@@ -120,16 +148,14 @@ export default function ResultExam() {
       savedOnceRef.current = true;
 
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
-      if (!targetUserKey) {
-        targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
-      }
+      if (!targetUserKey) targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
       if (!targetUserKey) {
         alert("로그인이 필요합니다. 로그인 후 다시 시도해주세요.");
         return;
       }
 
       try {
-        // 서버가 실제 사용하는 키 조회
+        // 서버의 실제 키 확인
         let usedKey = targetUserKey;
         let isAuthed = false;
         try {
@@ -138,16 +164,15 @@ export default function ResultExam() {
           isAuthed = !!who?.data?.isAuthed;
         } catch (_e) {}
 
-        // 쿠키 인증이 있으면 충돌 방지 위해 헤더/쿼리 전달 X
+        // Bearer/쿠키 인증이 있으면 충돌 방지 위해 추가 전달 X
         const cfg = isAuthed ? {} : { params:{ user_key: usedKey }, headers:{ "x-user-key": usedKey } };
-
         await saveToBookHistory(usedKey, cfg);
       } catch (error) {
         console.error("검사 결과 저장 오류:", error?.response?.data || error);
         alert("검사 결과 저장 중 오류가 발생했습니다.");
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
   const goHome = () => { location.href = "/"; };

@@ -1,11 +1,23 @@
+// 02.web/malhaebom/src/pages/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
 
 const DEBUG = true;
-window.__BH_VERSION__ = "BookHistory@v3.6";
+window.__BH_VERSION__ = "BookHistory@v3.7";
 
-/** 표준 슬러그/제목 */
+// ====== 서버와 동일한 정규화 ======
+function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ntitle(s){
+  let x = nspace(s);
+  x = x.replaceAll("병어리","벙어리");
+  x = x.replaceAll("어머니와","어머니의");
+  x = x.replaceAll("벙어리장갑","벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나","할머니와 바나나");
+  return x;
+}
+function normalizeKoTitleCore(s=""){ return ntitle(s).replace(/\s+/g,""); }
 const baseStories = [
   { story_key: "mother_gloves",  story_title: "어머니의 벙어리 장갑" },
   { story_key: "father_wedding", story_title: "아버지와 결혼식" },
@@ -13,8 +25,27 @@ const baseStories = [
   { story_key: "grandma_banana", story_title: "할머니와 바나나" },
   { story_key: "kkong_boribap",  story_title: "꽁당 보리밥" },
 ];
-
-/* ────────── 유틸 ────────── */
+const TITLE_TO_SLUG = new Map(baseStories.map(b => [ntitle(b.story_title), b.story_key]));
+const SLUG_TO_TITLE = new Map(baseStories.map(b => [b.story_key, b.story_title]));
+const KOCORE_TO_SLUG = new Map(baseStories.map(b => [normalizeKoTitleCore(b.story_title), b.story_key]));
+const LEGACY_SLUG_MAP = new Map([
+  ["kkongdang_boribap","kkong_boribap"],
+  ["kkong boribap","kkong_boribap"],
+  ["kkongboribap","kkong_boribap"],
+]);
+function toSlugFromAny(story_key_or_title, story_title_fallback=""){
+  const raw = String(story_key_or_title || "").trim();
+  const fall = String(story_title_fallback || "").trim();
+  if (LEGACY_SLUG_MAP.has(raw)) return LEGACY_SLUG_MAP.get(raw);
+  if (SLUG_TO_TITLE.has(raw)) return raw;
+  const title = ntitle(raw || fall);
+  const exact = TITLE_TO_SLUG.get(title);
+  if (exact) return exact;
+  const core = normalizeKoTitleCore(title);
+  const byCore = KOCORE_TO_SLUG.get(core);
+  if (byCore) return byCore;
+  return nspace(raw || fall || "story");
+}
 function parseSqlUtc(s){
   if(!s) return null;
   const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
@@ -29,8 +60,6 @@ function formatKstLabel(dtUtc){
   const pad=n=>String(n).padStart(2,"0");
   return `${k.getFullYear()}년 ${pad(k.getMonth()+1)}월 ${pad(k.getDate())}일 ${pad(k.getHours())}:${pad(k.getMinutes())}`;
 }
-
-// 안전 파싱(문자열/버퍼/이중 JSON)
 function parseMaybeJSON(v, fallback={}) {
   if (v == null) return fallback;
   if (typeof v === "object") return v;
@@ -43,9 +72,7 @@ function parseMaybeJSON(v, fallback={}) {
         try { return JSON.parse(once); } catch { return fallback; }
       }
       return once ?? fallback;
-    } catch {
-      return fallback;
-    }
+    } catch { return fallback; }
   }
   try {
     if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) {
@@ -55,7 +82,6 @@ function parseMaybeJSON(v, fallback={}) {
   } catch {}
   return fallback;
 }
-
 function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type, fallbackScore = null, fallbackTotal = 40 }){
   const num = (v) => (v==null || v==="" || isNaN(Number(v)) ? null : Number(v));
   const read = (obj, key) => {
@@ -90,7 +116,6 @@ function normalizeScores({ by_category, by_type, risk_bars, risk_bars_by_type, f
     fallbackTotal: (num(fallbackTotal) ?? 40),
   };
 }
-
 function rowToCardData(row){
   let displayTime = "";
   const rawKst = row?.client_kst && typeof row.client_kst.trim === "function" ? row.client_kst.trim() : (row?.client_kst || "");
@@ -104,19 +129,14 @@ function rowToCardData(row){
   } else {
     displayTime = formatKstLabel(parseSqlUtc(row?.client_utc||""));
   }
-
   const by_category       = parseMaybeJSON(row?.by_category, {});
   const by_type           = parseMaybeJSON(row?.by_type, {});
   const risk_bars         = parseMaybeJSON(row?.risk_bars, {});
   const risk_bars_by_type = parseMaybeJSON(row?.risk_bars_by_type, {});
 
   const scores = normalizeScores({
-    by_category,
-    by_type,
-    risk_bars,
-    risk_bars_by_type,
-    fallbackScore: row?.score,
-    fallbackTotal: row?.total,
+    by_category, by_type, risk_bars, risk_bars_by_type,
+    fallbackScore: row?.score, fallbackTotal: row?.total,
   });
 
   return {
@@ -128,7 +148,6 @@ function rowToCardData(row){
   };
 }
 
-/* ────────── 상세 카드 ────────── */
 function ResultDetailCard({ data }) {
   if (!data) return null;
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD, partsSum, fallbackScore, fallbackTotal } = data.scores;
@@ -136,7 +155,6 @@ function ResultDetailCard({ data }) {
 
   const computedTotal = partsSum;
   const total = (computedTotal > 0) ? computedTotal : Number(fallbackScore || 0);
-
   const denom = (computedTotal > 0) ? 40 : Number(fallbackTotal || 40);
   const passCut = Math.round(denom * 0.7);
   const isPassed = total >= passCut;
@@ -184,23 +202,11 @@ function ResultDetailCard({ data }) {
   );
 }
 
-/* ────────── 메인 ────────── */
-function normalizeSlugKey(k="") {
-  const s = String(k)
-    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g," ")
-    .replace(/\s+/g," ")
-    .trim();
-  if (s === "kkongdang_boribap" || s === "kkong boribap" || s === "kkongboribap")
-    return "kkong_boribap";
-  return s;
-}
-
-export default function BookHistory(){
+function BookHistory(){
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [openStoryId, setOpenStoryId] = useState(null);
   const [openRecordId, setOpenRecordId] = useState(null);
-
-  const [groups, setGroups] = useState([]); // 서버 응답 원본(슬러그 key)
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [usedUserKey, setUsedUserKey] = useState("");
 
@@ -214,7 +220,6 @@ export default function BookHistory(){
     (async ()=>{
       try{
         setLoading(true);
-
         const key = await ensureUserKey({ retries:2, delayMs:150 });
         setUsedUserKey(key || "(cookie only)");
 
@@ -242,26 +247,23 @@ export default function BookHistory(){
     })();
   },[]);
 
+  // 서버에서 넘어온 story_key를 다시 안전 정규화(보수적)
   const mergedStories = useMemo(()=>{
-    // 키 정규화가 핵심 (꽁당 보리밥 누락 방지)
     const map = new Map(
       (groups||[]).map(g => {
-        const key = normalizeSlugKey(g.story_key || "");
-        return [key, { ...g, story_key: key, story_title: (g.story_title||"").trim() }];
+        const slug = toSlugFromAny(g.story_key || "", g.story_title || "");
+        const title = (g.story_title || SLUG_TO_TITLE.get(slug) || slug).trim();
+        return [slug, { story_key: slug, story_title: title, records: (g.records||[]).map(rowToCardData) }];
       })
     );
     const ordered = baseStories.map(b => ({
       story_key: b.story_key,
       story_title: b.story_title,
-      records: (map.get(b.story_key)?.records || []).map(rowToCardData),
+      records: (map.get(b.story_key)?.records || []),
     }));
     for (const [slug, g] of map.entries()){
       if (!baseStories.some(b=>b.story_key===slug)){
-        ordered.push({
-          story_key: slug,
-          story_title: g.story_title || slug,
-          records: (g.records || []).map(rowToCardData),
-        });
+        ordered.push({ story_key: slug, story_title: g.story_title || slug, records: g.records || [] });
       }
     }
     // 회차/최신순
@@ -352,3 +354,5 @@ export default function BookHistory(){
     </div>
   );
 }
+
+export default BookHistory;
