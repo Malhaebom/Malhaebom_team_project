@@ -52,7 +52,7 @@ function toUtcSqlDatetime(date) {
   return `${y}-${m}-${d} ${hh}:${mm}:${ss}`;
 }
 
-// ▼ 추가: UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
+// ▼ UTC Date → 'YYYY년 MM월 DD일 HH:MM' (KST 라벨)
 function toKstLabelFromUtcDate(utcDate) {
   const k = new Date(utcDate.getTime() + 9 * 60 * 60 * 1000);
   const pad = (n) => String(n).padStart(2, "0");
@@ -135,8 +135,6 @@ router.get("/whoami", async (req, res) => {
   });
 });
 
-/* 테스트 데이터 라우트는 생략(기존 그대로) */
-
 /* ==== 결과 저장 ==== */
 router.post("/attempt", async (req, res) => {
   let conn;
@@ -147,7 +145,7 @@ router.post("/attempt", async (req, res) => {
       storyTitle,
       storyKey,
       attemptTime,
-      clientKst,
+      // clientKst,  // ★ 더 이상 사용하지 않음
       score,
       total,
       byCategory = {},
@@ -180,7 +178,7 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // 입력값을 표준화
+    // 입력값 표준화
     const slug = toSlugFromAny(storyKey, storyTitle);
     const canonicalTitle = SLUG_TO_TITLE.get(slug) || ntitle(storyTitle || storyKey);
 
@@ -193,7 +191,7 @@ router.post("/attempt", async (req, res) => {
       utcDate = new Date();
     }
     const clientUtcStr   = toUtcSqlDatetime(utcDate);
-    const clientKstLabel = toStrOrNull(clientKst) || toKstLabelFromUtcDate(utcDate); // ▼ 여기서 라벨 자동 생성
+    const clientKstLabel = toKstLabelFromUtcDate(utcDate); // ★ 변경: 항상 서버가 만든 라벨만 사용
 
     // 다음 회차 계산(슬러그 기준)
     const [rows] = await conn.query(
@@ -224,7 +222,7 @@ router.post("/attempt", async (req, res) => {
         toNumber(score, 0),
         toNumber(total, 40),
         clientUtcStr,
-        clientKstLabel,                 // ▼ 저장되는 값은 'YYYY년 MM월 DD일 HH:MM'
+        clientKstLabel, // ★ 항상 'YYYY년 MM월 DD일 HH:MM'
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
