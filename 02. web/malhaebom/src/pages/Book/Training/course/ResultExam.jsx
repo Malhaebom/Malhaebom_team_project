@@ -28,11 +28,10 @@ export default function ResultExam() {
   const navigate = useNavigate();
 
   const query = new URLSearchParams(window.location.search);
-  const rawFromUrl = (query.get("user_key") || "").trim();
-  const userKeyFromUrl = rawFromUrl && rawFromUrl !== "guest" ? rawFromUrl : "";
+  const userKeyFromUrl = (query.get("user_key") || "").trim();
 
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const postedRef = useRef(false); // ✅ 같은 페이지에서 중복 저장 방지(다음 회차는 새 페이지에서 정상 저장)
+  const savedOnceRef = useRef(false); // 이 렌더에서 저장 1회만
 
   useEffect(() => {
     AOS.init();
@@ -48,12 +47,14 @@ export default function ResultExam() {
     const sB  = Number(scoreB)  * 2;
     const sC  = Number(scoreC)  * 2;
     const sD  = Number(scoreD)  * 2;
+
     const arr = [sAD, sAI, sB, sC, sD];
-    const sum = arr.reduce((a, b) => a + b, 0);
+    const total = arr.reduce((a, b) => a + b, 0);
     const minScore = Math.min(...arr);
     const lowIndex = arr.indexOf(minScore);
-    const ok = sum >= 28;
-    return { total: sum, isPassed: ok, lowIndex };
+    const isPassed = total >= 28;
+
+    return { total, isPassed, lowIndex };
   }, [scoreAD, scoreAI, scoreB, scoreC, scoreD]);
 
   const okOpinion =
@@ -75,6 +76,7 @@ export default function ResultExam() {
     "D-의례화가 부족합니다.",
   ];
 
+  // 저장 (이 렌더에서 정확히 1회만)
   const saveToBookHistory = async () => {
     try {
       const title = localStorage.getItem("bookTitle") || "동화";
@@ -83,7 +85,7 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
-      // user_key 확보(guest는 금지)
+      // user_key 확보(쿼리 우선 → 세션)
       const sanitize = (k) => (k && k !== "guest" ? k : null);
       let targetUserKey = sanitize(userKeyFromUrl) || sanitize(await ensureUserKey({ retries: 3, delayMs: 200 }));
       if (!targetUserKey) {
@@ -94,8 +96,8 @@ export default function ResultExam() {
       const examResult = {
         storyTitle: title,
         storyKey,
-        attemptTime: new Date().toISOString(),
-        clientKst: nowKstString(),
+        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환(없어도 now로 보정)
+        clientKst: nowKstString(),             // 표시용
         score: total,
         total: 40,
         byCategory: {
@@ -106,11 +108,23 @@ export default function ResultExam() {
           D:  { correct: Number(scoreD),  total: 4 },
         },
         byType: {},
-        riskBars: { A: Number(scoreAD)*2, AI: Number(scoreAI)*2, B: Number(scoreB)*2, C: Number(scoreC)*2, D: Number(scoreD)*2 },
+        // 참고: 서버가 riskBars 없으면 byCategory로 계산함. 여기선 웹 UI 보정과 동일하게 전송
+        riskBars: {
+          A:  Number(scoreAD) * 2,
+          AI: Number(scoreAI) * 2,
+          B:  Number(scoreB)  * 2,
+          C:  Number(scoreC)  * 2,
+          D:  Number(scoreD)  * 2,
+        },
         riskBarsByType: {},
       };
 
-      const cfg = { params: { user_key: targetUserKey }, headers: { "x-user-key": targetUserKey } };
+      // 서버가 user_key를 헤더/파라미터 모두에서 수용
+      const cfg = {
+        params: { user_key: targetUserKey },
+        headers: { "x-user-key": targetUserKey },
+      };
+
       const { data } = await API.post("/str/attempt", examResult, cfg);
       if (!data?.ok) {
         console.error("검사 결과 저장 실패:", data);
@@ -122,15 +136,19 @@ export default function ResultExam() {
     }
   };
 
-  // ✅ 페이지마다 1번만 저장(다음 회차는 새 페이지에서 다시 1번 저장됨)
+  // 렌더 최초 1회만 저장
   useEffect(() => {
-    if (total > 0 && !postedRef.current) {
-      postedRef.current = true;
+    if (total > 0 && !savedOnceRef.current) {
+      savedOnceRef.current = true;
       saveToBookHistory();
     }
+    // total이 바뀌어도 같은 렌더 내 중복 방지
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [total]);
 
-  const goHome = () => { location.href = "/"; };
+  const goHome = () => {
+    location.href = "/";
+  };
 
   return (
     <div className="content">
@@ -143,15 +161,38 @@ export default function ResultExam() {
             <div className="ct_question" data-aos="fade-up" data-aos-duration="1000">
               <div>
                 <div className="tit">총점</div>
-                <div className="sub_tit" id="score" style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
+                <div
+                  className="sub_tit"
+                  id="score"
+                  style={{
+                    margin: "0 auto",
+                    textAlign: "center",
+                    borderRadius: "10px",
+                    backgroundColor: "white",
+                    padding: "20px 0",
+                  }}
+                >
                   <p>{total} / 40</p>
                 </div>
               </div>
 
               <div>
                 <div className="tit">인지능력</div>
-                <div style={{ margin: "0 auto", textAlign: "center", borderRadius: "10px", backgroundColor: "white", padding: "20px 0" }}>
-                  <img id="isPassed" src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"} className="container" style={{ width: "15%" }} />
+                <div
+                  style={{
+                    margin: "0 auto",
+                    textAlign: "center",
+                    borderRadius: "10px",
+                    backgroundColor: "white",
+                    padding: "20px 0",
+                  }}
+                >
+                  <img
+                    id="isPassed"
+                    src={isPassed ? "/drawable/speech_clear.png" : "/drawable/speech_fail.png"}
+                    className="container"
+                    style={{ width: "15%" }}
+                  />
                 </div>
               </div>
 
@@ -162,12 +203,18 @@ export default function ResultExam() {
                     <p id="opinions_result" style={{ lineHeight: 1.6, whiteSpace: "pre-line" }}>
                       {isPassed ? okOpinion : opinions_result[lowIndex]}
                     </p>
-                    {!isPassed && <p className="num" id="opinions_guide">{opinions_guide[lowIndex]}</p>}
+                    {!isPassed && (
+                      <p className="num" id="opinions_guide">
+                        {opinions_guide[lowIndex]}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
 
-              <button className="question_bt" type="button" onClick={goHome}>홈으로</button>
+              <button className="question_bt" type="button" onClick={goHome}>
+                홈으로
+              </button>
             </div>
           </div>
         </div>
