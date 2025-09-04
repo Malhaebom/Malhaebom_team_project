@@ -121,12 +121,10 @@ router.post("/attempt", async (req, res) => {
     // 2) 쿼리/헤더/바디 주장값
     const claimedKey = (req.query.user_key || req.headers["x-user-key"] || bodyUserKey || "").trim() || null;
 
-    // ★ 규칙: 쿠키가 있으면 무조건 쿠키 사용. 쿼리가 'guest'면 무시.
-    //         쿠키가 없을 때만 claimedKey(단, guest 금지) 허용.
+    // 규칙: 쿠키가 있으면 쿠키 사용(다르면 403). 없으면 claimedKey(guest 금지) 사용.
     let user_key = null;
     if (authedKey) {
       if (claimedKey && !isGuestKey(claimedKey) && claimedKey !== authedKey) {
-        // 같은 사람이어야 함
         return res.status(403).json({ ok: false, error: "mismatched_user_key" });
       }
       user_key = authedKey;
@@ -150,7 +148,7 @@ router.post("/attempt", async (req, res) => {
       clientUtcStr = toUtcSqlDatetime(new Date());
     }
 
-    // 다음 회차 계산
+    // 다음 회차 계산 (user_key, story_key 별)
     const [lastRows] = await conn.query(
       `SELECT COALESCE(MAX(client_attempt_order), 0) AS last_order
          FROM tb_story_result

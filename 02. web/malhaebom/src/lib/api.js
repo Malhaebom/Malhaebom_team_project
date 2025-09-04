@@ -7,38 +7,9 @@ const API = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// ──────────────────────────────────────────────
-// 공통: guest 키 판정 & 정리
-// ──────────────────────────────────────────────
-const isGuest = (v) => !!v && String(v).trim().toLowerCase() === "guest";
-const cleanUserKey = (v) => {
-  const s = String(v || "").trim();
-  return s && !isGuest(s) ? s : ""; // guest면 빈 값으로
-};
-
-// 요청 인터셉터
 API.interceptors.request.use((config) => {
   const method = (config.method || "get").toLowerCase();
 
-  // 1) params.user_key가 guest면 제거
-  if (config.params && typeof config.params === "object") {
-    const uk = cleanUserKey(config.params.user_key);
-    if (!uk) delete config.params.user_key;
-    else config.params.user_key = uk;
-  }
-
-  // 2) 세션에 guest가 남아 있으면 제거, 유효하면 헤더 보조
-  try {
-    const cached = cleanUserKey(sessionStorage.getItem("user_key"));
-    if (!cached) {
-      sessionStorage.removeItem("user_key"); // guest 정리
-    } else {
-      // 쿠키 인증이 불안정한 환경 대비: 헤더로도 보조 전달
-      config.headers["x-user-key"] = cached;
-    }
-  } catch {}
-
-  // 3) 인증성 GET은 캐시 버스터
   if (method === "get") {
     const url = config.url || "";
     if (
@@ -57,7 +28,6 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-// 응답 인터셉터(로그)
 API.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -69,50 +39,58 @@ API.interceptors.response.use(
   }
 );
 
-// ──────────────────────────────────────────────
-// user_key 유틸
-// ──────────────────────────────────────────────
+// === user_key 유틸 ===
 function getUserKeyFromUrl() {
   try {
     const url = new URL(window.location.href);
     const q = (url.searchParams.get("user_key") || "").trim();
-    if (q && !isGuest(q)) return q;
+    if (q && q.toLowerCase() !== "guest") return q;
+  } catch (_e) {}
+  return null;
+}
+
+async function getKeyFromWhoAmI() {
+  try {
+    const { data } = await API.get("/str/whoami");
+    const k = (data?.used || data?.authedKey || "").trim();
+    if (k && k.toLowerCase() !== "guest") return k;
   } catch (_e) {}
   return null;
 }
 
 function extractUserKeyFromMe(data) {
   if (!data?.ok || !data.isAuthed) return null;
-
-  // 서버가 userKey를 주는 경우 우선
-  const direct = cleanUserKey(data.userKey);
-  if (direct) return direct;
-
-  // 하위 호환: loginType/loginId 조합
-  const loginType = String(data.loginType || "").trim();
-  const loginId   = String(data.loginId || "").trim();
+  const direct = (data.userKey || "").trim();
+  if (direct && direct.toLowerCase() !== "guest") return direct;
+  const loginType = (data.loginType || "").trim();
+  const loginId   = (data.loginId || "").trim();
   if (!loginType || !loginId) return null;
-  const key = loginType === "local" ? loginId : `${loginType}:${loginId}`;
-  return cleanUserKey(key) || null;
+  return loginType === "local" ? loginId : `${loginType}:${loginId}`;
 }
 
 export async function getUserKeyFromSession() {
+  // 1) URL 우선
+  const fromQuery = getUserKeyFromUrl();
+  if (fromQuery) {
+    sessionStorage.setItem("user_key", fromQuery);
+    return fromQuery;
+  }
+  // 2) 캐시
+  const cached = (sessionStorage.getItem("user_key") || "").trim();
+  if (cached && cached.toLowerCase() !== "guest") return cached;
+
+  // 3) 서버가 실제로 쓰는 키(whoami)
+  const who = await getKeyFromWhoAmI();
+  if (who) {
+    sessionStorage.setItem("user_key", who);
+    return who;
+  }
+
+  // 4) 구 방식(me) fallback
   try {
-    // 1) URL 우선
-    const fromQuery = getUserKeyFromUrl();
-    if (fromQuery) {
-      sessionStorage.setItem("user_key", fromQuery);
-      return fromQuery;
-    }
-
-    // 2) 세션 캐시
-    const cached = cleanUserKey(sessionStorage.getItem("user_key"));
-    if (cached) return cached;
-
-    // 3) /me 호출
     const { data } = await API.get("/userLogin/me");
     const meKey = extractUserKeyFromMe(data);
-    if (meKey) {
+    if (meKey && meKey.toLowerCase() !== "guest") {
       sessionStorage.setItem("user_key", meKey);
       return meKey;
     }
@@ -124,7 +102,7 @@ export async function getUserKeyFromSession() {
 export async function ensureUserKey({ retries = 3, delayMs = 200 } = {}) {
   for (let i = 0; i <= retries; i++) {
     const k = await getUserKeyFromSession();
-    if (k) return k;
+    if (k && k.toLowerCase() !== "guest") return k;
     if (i < retries && delayMs) await new Promise((r) => setTimeout(r, delayMs));
   }
   return null;
