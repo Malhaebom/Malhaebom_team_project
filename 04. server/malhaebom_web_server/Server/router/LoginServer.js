@@ -13,11 +13,6 @@ const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BA
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
-// 현재 배포는 HTTP(80) → 반드시 false (HTTPS 전환 시 true)
-const SECURE_COOKIE = /^https:\/\//i.test(
-  process.env.FRONTEND_BASE_URL || process.env.PUBLIC_BASE_URL || ""
-);
-
 /* =========================
  * DB 풀
  * ========================= */
@@ -54,19 +49,25 @@ router.use((req, res, next) => {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-function setAuthCookie(res, token) {
+
+// 요청이 HTTPS인지 판단 (Nginx 프록시 헤더 포함)
+function isSecureReq(req) {
+  return !!(req?.secure || String(req?.headers?.["x-forwarded-proto"] || "").toLowerCase() === "https");
+}
+
+function setAuthCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : SECURE_COOKIE,
+    secure  : isSecureReq(req),  // ← 요청이 https일 때만 true
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
   });
 }
-function clearAuthCookie(res) {
+function clearAuthCookie(req, res) {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
-    secure  : SECURE_COOKIE,
+    secure  : isSecureReq(req),
     sameSite: "lax",
     path    : "/",
   });
@@ -108,7 +109,7 @@ router.post("/login", async (req, res) => {
     });
 
     const token = sign({ uid: u.user_id, typ: "local" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token); // ← req 반영
 
     return res.json({
       ok: true,
@@ -117,7 +118,7 @@ router.post("/login", async (req, res) => {
       nick: u.nick,
       loginType: "local",
       userKey: composeUserKey("local", u.login_id),
-      cookie: { name: COOKIE_NAME, secure: SECURE_COOKIE, sameSite: "lax" },
+      cookie: { name: COOKIE_NAME, secure: isSecureReq(req), sameSite: "lax" },
     });
   } catch (err) {
     console.error("[/userLogin/login] error:", err);
@@ -126,9 +127,9 @@ router.post("/login", async (req, res) => {
 });
 
 /* 로그아웃 */
-router.post("/logout", async (_req, res) => {
+router.post("/logout", async (req, res) => {
   try {
-    clearAuthCookie(res);
+    clearAuthCookie(req, res); // ← req 반영
     return res.json({ ok: true });
   } catch (err) {
     console.error("[/userLogin/logout] error:", err);
@@ -149,7 +150,7 @@ router.get("/me", async (req, res) => {
     try {
       decoded = jwt.verify(token, JWT_SECRET);
     } catch (_e) {
-      clearAuthCookie(res);
+      clearAuthCookie(req, res); // ← req 반영
       return res.json({ ok: false, isAuthed: false });
     }
 
@@ -161,7 +162,7 @@ router.get("/me", async (req, res) => {
       [decoded.uid, decoded.typ]
     );
     if (!rows.length) {
-      clearAuthCookie(res);
+      clearAuthCookie(req, res); // ← req 반영
       return res.json({ ok: false, isAuthed: false });
     }
 

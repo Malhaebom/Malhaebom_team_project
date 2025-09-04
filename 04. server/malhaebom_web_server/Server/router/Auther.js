@@ -20,9 +20,6 @@ const PUBLIC_BASE_URL   = process.env.PUBLIC_BASE_URL   || FRONTEND_BASE_URL;
 const JWT_SECRET        = process.env.JWT_SECRET        || "malhaebom_sns";
 const COOKIE_NAME       = process.env.COOKIE_NAME       || "mb_access";
 
-// ⚠️ HTTP 환경에서 secure 쿠키가 막히지 않도록: HTTPS일 때만 true
-const USE_SECURE_COOKIE = /^https:\/\//i.test(PUBLIC_BASE_URL);
-
 /* =========================
  * DB 풀
  * ========================= */
@@ -64,15 +61,22 @@ const GOOGLE = {
 function sign(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-function setAuthCookie(res, token) {
+
+// 요청이 HTTPS인지 판단 (Nginx 프록시 헤더 포함)
+function isSecureReq(req) {
+  return !!(req?.secure || String(req?.headers?.["x-forwarded-proto"] || "").toLowerCase() === "https");
+}
+
+function setAuthCookie(req, res, token) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    secure  : USE_SECURE_COOKIE,
+    secure  : isSecureReq(req), // ← 요청이 https일 때만 true
     sameSite: "lax",
     maxAge  : 7 * 24 * 60 * 60 * 1000,
     path    : "/",
   });
 }
+
 const makeState = (prefix) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -92,13 +96,12 @@ function buildLoginKeyOrThrow(provider, rawId, email) {
  * - login_type: 'google' | 'kakao' | 'naver'
  * - login_id  : (이메일 우선, 없으면 provider:id)
  * - 반환: user_id(pk)
- * - ✅ 레거시(이메일 저장)와 100% 호환
  */
 async function upsertSNSUser({ provider, providerRawId, email, nick }) {
   const emailKey = email ? String(email).toLowerCase() : null;
   const pidKey   = `${provider}:${String(providerRawId || "")}`;
 
-  // 0) 기존 이메일 행 존재 시 최우선 재사용 (레거시 호환)
+  // 0) 기존 이메일 행 존재 시 최우선 재사용
   if (emailKey) {
     const [byEmail] = await pool.query(
       `SELECT user_id, nick FROM tb_user
@@ -115,7 +118,7 @@ async function upsertSNSUser({ provider, providerRawId, email, nick }) {
     }
   }
 
-  // 1) 과거에 provider:id 형태로 저장된 동일 계정이 있는지 재사용
+  // 1) provider:id 형태로 저장된 기존 계정 재사용
   const [byPid] = await pool.query(
     `SELECT user_id, nick, login_id FROM tb_user
       WHERE login_id = ? AND login_type = ?
@@ -125,7 +128,7 @@ async function upsertSNSUser({ provider, providerRawId, email, nick }) {
   if (byPid.length) {
     const uid = byPid[0].user_id;
 
-    // 이번에 이메일을 받았고, 기존이 pidKey였다면 가능한 경우 이메일로 정규화(충돌 없을 때만)
+    // 이메일이 새로 생겼고 충돌 없으면 이메일로 정규화
     if (emailKey && byPid[0].login_id !== emailKey) {
       const [dup] = await pool.query(
         `SELECT user_id FROM tb_user
@@ -147,7 +150,7 @@ async function upsertSNSUser({ provider, providerRawId, email, nick }) {
     return uid;
   }
 
-  // 2) 둘 다 없으면 새로 생성 — 이메일 있으면 이메일로, 없으면 provider:id로
+  // 2) 둘 다 없으면 새로 생성
   const login_id = emailKey || pidKey;
   const [ins] = await pool.query(
     `INSERT INTO tb_user (login_id, login_type, pwd, nick, birthyear, gender)
@@ -216,10 +219,10 @@ router.get("/kakao/callback", async (req, res) => {
       headers: { Authorization: `Bearer ${access_token}` },
     });
 
-    const kakaoId  = String(meRes.data.id);             // ✅ 항상 존재
+    const kakaoId  = String(meRes.data.id);
     const acc      = meRes.data.kakao_account || {};
     const profile  = acc.profile || {};
-    const email    = acc.email || null;                  // 있을 수도/없을 수도
+    const email    = acc.email || null;
     const nickname = profile.nickname || (email ? email.split("@")[0] : `kakao_${kakaoId}`);
 
     const uid = await upsertSNSUser({
@@ -230,12 +233,12 @@ router.get("/kakao/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "kakao" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token); // ← req 반영
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {
     console.error("[/auth/kakao/callback] error:", err.response?.data || err);
-    return res.status(500).send("카카오 로그인 실패");
+    return res.status(500).send("κα카오 로그인 실패");
   }
 });
 
@@ -279,7 +282,7 @@ router.get("/naver/callback", async (req, res) => {
     });
 
     const resp     = meRes.data.response || {};
-    const naverId  = String(resp.id);                    // ✅ 원래 긴 문자열
+    const naverId  = String(resp.id);
     const email    = resp.email || null;
     const nickname = resp.name || resp.nickname || (email ? email.split("@")[0] : `naver_${naverId}`);
 
@@ -291,7 +294,7 @@ router.get("/naver/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "naver" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token); // ← req 반영
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {
@@ -354,7 +357,7 @@ router.get("/google/callback", async (req, res) => {
     });
 
     const token = sign({ uid, typ: "google" });
-    setAuthCookie(res, token);
+    setAuthCookie(req, res, token); // ← req 반영
 
     return res.redirect(`${FRONTEND_BASE_URL}/`);
   } catch (err) {
