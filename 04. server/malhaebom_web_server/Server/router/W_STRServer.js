@@ -39,8 +39,6 @@ const toStrOrNull = (s) => {
   return v.length ? v : null;
 };
 const pad2 = (n) => String(n).padStart(2, "0");
-
-/** Date → 'YYYY-MM-DD HH:mm:ss' (UTC 기준) */
 function toUtcSqlDatetime(date) {
   const y = date.getUTCFullYear();
   const m = pad2(date.getUTCMonth() + 1);
@@ -62,16 +60,13 @@ async function deriveUserKeyFromAuth(req) {
     if (!token) return null;
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query(
-      `SELECT login_id, login_type
-         FROM tb_user
-        WHERE user_id = ?
-        LIMIT 1`,
+      `SELECT login_id, login_type FROM tb_user WHERE user_id = ? LIMIT 1`,
       [decoded.uid]
     );
     if (!rows.length) return null;
     const { login_id, login_type } = rows[0];
     return composeUserKey(login_type, login_id);
-  } catch (_e) {
+  } catch {
     return null;
   }
 }
@@ -92,8 +87,8 @@ router.post("/attempt", async (req, res) => {
     const {
       storyTitle,
       storyKey,
-      attemptTime,     // ISO string 기대 (없어도 됨: 서버가 now로 보정)
-      clientKst,       // 표시용 문자열 (선택)
+      attemptTime,  // ISO (없어도 됨)
+      clientKst,
       score,
       total,
       byCategory = {},
@@ -101,23 +96,21 @@ router.post("/attempt", async (req, res) => {
       riskBars = {},
       riskBarsByType = {},
       user_key: bodyUserKey,
-      userKey: camelBodyUserKey,           // ← 앱/기타 호환
+      userKey: camelBodyUserKey,
     } = req.body || {};
 
-    // 1) 인증 쿠키로 우선 도출
     const authedKey = await deriveUserKeyFromAuth(req);
 
-    // 2) 하위호환: 쿼리/바디/헤더 어디로 와도 읽는다
+    // 어디로 와도 읽기
     const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
-    const claimedKey =
-      (
-        req.query.user_key ||
-        req.query.userKey ||
-        bodyUserKey ||
-        camelBodyUserKey ||
-        headerUserKey ||
-        ""
-      ).toString().trim() || null;
+    const claimedKey = (
+      req.query.user_key ||
+      req.query.userKey ||
+      bodyUserKey ||
+      camelBodyUserKey ||
+      headerUserKey ||
+      ""
+    ).toString().trim() || null;
 
     const user_key = authedKey || claimedKey;
 
@@ -131,18 +124,16 @@ router.post("/attempt", async (req, res) => {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // ★ client_utc는 NOT NULL → attemptTime이 없거나 파싱 실패면 '지금'으로 보정
+    // NOT NULL 보정
     let clientUtcStr;
     if (attemptTime) {
       const utc = new Date(attemptTime);
-      clientUtcStr = isNaN(utc.getTime())
-        ? toUtcSqlDatetime(new Date())
-        : toUtcSqlDatetime(utc);
+      clientUtcStr = isNaN(utc.getTime()) ? toUtcSqlDatetime(new Date()) : toUtcSqlDatetime(utc);
     } else {
       clientUtcStr = toUtcSqlDatetime(new Date());
     }
 
-    // 동일 story_key의 다음 회차 계산
+    // 다음 회차 계산
     const [lastRows] = await conn.query(
       `SELECT COALESCE(MAX(client_attempt_order), 0) AS last_order
          FROM tb_story_result
@@ -153,17 +144,15 @@ router.post("/attempt", async (req, res) => {
 
     const story_title = storyTitle || storyKey;
 
-    // 디버깅용 로그
     if (process.env.NODE_ENV !== "production") {
       console.log("[W_STR] INSERT payload", {
-        user_key, storyKey, story_title, nextAttempt,
-        score, total, clientUtcStr, clientKst,
-        byCategoryKeys: Object.keys(byCategory || {}),
-        riskBarsKeys: Object.keys(riskBars || {})
+        user_key, storyKey, nextAttempt,
+        score, total, clientUtcStr,
+        byCategoryKeys: Object.keys(byCategory||{}),
+        riskBarsKeys: Object.keys(riskBars||{})
       });
     }
 
-    // INSERT
     await conn.query(
       `INSERT INTO tb_story_result
        (user_key, story_key, story_title, client_attempt_order, score, total, client_utc, client_kst,
@@ -176,8 +165,8 @@ router.post("/attempt", async (req, res) => {
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
-        clientUtcStr,                      // DATETIME 'YYYY-MM-DD HH:mm:ss' (NOT NULL 보장)
-        toStrOrNull(clientKst),            // 사람이 읽기 좋은 KST 문자열(선택)
+        clientUtcStr,
+        toStrOrNull(clientKst),
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -188,11 +177,7 @@ router.post("/attempt", async (req, res) => {
     return res.json({ ok: true, user_key, story_key: storyKey, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.code || "db_error",
-      detail: err.sqlMessage || String(err),
-    });
+    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
   } finally {
     if (conn) conn.release();
   }
@@ -201,7 +186,6 @@ router.post("/attempt", async (req, res) => {
 /* ==== 유저 전체 히스토리(동화별 그룹) ==== */
 router.get("/history/all", async (req, res) => {
   try {
-    // 1) 쿼리 우선(관리용), 없으면 2) 인증 쿠키에서 도출
     let user_key = (req.query.user_key || req.query.userKey || "").trim();
     if (!user_key) {
       const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
@@ -227,11 +211,7 @@ router.get("/history/all", async (req, res) => {
     for (const r of rows) {
       const sk = r.story_key || "(unknown)";
       if (!map.has(sk)) {
-        map.set(sk, {
-          story_key: r.story_key,
-          story_title: toStrOrNull(r.story_title),
-          records: [],
-        });
+        map.set(sk, { story_key: r.story_key, story_title: toStrOrNull(r.story_title), records: [] });
       }
       map.get(sk).records.push({
         id: r.id,
@@ -247,11 +227,7 @@ router.get("/history/all", async (req, res) => {
     return res.json({ ok: true, data: Array.from(map.values()) });
   } catch (err) {
     console.error("[/str/history/all] error:", err);
-    return res.status(500).json({
-      ok: false,
-      error: err.code || "db_error",
-      detail: err.sqlMessage || String(err),
-    });
+    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
   }
 });
 
