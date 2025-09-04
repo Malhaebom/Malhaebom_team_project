@@ -8,12 +8,46 @@ import Background from "../../../Background/Background";
 import API, { ensureUserKey } from "../../../../lib/api.js";
 
 const TITLE_TO_KEY = {
+  // 표준 표기
   "어머니의 벙어리 장갑": "mother_gloves",
   "아버지와 결혼식": "father_wedding",
   "아들의 호빵": "sons_bread",
   "할머니와 바나나": "grandma_banana",
   "꽁당 보리밥": "kkongdang_boribap",
+
+  // ▼ 흔한 변형(띄어쓰기/오타)을 안전망으로 추가
+  "꽁당보리밥": "kkongdang_boribap",
+  "병어리 장갑": "mother_gloves",       // 혹시 모를 오타
+  "어머니와 벙어리 장갑": "mother_gloves"
 };
+
+/* 프론트에서도 서버와 동일한 정규화 로직 적용 */
+function nspace(s){ return String(s||"").replace(/\s+/g," ").trim(); }
+function ntitle(s){
+  let x = nspace(s);
+  x = x.replaceAll("병어리","벙어리");
+  x = x.replaceAll("어머니와","어머니의");
+  x = x.replaceAll("벙어리장갑","벙어리 장갑");
+  x = x.replaceAll("꽁당보리밥","꽁당 보리밥");
+  x = x.replaceAll("할머니와바나나","할머니와 바나나");
+  return x;
+}
+function toSlugOnClient(storyKeyCandidate, titleCandidate){
+  // 1) 이미 슬러그인 경우(영문 키)에 해당하면 그대로
+  if (["mother_gloves","father_wedding","sons_bread","grandma_banana","kkongdang_boribap"].includes(storyKeyCandidate)) {
+    return storyKeyCandidate;
+  }
+  // 2) 제목 기준으로 먼저 정규화 후 매핑
+  const t = ntitle(titleCandidate);
+  if (TITLE_TO_KEY[t]) return TITLE_TO_KEY[t];
+
+  // 3) 혹시 storyKeyCandidate가 제목이 들어온 경우도 처리
+  const t2 = ntitle(storyKeyCandidate);
+  if (TITLE_TO_KEY[t2]) return TITLE_TO_KEY[t2];
+
+  // 4) 끝까지 못 찾으면 그대로(서버가 한 번 더 정규화함)
+  return storyKeyCandidate || "unknown_story";
+}
 
 function nowKstString() {
   const d = new Date();
@@ -35,7 +69,11 @@ export default function ResultExam() {
 
   useEffect(() => {
     AOS.init();
-    setBookTitle(localStorage.getItem("bookTitle") || "동화");
+    // ▼ 저장된 제목을 정규화해서 상태에 저장
+    const raw = localStorage.getItem("bookTitle") || "동화";
+    const fixed = ntitle(raw);
+    setBookTitle(fixed);
+
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -77,17 +115,16 @@ export default function ResultExam() {
   ];
 
   async function saveToBookHistory(resolvedUserKey) {
-    const title = localStorage.getItem("bookTitle") || "동화";
-    const storyKey =
-      TITLE_TO_KEY[title] ||
-      localStorage.getItem("storyKey") ||
-      "unknown_story";
+    const rawTitle = localStorage.getItem("bookTitle") || "동화";
+    const title = ntitle(rawTitle); // 정규화된 제목
+    // ▼ 프론트에서 슬러그 확정 (서버와 동일 규칙)
+    const storyKey = toSlugOnClient(TITLE_TO_KEY[title], title);
 
     const examResult = {
       storyTitle: title,
       storyKey,
-      attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환(없어도 now로 보정)
-      clientKst: nowKstString(),             // 표시용
+      attemptTime: new Date().toISOString(), // 서버가 UTC -> SQL/KST 라벨 생성
+      clientKst: nowKstString(),             // 서버가 무시하고 라벨 재생성함(괜찮음)
       score: total,
       total: 40,
       byCategory: {
@@ -98,7 +135,6 @@ export default function ResultExam() {
         D:  { correct: Number(scoreD),  total: 4 },
       },
       byType: {},
-      // 아래 riskBars는 앱 형식 맞춤(0~8 점수), 서버는 그대로 보관
       riskBars: {
         A:  Number(scoreAD) * 2,
         AI: Number(scoreAI) * 2,
@@ -114,7 +150,9 @@ export default function ResultExam() {
       headers: { "x-user-key": resolvedUserKey },
     };
 
+    console.log("[ResultExam] save payload =", { examResult, cfg });
     const { data } = await API.post("/str/attempt", examResult, cfg);
+    console.log("[ResultExam] save response =", data);
     if (!data?.ok) {
       console.error("검사 결과 저장 실패:", data);
       alert("검사 결과 저장에 실패했습니다.");
@@ -123,11 +161,10 @@ export default function ResultExam() {
 
   useEffect(() => {
     (async () => {
-      if (total <= 0) return;
+      // ▼ 총점이 0이어도 저장은 시도 (일부 케이스에서 타이밍 이슈 방지)
       if (savedOnceRef.current) return;
       savedOnceRef.current = true;
 
-      // 항상 같은 user_key로 저장
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
@@ -144,7 +181,9 @@ export default function ResultExam() {
         alert("검사 결과 저장 중 오류가 발생했습니다.");
       }
     })();
-  }, [total]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]); // total이 계산된 뒤 한 번만 실행
+  
 
   const goHome = () => {
     location.href = "/";
