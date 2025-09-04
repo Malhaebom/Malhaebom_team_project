@@ -1,3 +1,4 @@
+// 02. web/malhaebom/src/pages/Story/Exam/ResultExam.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Header from "../../../../components/Header.jsx";
 import AOS from "aos";
@@ -13,6 +14,13 @@ const TITLE_TO_KEY = {
   "할머니와 바나나": "grandma_banana",
   "꽁당 보리밥": "kkongdang_boribap",
 };
+
+function nowKstString() {
+  const d = new Date();
+  const k = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${k.getUTCFullYear()}-${pad(k.getUTCMonth() + 1)}-${pad(k.getUTCDate())} ${pad(k.getUTCHours())}:${pad(k.getUTCMinutes())}:${pad(k.getUTCSeconds())}`;
+}
 
 export default function ResultExam() {
   const { scoreAD, scoreAI, scoreB, scoreC, scoreD } = useScores();
@@ -77,6 +85,7 @@ export default function ResultExam() {
         localStorage.getItem("storyKey") ||
         "unknown_story";
 
+      // 미로그인/게스트면 저장 불가
       let targetUserKey = userKeyFromUrl && userKeyFromUrl !== "guest" ? userKeyFromUrl : null;
       if (!targetUserKey) {
         targetUserKey = await ensureUserKey({ retries: 3, delayMs: 200 });
@@ -89,8 +98,8 @@ export default function ResultExam() {
       const examResult = {
         storyTitle: title,
         storyKey,
-        attemptTime: new Date().toISOString(),
-        clientKst: new Date().toISOString(),
+        attemptTime: new Date().toISOString(), // 서버에서 DATETIME 변환
+        clientKst: nowKstString(),             // 사람이 읽기 좋은 KST 문자열
         score: total,
         total: 40,
         byCategory: {
@@ -109,14 +118,13 @@ export default function ResultExam() {
           D:  Number(scoreD)  * 2,
         },
         riskBarsByType: {},
-        user_key: targetUserKey
+        // ❌ user_key는 서버가 쿠키로 도출 → 보내지 않음
       };
 
-      const { data } = await API.post("/str/attempt", examResult, {
-        params: { user_key: targetUserKey },
-      });
-
-      if (!data?.ok) console.error("검사 결과 저장 실패:", data);
+      const { data } = await API.post("/str/attempt", examResult);
+      if (!data?.ok) {
+        console.error("검사 결과 저장 실패:", data);
+      }
     } catch (error) {
       console.error("검사 결과 저장 오류:", error);
     }

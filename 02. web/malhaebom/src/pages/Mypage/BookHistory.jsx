@@ -1,3 +1,4 @@
+// 02. web/malhaebom/src/pages/Mypage/BookHistory.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import Background from "../Background/Background";
 import API, { ensureUserKey } from "../../lib/api.js";
@@ -183,7 +184,6 @@ export default function BookHistory() {
 
   const mergedStories = useMemo(() => {
     const map = new Map(groups.map(g => [g.story_key, g]));
-
     const ordered = baseStories.map(b => {
       const g = map.get(b.story_key);
       return {
@@ -192,7 +192,6 @@ export default function BookHistory() {
         records: (g?.records || []).map(rowToCardData),
       };
     });
-
     for (const [k, g] of map.entries()) {
       const exists = baseStories.some(b => b.story_key === k);
       if (!exists) {
@@ -217,10 +216,10 @@ export default function BookHistory() {
       try {
         setLoading(true);
 
-        let userKey = userKeyFromQuery && userKeyFromQuery !== "guest" ? userKeyFromQuery : null;
-        if (!userKey) {
-          userKey = await ensureUserKey({ retries: 3, delayMs: 200 });
-        }
+        // 보기 전용 공유링크(?user_key=...)면 그대로 사용, 아니면 인증으로 도출
+        let userKey = userKeyFromQuery && userKeyFromQuery !== "guest"
+          ? userKeyFromQuery
+          : await ensureUserKey({ retries: 2, delayMs: 150 });
 
         if (!userKey) {
           setGroups([]);
@@ -228,7 +227,11 @@ export default function BookHistory() {
           return;
         }
 
-        const { data } = await API.get(`/str/history/all`, { params: { user_key: userKey } });
+        const req = userKeyFromQuery && userKeyFromQuery !== "guest"
+          ? API.get(`/str/history/all`, { params: { user_key: userKey } })
+          : API.get(`/str/history/all`); // 쿠키로 도출
+
+        const { data } = await req;
         if (data?.ok) {
           setGroups(data.data || []);
         } else {

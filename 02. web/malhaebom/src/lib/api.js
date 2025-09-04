@@ -7,9 +7,12 @@ const API = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// GET 인증성 엔드포인트 캐시 무력화 + 보조 헤더
+// ─────────────────────────────────────────────────────────────
+// 요청 인터셉터: /me 등 인증성 GET 요청 캐시 무력화 + 보조 헤더
+// ─────────────────────────────────────────────────────────────
 API.interceptors.request.use((config) => {
   const method = (config.method || "get").toLowerCase();
+
   if (method === "get") {
     const url = config.url || "";
 
@@ -28,10 +31,13 @@ API.interceptors.request.use((config) => {
     config.headers["Cache-Control"] = "no-cache";
     config.headers["Pragma"] = "no-cache";
   }
+
   return config;
 });
 
-// 에러 로깅
+// ─────────────────────────────────────────────────────────────
+// 응답 인터셉터: 에러 로깅
+// ─────────────────────────────────────────────────────────────
 API.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -47,32 +53,69 @@ function methodOf(cfg) {
   return (cfg?.method || "get").toUpperCase();
 }
 
+// ─────────────────────────────────────────────────────────────
+// user_key 확보 유틸
+// 규칙:
+//  1) URL 쿼리 ?user_key= 가 있으면 그것을 우선 사용(단, 'guest'는 무시)
+//  2) 세션 캐시(sessionStorage 'user_key') 사용
+//  3) /userLogin/me 호출 → data.userKey 또는 (loginType:loginId) 조합
+//     - local이면 그냥 loginId
+//     - sns면 `${loginType}:${loginId}`
+//  4) 'guest'는 절대 반환하지 않음
+//  5) 성공 시 sessionStorage('user_key')에 캐시
+// ─────────────────────────────────────────────────────────────
+
+/** 쿼리에서 user_key를 읽음(없거나 'guest'면 null) */
+function getUserKeyFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const q = (url.searchParams.get("user_key") || "").trim();
+    if (q && q !== "guest") return q;
+  } catch (_e) {}
+  return null;
+}
+
+/** /userLogin/me 응답에서 userKey 계산 */
+function extractUserKeyFromMe(data) {
+  if (!data?.ok || !data.isAuthed) return null;
+
+  // 서버가 userKey를 직접 내려주는 경우(권장)
+  const direct = (data.userKey || "").trim();
+  if (direct && direct !== "guest") return direct;
+
+  // 하위 호환: loginType/loginId 조합
+  const loginType = (data.loginType || "").trim();   // 'local' | 'kakao' | 'naver' | 'google' ...
+  const loginId   = (data.loginId || "").trim();
+  if (!loginType || !loginId) return null;
+
+  return loginType === "local" ? loginId : `${loginType}:${loginId}`;
+}
+
 /**
  * 현재 로그인 세션으로부터 user_key를 가져온다.
- * - 우선순위: data.user.user_key → data.user.phone → data.loginId → data.userId
- * - 성공 시 localStorage('user_key')에 캐시
- * - 실패 시 null 반환 (※ guest는 여기서 반환하지 않음)
+ * - 우선순위: URL ?user_key= → sessionStorage → /userLogin/me
+ * - 성공 시 sessionStorage('user_key') 캐시
+ * - 실패 시 null 반환 (※ 'guest'는 절대 반환하지 않음)
  */
 export async function getUserKeyFromSession() {
   try {
-    // 캐시 우선
-    const cached = localStorage.getItem("user_key");
+    // 1) URL 쿼리 우선
+    const fromQuery = getUserKeyFromUrl();
+    if (fromQuery) {
+      sessionStorage.setItem("user_key", fromQuery);
+      return fromQuery;
+    }
+
+    // 2) 세션 캐시
+    const cached = (sessionStorage.getItem("user_key") || "").trim();
     if (cached && cached !== "guest") return cached;
 
+    // 3) /me 호출
     const { data } = await API.get("/userLogin/me");
-    const key =
-      data?.user?.user_key ||
-      data?.user?.phone ||
-      data?.loginId ||
-      data?.userId ||
-      null;
-
-    if (key) {
-      const k = String(key).trim();
-      if (k) {
-        localStorage.setItem("user_key", k);
-        return k;
-      }
+    const meKey = extractUserKeyFromMe(data);
+    if (meKey && meKey !== "guest") {
+      sessionStorage.setItem("user_key", meKey);
+      return meKey;
     }
   } catch (_e) {
     // 무시하고 null 반환
@@ -89,7 +132,7 @@ export async function ensureUserKey({ retries = 3, delayMs = 200 } = {}) {
   for (let i = 0; i <= retries; i++) {
     const k = await getUserKeyFromSession();
     if (k && k !== "guest") return k;
-    if (i < retries) await new Promise((r) => setTimeout(r, delayMs));
+    if (i < retries && delayMs) await new Promise((r) => setTimeout(r, delayMs));
   }
   return null;
 }
