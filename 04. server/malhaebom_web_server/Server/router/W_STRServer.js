@@ -1,4 +1,3 @@
-// Server/router/W_STRServer.js
 const express = require("express");
 const mysql = require("mysql2/promise");
 const jwt = require("jsonwebtoken");
@@ -39,6 +38,8 @@ const toStrOrNull = (s) => {
   return v.length ? v : null;
 };
 const pad2 = (n) => String(n).padStart(2, "0");
+
+/** Date → 'YYYY-MM-DD HH:mm:ss' (UTC 기준) */
 function toUtcSqlDatetime(date) {
   const y = date.getUTCFullYear();
   const m = pad2(date.getUTCMonth() + 1);
@@ -60,13 +61,16 @@ async function deriveUserKeyFromAuth(req) {
     if (!token) return null;
     const decoded = jwt.verify(token, JWT_SECRET);
     const [rows] = await pool.query(
-      `SELECT login_id, login_type FROM tb_user WHERE user_id = ? LIMIT 1`,
+      `SELECT login_id, login_type
+         FROM tb_user
+        WHERE user_id = ?
+        LIMIT 1`,
       [decoded.uid]
     );
     if (!rows.length) return null;
     const { login_id, login_type } = rows[0];
     return composeUserKey(login_type, login_id);
-  } catch {
+  } catch (_e) {
     return null;
   }
 }
@@ -87,8 +91,8 @@ router.post("/attempt", async (req, res) => {
     const {
       storyTitle,
       storyKey,
-      attemptTime,  // ISO (없어도 됨)
-      clientKst,
+      attemptTime,     // ISO string 기대 (없어도 됨 → 서버가 now 보정)
+      clientKst,       // 표시용 문자열 (선택)
       score,
       total,
       byCategory = {},
@@ -96,35 +100,44 @@ router.post("/attempt", async (req, res) => {
       riskBars = {},
       riskBarsByType = {},
       user_key: bodyUserKey,
-      userKey: camelBodyUserKey,
+      userKey: camelBodyUserKey, // 호환
     } = req.body || {};
 
+    // 1) 인증 쿠키(authedKey) 우선
     const authedKey = await deriveUserKeyFromAuth(req);
 
-    // 어디로 와도 읽기
+    // 2) 다양한 경로로 들어온 클레임 키 (쿼리/바디/헤더)
     const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
-    const claimedKey = (
+    const rawClaimed = (
       req.query.user_key ||
       req.query.userKey ||
       bodyUserKey ||
       camelBodyUserKey ||
       headerUserKey ||
       ""
-    ).toString().trim() || null;
+    ).toString().trim();
 
-    const user_key = authedKey || claimedKey;
+    // 'guest'는 무시
+    const claimedKey = rawClaimed && rawClaimed !== "guest" ? rawClaimed : null;
 
-    if (!user_key || user_key === "guest") {
+    // 최종 user_key: 쿠키 > 클레임
+    let user_key = authedKey || claimedKey;
+
+    if (!user_key) {
       return res.status(401).json({ ok: false, error: "not_authed", detail: "로그인된 사용자만 저장 가능합니다." });
     }
+
+    // 쿠키키와 클레임키가 다르더라도(클레임이 guest/오염 등) 쿠키 우선으로 강제 정합
     if (authedKey && claimedKey && authedKey !== claimedKey) {
-      return res.status(403).json({ ok: false, error: "mismatched_user_key" });
+      console.warn("[/str/attempt] user_key mismatch → authedKey 우선", { authedKey, claimedKey });
+      user_key = authedKey;
     }
+
     if (!storyKey) {
       return res.status(400).json({ ok: false, error: "missing_storyKey" });
     }
 
-    // NOT NULL 보정
+    // client_utc (NOT NULL) 보정: attemptTime 없거나 파싱 실패 → now(UTC)
     let clientUtcStr;
     if (attemptTime) {
       const utc = new Date(attemptTime);
@@ -144,15 +157,7 @@ router.post("/attempt", async (req, res) => {
 
     const story_title = storyTitle || storyKey;
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[W_STR] INSERT payload", {
-        user_key, storyKey, nextAttempt,
-        score, total, clientUtcStr,
-        byCategoryKeys: Object.keys(byCategory||{}),
-        riskBarsKeys: Object.keys(riskBars||{})
-      });
-    }
-
+    // INSERT
     await conn.query(
       `INSERT INTO tb_story_result
        (user_key, story_key, story_title, client_attempt_order, score, total, client_utc, client_kst,
@@ -165,8 +170,8 @@ router.post("/attempt", async (req, res) => {
         nextAttempt,
         toNumber(score, 0),
         toNumber(total, 40),
-        clientUtcStr,
-        toStrOrNull(clientKst),
+        clientUtcStr,                      // DATETIME 'YYYY-MM-DD HH:mm:ss' (NOT NULL 보장)
+        toStrOrNull(clientKst),            // 사람이 읽기 좋은 KST 문자열(선택)
         JSON.stringify(byCategory || {}),
         JSON.stringify(byType || {}),
         JSON.stringify(riskBars || {}),
@@ -177,7 +182,11 @@ router.post("/attempt", async (req, res) => {
     return res.json({ ok: true, user_key, story_key: storyKey, attempt_order: nextAttempt });
   } catch (err) {
     console.error("[/str/attempt] error:", err);
-    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
+    return res.status(500).json({
+      ok: false,
+      error: err.code || "db_error",
+      detail: err.sqlMessage || String(err),
+    });
   } finally {
     if (conn) conn.release();
   }
@@ -186,10 +195,11 @@ router.post("/attempt", async (req, res) => {
 /* ==== 유저 전체 히스토리(동화별 그룹) ==== */
 router.get("/history/all", async (req, res) => {
   try {
-    let user_key = (req.query.user_key || req.query.userKey || "").trim();
+    // 1) 쿼리 우선(관리용), 없으면 2) 인증 쿠키에서 도출
+    let user_key = (req.query.user_key || req.query.userKey || "").toString().trim();
+    if (user_key === "guest") user_key = "";
     if (!user_key) {
-      const headerUserKey = (req.headers["x-user-key"] || req.headers["x-userkey"] || "").toString().trim();
-      user_key = headerUserKey || (await deriveUserKeyFromAuth(req));
+      user_key = await deriveUserKeyFromAuth(req);
     }
     if (!user_key) {
       return res.status(401).json({ ok: false, error: "not_authed" });
@@ -198,7 +208,8 @@ router.get("/history/all", async (req, res) => {
     const sql = `
       SELECT id, user_key, story_key, story_title,
              client_attempt_order, score, total,
-             client_utc, client_kst, by_category, risk_bars
+             client_utc, client_kst, by_category, risk_bars,
+             by_type, risk_bars_by_type
         FROM tb_story_result
        WHERE TRIM(user_key)=TRIM(?)
        ORDER BY story_key ASC, client_utc DESC, id DESC
@@ -211,7 +222,11 @@ router.get("/history/all", async (req, res) => {
     for (const r of rows) {
       const sk = r.story_key || "(unknown)";
       if (!map.has(sk)) {
-        map.set(sk, { story_key: r.story_key, story_title: toStrOrNull(r.story_title), records: [] });
+        map.set(sk, {
+          story_key: r.story_key,
+          story_title: toStrOrNull(r.story_title),
+          records: [],
+        });
       }
       map.get(sk).records.push({
         id: r.id,
@@ -221,13 +236,19 @@ router.get("/history/all", async (req, res) => {
         score: toNumber(r.score, 0),
         total: toNumber(r.total, 0),
         by_category: safeParseJSON(r.by_category, {}),
+        by_type: safeParseJSON(r.by_type, {}),                         // ★ 추가
         risk_bars: safeParseJSON(r.risk_bars, {}),
+        risk_bars_by_type: safeParseJSON(r.risk_bars_by_type, {}),     // ★ 추가
       });
     }
     return res.json({ ok: true, data: Array.from(map.values()) });
   } catch (err) {
     console.error("[/str/history/all] error:", err);
-    return res.status(500).json({ ok: false, error: err.code || "db_error", detail: err.sqlMessage || String(err) });
+    return res.status(500).json({
+      ok: false,
+      error: err.code || "db_error",
+      detail: err.sqlMessage || String(err),
+    });
   }
 });
 
