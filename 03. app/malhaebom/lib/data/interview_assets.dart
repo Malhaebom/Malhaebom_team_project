@@ -73,7 +73,7 @@ class InterviewAssets {
     },
     {
       "title": "인터뷰하기12",
-      "speechText": "학창시절 소풍 가셨을 때\n기억나는 점심 도시락이 있나요?\n어떤 음식이었나요?",
+      "speechText": "학창시절 소풍 가셨을 때\n기억나는 점심\n도시락이 있나요?\n어떤 음식이었나요?",
       "sound": "$base/audio_11.mp3",
       "question_id": 12,
     },
