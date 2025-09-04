@@ -11,13 +11,6 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [nick, setNick] = useState("");
 
-  // userKey를 localStorage에 저장
-  const setUserKey = (userKey) => {
-    if (userKey) {
-      localStorage.setItem("userKey", userKey);
-    }
-  };
-  
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
