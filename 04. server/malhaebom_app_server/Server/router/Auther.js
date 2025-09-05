@@ -15,6 +15,20 @@ const pool = require("./db");
 const router = express.Router();
 
 /* =========================
+ * 간단 요청 로그 (디버깅용)
+ * ========================= */
+router.use((req, _res, next) => {
+  try {
+    const ip =
+      (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+      req.socket?.remoteAddress ||
+      "";
+    console.log(`[REQ] ${req.method} ${req.protocol}://${req.get("host")}${req.originalUrl} ← ${ip}`);
+  } catch (_) {}
+  next();
+});
+
+/* =========================
  * JWT
  * ========================= */
 const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
@@ -46,6 +60,7 @@ const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
 const GOOGLE_REDIRECT_ABS = (() => {
   const p = String(process.env.GOOGLE_REDIRECT_PATH || "");
   if (/^https?:\/\//i.test(p)) return p;
+  // 기본값: 서비스 도메인의 HTTPS 콜백
   return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
 })();
 
@@ -115,7 +130,7 @@ function verifyStateJWT(state, provider) {
 }
 
 /* =========================
- * 앱으로 보내기: myapp:// 스킴으로 302
+ * 앱으로 보내기: myapp:// 스킴으로 302 (고정)
  * ========================= */
 function buildQueryForApp(params) {
   const q = new URLSearchParams({
@@ -541,7 +556,7 @@ router.get("/naver/callback", async (req, res) => {
 /* =========================
  * (테스트) 강제 콜백 페이지 — 302로 앱 열림
  * ========================= */
-router.get("/test/callback", (_req, res) => {
+router.get("/test/callback", (req, res) => {
   const params = {
     token: "TEST",
     login_id: "dev@example.com",
@@ -550,7 +565,15 @@ router.get("/test/callback", (_req, res) => {
     nick: "Dev",
     ok: "1",
   };
-  return redirectToApp(_req, res, params);
+  return redirectToApp(req, res, params);
+});
+
+/* =========================
+ * 헬스체크
+ * ========================= */
+router.get("/__ping__", (_req, res) => {
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.status(200).send("pong-auth\n");
 });
 
 module.exports = router;
