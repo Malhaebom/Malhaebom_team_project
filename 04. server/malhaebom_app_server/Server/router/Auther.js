@@ -114,7 +114,14 @@ function verifyAndDeleteState(store, state) {
  * 앱 리다이렉트 방식 선택
  * ========================= */
 const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
+
+// [EDIT] 인텐트 폴백을 포함한 HTML 브릿지
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
+  const u = new URL(toUrl);
+  const q = u.search || "";
+  const APP_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ← 실제 앱 패키지명
+  const intentHref = `intent://auth/callback${q}#Intent;scheme=myapp;package=${APP_PKG};end`;
+
   return `<!doctype html>
 <html lang="ko">
 <head>
@@ -127,16 +134,21 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
     .box{max-width:520px;margin:24px auto;padding:20px;border:1px solid #eee;border-radius:12px}
     .btn{display:inline-block;margin-top:12px;padding:10px 14px;border-radius:8px;background:#344CB7;color:#fff;text-decoration:none}
     .muted{color:#666;font-size:14px}
+    .sub{display:block;margin-top:8px}
   </style>
   <script>
     (function(){
       var target=${JSON.stringify(toUrl)};
+      var intentUrl=${JSON.stringify(intentHref)};
       function go(){ try{window.location.replace(target);}catch(e){} }
       go();
+      // 커스텀스킴 302가 막히는 단말 대비: intent:// 폴백
       setTimeout(function(){
-        try{ var a=document.createElement('a');a.setAttribute('href',target);a.click(); }catch(e){}
+        try{ window.location.href=intentUrl; }catch(e){}
+      },600);
+      setTimeout(function(){
         var hint=document.getElementById('hint'); if(hint) hint.style.display='block';
-      },500);
+      },1200);
     })();
   </script>
 </head>
@@ -145,6 +157,7 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
     <h3>${title}</h3>
     <p class="muted">${hint}</p>
     <a class="btn" href="${toUrl}">${btnLabel}</a>
+    <a class="btn sub" href="${intentHref}">앱이 열리지 않으면 여기를 누르세요</a>
     <p id="hint" class="muted" style="display:none;margin-top:8px;">버튼이 작동하지 않으면 브라우저 탭을 닫아 주세요.</p>
   </div>
 </body>

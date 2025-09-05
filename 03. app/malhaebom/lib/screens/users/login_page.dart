@@ -227,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 (항상 API 서버에서 시작) ==================
+  /// ================== SNS 로그인 ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -258,26 +258,40 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // ★ 여기 핵심: 시작 URL은 항상 API 서버로(웹 프런트 도메인 사용 X)
-      final qp = <String, String>{if (needReauth) 'reauth': '1'};
+      // 구글은 HTTPS 도메인 + HTML 브리지 강제
+      final isGoogle = provider == 'google';
+      final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
+
+      final qp = <String, String>{
+        if (needReauth) 'reauth': '1',
+        if (isGoogle) 'html': '1', // ← 크롬이 302 커스텀스킴을 씹는 단말 대비
+      };
+
       final authUrl =
           Uri.parse(
-            '$API_BASE/auth/$provider',
+            '$base/auth/$provider',
           ).replace(queryParameters: qp).toString();
 
+      // 디버그
       // ignore: avoid_print
       print('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        callbackUrlScheme: CALLBACK_SCHEME,
+        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
+      // 디버그: 실제 콜백 URL 확인
+      // ignore: avoid_print
+      print('[auth] result = $result');
+
       final uri = Uri.parse(result);
-      if (uri.scheme != CALLBACK_SCHEME) {
-        _snack('콜백 스킴이 올바르지 않습니다: ${uri.scheme}');
+      if (uri.scheme != CALLBACK_SCHEME ||
+          uri.host != CALLBACK_HOST ||
+          uri.path != CALLBACK_PATH) {
+        _snack('콜백 URL 불일치: $uri');
         return;
       }
 
