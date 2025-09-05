@@ -129,23 +129,12 @@ function buildQueryForApp(params) {
   return q.toString();
 }
 
-function redirectToApp(req, res, params) {
-  const ua = String(req.headers["user-agent"] || "");
-  const isAndroid = /Android/i.test(ua);
-
+function redirectToApp(_req, res, params) {
   const qs = buildQueryForApp(params);
-
-  // iOS/기타: myapp://auth/callback?... 로 302
-  const schemeUrl = `${APP_CALLBACK}?${qs}`;
-  // Android: intent://auth/callback?...#Intent;scheme=myapp;package=...;end 로 302
-  const intentUrl = `intent://auth/callback?${qs}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
-
-  const location = isAndroid ? intentUrl : schemeUrl;
+  const schemeUrl = `${APP_CALLBACK}?${qs}`; // ★ 항상 myapp:// 로 보낸다
 
   console.log("[AUTH] return to app", {
-    ua: ua.slice(0, 160),
-    isAndroid,
-    to: isAndroid ? "intent://" : "myapp://",
+    to: "myapp://",
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
@@ -154,28 +143,21 @@ function redirectToApp(req, res, params) {
   });
 
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  return res.redirect(302, location);
+  return res.redirect(302, schemeUrl);
 }
 
-function redirectError(req, res, msg) {
-  const ua = String(req.headers["user-agent"] || "");
-  const isAndroid = /Android/i.test(ua);
+function redirectError(_req, res, msg) {
   const qs = new URLSearchParams({ error: msg, ts: String(Date.now()) }).toString();
-
-  const schemeUrl = `${APP_CALLBACK}?${qs}`;
-  const intentUrl = `intent://auth/callback?${qs}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
-  const location = isAndroid ? intentUrl : schemeUrl;
+  const schemeUrl = `${APP_CALLBACK}?${qs}`; // ★ 에러도 myapp:// 로
 
   console.log("[AUTH] error return", {
-    ua: ua.slice(0, 160),
-    isAndroid,
-    to: isAndroid ? "intent://" : "myapp://",
+    to: "myapp://",
     error: msg,
     mode: "302",
   });
 
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
-  return res.redirect(302, location);
+  return res.redirect(302, schemeUrl);
 }
 
 /* =========================
