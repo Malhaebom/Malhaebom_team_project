@@ -227,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 (구글은 HTTPS 도메인) ==================
+  /// ================== SNS 로그인 (항상 API 서버에서 시작) ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -258,16 +258,11 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // 구글은 HTTPS 도메인, 나머지는 기존 API_BASE 사용 (카카오/네이버는 PUBLIC_BASE_URL 기반으로 서버가 처리)
-      final isGoogle = provider == 'google';
-      final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
-
-      // ❌ html=1 제거: HTML 브리지 사용 안 함(서비스워커/SPA 개입 방지)
+      // ★ 여기 핵심: 시작 URL은 항상 API 서버로(웹 프런트 도메인 사용 X)
       final qp = <String, String>{if (needReauth) 'reauth': '1'};
-
       final authUrl =
           Uri.parse(
-            '$base/auth/$provider',
+            '$API_BASE/auth/$provider',
           ).replace(queryParameters: qp).toString();
 
       // ignore: avoid_print
@@ -275,7 +270,6 @@ class _LoginPageState extends State<LoginPage> {
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        // AndroidManifest / iOS URL Types에 등록한 스킴
         callbackUrlScheme: CALLBACK_SCHEME,
       );
 
