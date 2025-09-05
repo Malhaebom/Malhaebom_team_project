@@ -67,11 +67,13 @@ pip install requests
 ```bash
 # 터미널 1: 분석 서버 (8000 포트)
 cd "08.X_X"
+source .venv/bin/activate
 uvicorn MAIN:app --host 127.0.0.1 --port 8000 --reload
 
-# 터미널 2: 게이트웨이 서버 (4000 포트)
+# 터미널 2: 게이트웨이 서버 (4010 포트)
 cd "08.X_X"
-uvicorn gateway:app --host 0.0.0.0 --port 4000 --reload
+source .venv/bin/activate
+uvicorn gateway:app --host 0.0.0.0 --port 4010 --reload
 ```
 
 ### **4단계: Flutter 앱 실행**
