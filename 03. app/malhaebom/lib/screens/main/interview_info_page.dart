@@ -163,10 +163,11 @@ class _InterviewIntroPageState extends State<InterviewInfoPage> {
 
               _infoCard(
                 title: '원활한 진행을 위해',
+                align: CrossAxisAlignment.center,
                 children: [
-                  _bullet('조용한 환경에서 진행해주세요.'),
-                  _bullet('마이크 권한을 허용해주세요.'),
-                  _bullet('이번 회차 중 이미 완료한 문항은\n재녹음이 제한돼요.'),
+                  _centerLine('조용한 환경에서 진행해주세요.'),
+                  _centerLine('마이크 권한을 허용해주세요.'),
+                  _centerLine('이번 회차 중 이미 완료한 문항은\n재녹음이 제한돼요.'),
                 ],
               ),
               SizedBox(height: 22.h),
@@ -265,6 +266,16 @@ class _InterviewIntroPageState extends State<InterviewInfoPage> {
     );
   }
 
+  Widget _centerLine(String s) => Padding(
+    padding: EdgeInsets.only(top: 6.h),
+    child: Text(
+      s,
+      textAlign: TextAlign.center,
+      textScaler: const TextScaler.linear(1.0),
+      style: _body(),
+    ),
+  );
+
   Widget _stepTitle({
     required IconData icon,
     required String text,
@@ -334,26 +345,6 @@ class _InterviewIntroPageState extends State<InterviewInfoPage> {
       ),
     );
   }
-
-  Widget _bullet(String s) => Padding(
-    padding: EdgeInsets.only(top: 6.h),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '• ',
-          style: TextStyle(color: Color(0xFF111827), height: 1.4),
-        ),
-        Expanded(
-          child: Text(
-            s,
-            textScaler: const TextScaler.linear(1.0),
-            style: _body(),
-          ),
-        ),
-      ],
-    ),
-  );
 }
 
 // ===== 버튼 컴포넌트 =====
@@ -382,7 +373,8 @@ class _ChoiceButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14.r),
-        child: AnimatedSize( // 폰트 로딩 후 크기 변화도 부드럽게
+        child: AnimatedSize(
+          // 폰트 로딩 후 크기 변화도 부드럽게
           duration: const Duration(milliseconds: 120),
           alignment: Alignment.center,
           clipBehavior: Clip.hardEdge,

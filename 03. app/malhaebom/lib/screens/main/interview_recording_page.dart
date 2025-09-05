@@ -38,7 +38,7 @@ final String API_BASE =
       const defined = String.fromEnvironment('API_BASE', defaultValue: '');
       if (defined.isNotEmpty) return defined;
       // 서버 문서와 동일: 게이트웨이 4000
-      return 'http://127.0.0.1:4000';
+      return 'http://211.188.63.38:4000/gw';
     })();
 const String _ANALYZE_PATH = '/ir/analyze'; // 게이트웨이 분석 엔드포인트
 

@@ -858,7 +858,7 @@ class _StoryResultPageState extends State<StoryResultPage> {
       },
       icon: Icon(Icons.videogame_asset_rounded, size: iconSize),
       label: Text(
-        '두뇌 게임으로 이동',
+        '인지훈련 시작하기',
         textScaler: fixedScale,
         style: TextStyle(fontWeight: FontWeight.w900, fontSize: font),
       ),

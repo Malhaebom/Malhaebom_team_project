@@ -435,7 +435,7 @@ class _InterviewResultPageState extends State<InterviewResultPage> {
                     },
                     icon: Icon(Icons.videogame_asset_rounded, size: 22.sp * 1.25),
                     label: Text(
-                      '두뇌 게임으로 이동',
+                      '인지훈련 시작하기',
                       textScaler: fixedScale,
                       style: TextStyle(
                         fontFamily: 'GmarketSans',
