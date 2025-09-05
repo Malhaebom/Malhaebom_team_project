@@ -1,12 +1,46 @@
+// src/pages/Interview/InterviewStart.jsx
 import React, { useEffect, useRef, useState } from "react";
 import useQuery from "../../hooks/useQuery.js";
 import Header from "../../components/Header.jsx";
 import AOS from "aos";
+import API, { ensureUserKey } from "../../lib/api";
 import "aos/dist/aos.css";
 import ProgressBar from "./ProgressBar.jsx";
 import Background from "../Background/Background";
 import { useNavigate } from "react-router-dom";
 import { useMicrophone } from "../../MicrophoneContext.jsx";
+import { blobToWav } from "../../lib/BlobToWav.js";
+
+// ===== 설정 =====
+const IR_TITLE = "인지 능력 검사";
+const GW_BASE = import.meta.env.VITE_GW_BASE || "/gw";   // 게이트웨이 베이스 주소
+const RESULT_MAX_WAIT_MS = 60_000;         // 결과 대기 최대 1분
+const AUTO_GO_NEXT_ON_STOP = false;         // 녹음 끝나면 자동 다음 문항으로
+
+// ===== 간단 업로드 큐 =====
+const makeQueue = () => {
+  const q = [];
+  let running = false;
+
+  const run = async (uploadFn) => {
+    if (running) return;
+    running = true;
+    while (q.length) {
+      const job = q.shift();
+      try {
+        await uploadFn(job);
+      } catch (e) {
+        console.error("[upload] fail:", e);
+      }
+    }
+    running = false;
+  };
+
+  return {
+    push(job, uploadFn) { q.push(job); run(uploadFn); },
+    get length() { return q.length; },
+  };
+};
 
 function InterviewStart() {
   const query = useQuery();
@@ -15,7 +49,7 @@ function InterviewStart() {
     isMicrophoneActive,
     hasPermission,
     ensureMicrophoneActive,
-    streamRef: globalStreamRef
+    streamRef: globalStreamRef,
   } = useMicrophone();
 
   const initialQuestionId = Number(query.get("questionId") ?? "0");
@@ -25,26 +59,25 @@ function InterviewStart() {
   const [questionId, setQuestionId] = useState(initialQuestionId);
   const [recordingCompleted, setRecordingCompleted] = useState(false);
   const [localRecordingError, setLocalRecordingError] = useState(null);
-  const [isRecording, setIsRecording] = useState(false); // 로컬 녹음 상태
-  const [questionStartTs, setQuestionStartTs] = useState(Date.now());
-  const [recordStartTs, setRecordStartTs] = useState(null);
-  const resultsRef = useRef([]); // 각 문항 분석 결과 누적
-
-  // 브라우저 크기 상태
+  const [isRecording, setIsRecording] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
-  // 🎯 MediaRecorder 관련 refs
+  // MediaRecorder 관련
   const mediaRecorderRef = useRef(null);
   const chunksRef = useRef([]);
   const lastStartTsRef = useRef(0);
 
-  // 호환 가능한 MediaRecorder 생성 유틸
+  // 업로드 큐
+  const uploadQueueRef = useRef(makeQueue());
+
+  // 호환 가능한 MediaRecorder 생성
   const createMediaRecorder = (stream) => {
     const candidates = [
-      { mimeType: 'audio/webm;codecs=opus' },
-      { mimeType: 'audio/webm' },
-      { mimeType: 'audio/ogg;codecs=opus' },
-      {} // 브라우저 기본값
+      { mimeType: "audio/webm;codecs=opus" },
+      { mimeType: "audio/webm" },
+      { mimeType: "audio/ogg;codecs=opus" },
+      {}, // 브라우저 기본값
     ];
     for (const opt of candidates) {
       try {
@@ -52,89 +85,92 @@ function InterviewStart() {
         const mr = new MediaRecorder(stream, opt);
         return mr;
       } catch (e) {
-        console.warn('MediaRecorder 생성 실패, 다음 옵션 시도:', opt.mimeType, e);
+        console.warn("MediaRecorder 생성 실패, 다음 옵션 시도:", opt.mimeType, e);
       }
     }
-    throw new Error('이 브라우저에서 지원하는 오디오 코덱을 찾을 수 없습니다.');
+    throw new Error("이 브라우저에서 지원하는 오디오 코덱을 찾을 수 없습니다.");
   };
 
   useEffect(() => {
     AOS.init();
-
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
-
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // 🎯 MediaRecorder 설정 함수 - 중복 제거
+  // 1건 업로드(백그라운드)
+  const uploadOne = async (job) => {
+    const { blob, idx1, totalLines, questionText } = job;
+
+    // webm/ogg/mp4 → wav (실패 시 원본 전송)
+    let wavBlob = null;
+    try {
+      wavBlob = await blobToWav(blob);
+    } catch (e) {
+      console.warn("[upload] blobToWav 실패, 원본 전송 시도", e);
+      wavBlob = blob;
+    }
+
+    const formData = new FormData();
+    formData.append("audio", wavBlob, `interview_q${idx1}.wav`);
+    formData.append("prompt", questionText);
+    formData.append("interviewTitle", IR_TITLE);
+
+    const url = new URL(`${GW_BASE}/ir/analyze`);
+    url.searchParams.set("lineNumber", String(idx1));
+    url.searchParams.set("totalLines", String(totalLines));
+    url.searchParams.set("questionId", String(idx1));
+
+    const userKey = await ensureUserKey({ retries: 2, delayMs: 150 }).catch(() => null);
+    const headers = userKey ? { "x-user-key": userKey } : undefined;
+
+    const res = await fetch(url.toString(), { method: "POST", body: formData, headers });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      throw new Error(`analyze HTTP ${res.status} ${txt}`);
+    }
+  };
+
+  // MediaRecorder 설정
   const setupMediaRecorder = (mediaRecorder) => {
     mediaRecorder.ondataavailable = (e) => {
-      console.log("녹음 데이터 수신:", e.data.size, "bytes");
-      chunksRef.current.push(e.data);
+      if (e.data && e.data.size) {
+        chunksRef.current.push(e.data);
+      }
     };
 
     mediaRecorder.onstop = () => {
-      console.log("녹음 완료, 파일 생성 및 분석 서버 전송 준비...");
-
-      const blob = new Blob(chunksRef.current, { type: "audio/mp3 codecs=opus" });
-      console.log("녹음 파일 크기:", blob.size, "bytes");
+      // 업로드용 Blob
+      const blob = new Blob(chunksRef.current, {
+        type: mediaRecorderRef.current?.mimeType || "audio/webm;codecs=opus",
+      });
       const localChunks = [...chunksRef.current];
       chunksRef.current = [];
 
-      // 메트릭 계산
-      const stopTs = Date.now();
-      const audioDuration = recordStartTs ? (stopTs - recordStartTs) / 1000 : 0;
-      const responseTime = recordStartTs && questionStartTs ? (recordStartTs - questionStartTs) / 1000 : 0;
-
-      // 백엔드 게이트웨이에 전송
+      // 문항 메타
       const currentQuestion = Array.isArray(questions) ? questions[questionId] : null;
       const questionText = currentQuestion?.speechText ?? "";
+      const idx1 = Math.max(1, (questionId || 0) + 1);
+      const totalLines = Array.isArray(questions) ? questions.length : 25;
 
-      const formData = new FormData();
-      const fileName = `interview_q${questionId + 1}.webm`;
-      formData.append("audio_file", blob, fileName);
-      formData.append("question_text", questionText);
-      formData.append("response_time", String(responseTime));
-      formData.append("audio_duration", String(audioDuration));
+      // 백그라운드 업로드 큐에 등록
+      uploadQueueRef.current.push({ blob, idx1, totalLines, questionText }, uploadOne);
 
-      fetch("http://127.0.0.1:4010/process-audio", {
-        method: "POST",
-        body: formData,
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text || "오디오 처리 실패");
-          }
-          return res.json();
-        })
-        .then((data) => {
-          // 점수 객체 추출: 분석 서버({details, final_score})/게이트웨이({scores})/직접 점수({...}) 모두 지원
-          const extracted = (data && typeof data === 'object') ? (data.details || data.scores || data) : {};
-          const scoreKeys = ['response_time', 'repetition', 'avg_sentence_length', 'appropriateness', 'recall', 'grammar'];
-          const scores = scoreKeys.reduce((acc, k) => {
-            acc[k] = Number(extracted?.[k] || 0);
-            return acc;
-          }, {});
-          resultsRef.current.push({
-            question: questionText,
-            scores: scores,
-          });
-          console.log("분석 결과 누적:", resultsRef.current);
-          setRecordingCompleted(true);
-          setIsRecording(false);
-          setLocalRecordingError(null);
-        })
-        .catch((err) => {
-          console.error("분석 서버 전송 중 오류:", err);
-          // 실패 시에도 녹음 상태는 종료 처리
-          setRecordingCompleted(true);
-          setIsRecording(false);
-          setLocalRecordingError("분석 서버 전송 중 오류가 발생했습니다.");
-          // 전송 실패 시 복구를 위해 chunks를 되돌려둠
-          chunksRef.current = localChunks;
-        });
+      // UI 상태 업데이트 + 자동 다음
+      setRecordingCompleted(true);
+      setIsRecording(false);
+      setLocalRecordingError(null);
+
+      // if (AUTO_GO_NEXT_ON_STOP) {
+      //   if (idx1 < totalLines) {
+      //     setTimeout(() => setQuestionId((prev) => prev + 1), 0);
+      //   } else {
+      //     setTimeout(() => handleNextClick(), 0);
+      //   }
+      // }
+
+      // 실패 대비: 원본 청크 복구 가능하게 보관해도 되지만 여기선 폐기
+      void localChunks;
     };
 
     mediaRecorder.onerror = (event) => {
@@ -144,7 +180,7 @@ function InterviewStart() {
     };
 
     mediaRecorder.onstart = () => {
-      console.log("MediaRecorder 녹음 시작됨");
+      // console.log("MediaRecorder 녹음 시작됨");
     };
   };
 
@@ -164,60 +200,45 @@ function InterviewStart() {
 
   // 질문 변경 시 상태 초기화
   useEffect(() => {
-    console.log(`질문 ${questionId + 1}로 이동, 녹음 상태 초기화`);
     setRecordingCompleted(false);
     setLocalRecordingError(null);
     setIsRecording(false);
-    setQuestionStartTs(Date.now());
-    setRecordStartTs(null);
 
     // 녹음 데이터 청소
     chunksRef.current = [];
 
     // MediaRecorder 강제 재생성을 위해 참조 초기화
     if (mediaRecorderRef.current) {
-      console.log("질문 변경으로 인한 MediaRecorder 재생성");
+      if (mediaRecorderRef.current.state !== "inactive") {
+        try { mediaRecorderRef.current.stop(); } catch {}
+      }
       mediaRecorderRef.current = null;
     }
   }, [questionId]);
 
-  // 🎯 MediaRecorder 인스턴스 생성 및 초기화 (한 번만!)
+  // MediaRecorder 인스턴스 생성/초기화
   useEffect(() => {
-    console.log("MediaRecorder 초기화 시도:", {
-      hasStream: !!globalStreamRef.current,
-      isMicrophoneActive,
-      hasPermission,
-      questionId
-    });
-
-    // 기존 MediaRecorder가 있으면 정리
+    // 기존 정리
     if (mediaRecorderRef.current) {
-      console.log("기존 MediaRecorder 정리");
       if (mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
+        try { mediaRecorderRef.current.stop(); } catch {}
       }
       mediaRecorderRef.current = null;
     }
 
-    // 스트림이 있고 권한이 있을 때만 MediaRecorder 생성
+    // 스트림이 있고 권한이 있을 때만 생성
     if (globalStreamRef.current && hasPermission) {
       try {
         const mediaRecorder = createMediaRecorder(globalStreamRef.current);
         mediaRecorderRef.current = mediaRecorder;
-        console.log("MediaRecorder 새로 생성 완료, 상태:", mediaRecorder.state);
-
-        // 🎯 이벤트 핸들러 한 번만 설정
         setupMediaRecorder(mediaRecorder);
-
       } catch (error) {
         console.error("MediaRecorder 생성 실패:", error);
       }
-    } else {
-      console.log("MediaRecorder 생성 조건 미충족 - 스트림 또는 권한 부족");
     }
-  }, [hasPermission, isMicrophoneActive, questionId]);
+  }, [hasPermission, isMicrophoneActive, globalStreamRef, questionId]);
 
-  // 뒤로가기 및 페이지 이탈 처리
+  // 페이지 이탈 경고
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (isRecording) {
@@ -226,81 +247,55 @@ function InterviewStart() {
         return e.returnValue;
       }
     };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isRecording]);
 
-  // 🎯 녹음 시작 핸들러 (중복 제거)
+  // 녹음 시작
   const handleRecordClick = async () => {
-    console.log("녹음 버튼 클릭됨");
-
-    // 이미 녹음 중이거나 완료된 경우 처리하지 않음
     if (isRecording || recordingCompleted) {
-      if (recordingCompleted) {
-        alert("이미 녹음이 완료되었습니다. 재녹음은 불가능합니다.");
-      }
+      if (recordingCompleted) alert("이미 녹음이 완료되었습니다. 재녹음은 불가능합니다.");
       return;
     }
 
-    // 마이크 상태 보장
-    const microphoneReady = await ensureMicrophoneActive();
-    if (!microphoneReady) {
+    const ok = await ensureMicrophoneActive();
+    if (!ok) {
       setLocalRecordingError("마이크 활성화에 실패했습니다.");
       return;
     }
 
-    // 🎯 MediaRecorder가 없으면 재생성 (한 번만!)
     if (!mediaRecorderRef.current) {
-      console.log("MediaRecorder가 없어 새로 생성");
-
       if (globalStreamRef.current) {
         try {
           const mediaRecorder = createMediaRecorder(globalStreamRef.current);
           mediaRecorderRef.current = mediaRecorder;
-
-          // 🎯 이벤트 핸들러 설정
           setupMediaRecorder(mediaRecorder);
-
-          console.log("MediaRecorder 생성 완료");
         } catch (error) {
           console.error("MediaRecorder 생성 실패:", error);
           setLocalRecordingError("녹음을 시작할 수 없습니다.");
           return;
         }
       } else {
-        console.log("스트림이 없어 MediaRecorder를 생성할 수 없습니다.");
         setLocalRecordingError("마이크 스트림을 가져올 수 없습니다.");
         return;
       }
     }
 
     const mediaRecorder = mediaRecorderRef.current;
-    console.log("녹음 버튼 클릭됨, MediaRecorder 상태:", mediaRecorder.state);
-
     if (mediaRecorder.state === "inactive") {
-      console.log("녹음 시작 시도...");
       try {
         mediaRecorder.start();
         setIsRecording(true);
-        setRecordStartTs(Date.now());
         lastStartTsRef.current = Date.now();
         setLocalRecordingError(null);
-        console.log("녹음 시작 성공");
       } catch (error) {
         console.error("녹음 시작 실패:", error);
         setLocalRecordingError("녹음을 시작할 수 없습니다.");
         setIsRecording(false);
       }
     } else {
-      // 안전 재시작: 녹음 중인데 시작 버튼을 또 눌렀을 때 복구 시도
-      console.log("MediaRecorder가 이미 활성 상태입니다:", mediaRecorder.state);
-      try {
-        mediaRecorder.stop();
-      } catch { }
+      // 안전 재시작
+      try { mediaRecorder.stop(); } catch {}
       setTimeout(() => {
         try {
           const mr = createMediaRecorder(globalStreamRef.current);
@@ -308,109 +303,114 @@ function InterviewStart() {
           mr.start();
           mediaRecorderRef.current = mr;
           setIsRecording(true);
-          setRecordStartTs(Date.now());
           lastStartTsRef.current = Date.now();
           setLocalRecordingError(null);
-          console.log('안전 재시작 성공');
         } catch (e) {
-          console.error('안전 재시작 실패', e);
-          setLocalRecordingError('녹음을 시작할 수 없습니다. 브라우저 권한 또는 다른 앱의 마이크 점유를 확인해주세요.');
+          console.error("안전 재시작 실패", e);
+          setLocalRecordingError("녹음을 시작할 수 없습니다. 권한 또는 다른 앱의 마이크 점유를 확인해주세요.");
           setIsRecording(false);
         }
       }, 150);
     }
   };
 
-  // 🎯 녹음 정지 핸들러 (중복 제거)
+  // 녹음 정지
   const handleStopClick = () => {
-    console.log("녹음 정지 버튼 클릭됨");
-
-    // 녹음 중이 아닌 경우 처리하지 않음
-    if (!isRecording) {
-      console.log("녹음 중이 아닙니다.");
-      return;
-    }
-
-    if (!mediaRecorderRef.current) {
-      console.log("MediaRecorder가 준비되지 않았습니다.");
-      return;
-    }
+    if (!isRecording) return;
+    if (!mediaRecorderRef.current) return;
 
     const mediaRecorder = mediaRecorderRef.current;
-
     if (mediaRecorder.state === "recording") {
-      console.log("녹음 정지...");
       try {
-        mediaRecorder.stop(); // 이때 onstop 이벤트 자동 발생!
-        console.log("녹음 정지 요청 완료 - onstop 이벤트 대기 중");
+        mediaRecorder.stop(); // onstop에서 업로드 큐 처리 & 자동 next
       } catch (error) {
         console.error("녹음 정지 실패:", error);
         setIsRecording(false);
       }
-    } else {
-      console.log("MediaRecorder가 녹음 중이 아닙니다. 현재 상태:", mediaRecorder.state);
     }
   };
 
-  // 다음 질문으로 이동 핸들러
-  const handleNextClick = () => {
+  // 서버 결과 대기 후 이동(미수신은 0점 패딩)
+  const waitAndGoResult = async () => {
+    setIsFinalizing(true);
+    const userKey = await ensureUserKey({ retries: 2, delayMs: 150 }).catch(() => "guest");
+    const title = IR_TITLE;
+    const total = Array.isArray(questions) ? questions.length : 25;
+    const deadline = Date.now() + RESULT_MAX_WAIT_MS;
+
+    // 1) 진행도 수신 대기
+    while (Date.now() < deadline) {
+      try {
+        const u = new URL(`${GW_BASE}/ir/progress`);
+        u.searchParams.set("userKey", userKey || "guest");
+        u.searchParams.set("title", title);
+        const r = await fetch(u.toString());
+        const j = await r.json().catch(() => ({}));
+        if ((j.received ?? 0) >= total) break;
+      } catch {}
+      await new Promise((r) => setTimeout(r, 400));
+    }
+
+    // 2) 최종 결과(force=1 → 미수신 0점 패딩)
+    let jr;
+    try {
+      const u2 = new URL(`${GW_BASE}/ir/result`);
+      u2.searchParams.set("userKey", userKey || "guest");
+      u2.searchParams.set("title", title);
+      u2.searchParams.set("force", "1");
+      const r2 = await fetch(u2.toString());
+      jr = await r2.json();
+    } catch (e) {
+      console.error("[result] fetch failed", e);
+      jr = null;
+    }
+
+    const score = Number(jr?.score ?? 0) || 0;
+    const totalMax = Number(jr?.total ?? 40) || 40;
+
+    // 서버에도 시도 저장(실패 무시)
+    (async () => {
+      try {
+        const byCategory = jr?.byCategory || {};
+        const riskBars = Object.fromEntries(
+          Object.entries(byCategory).map(([k, v]) => {
+            const c = Number(v?.correct ?? 0);
+            const t = Math.max(1, Number(v?.total ?? 0));
+            return [k, Math.max(0, Math.min(1, 1 - c / t))];
+          })
+        );
+        const headers = userKey ? { "x-user-key": userKey } : undefined;
+        await API.post(
+          "/ir/attempt",
+          {
+            attemptTime: new Date().toISOString(),
+            interviewTitle: title,
+            score,
+            total: totalMax,
+            byCategory: byCategory,
+            riskBars,
+          },
+          { headers }
+        );
+      } catch (e) {
+        console.warn("[attempt] save failed:", e);
+      }
+    })();
+
+    navigate("/interviewresult", { state: { score, total: totalMax } });
+  };
+
+  // 다음 질문으로 이동
+  const handleNextClick = async () => {
     if (!recordingCompleted) {
       alert("먼저 녹음을 완료해주세요.");
       return;
     }
 
-    if (questionId + 1 < questions.length) {
+    if (questionId + 1 < (questions?.length ?? 0)) {
       setQuestionId((prev) => prev + 1);
     } else {
-      // 모든 인터뷰 완료: 평균 점수 계산 후 결과 페이지로 이동 (로딩 → 결과)
-      try {
-        const totals = resultsRef.current.map((r) => {
-          const s = r?.scores || {};
-          const sum = Object.values(s).reduce((acc, v) => acc + (Number(v) || 0), 0);
-          return sum;
-        });
-        const avg = totals.length > 0 ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-
-        // 카테고리별 평균 상세 계산 (InterviewHistory에서 사용)
-        const categories = [
-          { key: 'response_time', total: 4, label: '반응 시간' },
-          { key: 'repetition', total: 4, label: '반복어 비율' },
-          { key: 'avg_sentence_length', total: 4, label: '평균 문장 길이' },
-          { key: 'appropriateness', total: 12, label: '화행 적절성' },
-          { key: 'recall', total: 8, label: '회상어 점수' },
-          { key: 'grammar', total: 8, label: '문법 완성도' },
-        ];
-        const averagedDetails = {};
-        categories.forEach(({ key, total, label }) => {
-          const vals = resultsRef.current.map((r) => Number(r?.scores?.[key] || 0));
-          const mean = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
-          averagedDetails[label] = { score: mean, total };
-        });
-
-        // LocalStorage 저장: 전체 요약 + 문항별 세부 점수 포함
-        const now = new Date();
-        const newItem = {
-          id: Date.now(),
-          date: now.toISOString(),
-          score: avg,
-          total: 40,
-          details: averagedDetails,
-          perQuestions: resultsRef.current.map((r, idx) => ({
-            index: idx + 1,
-            question: r.question,
-            scores: r.scores,
-            total: Object.values(r.scores || {}).reduce((acc, v) => acc + (Number(v) || 0), 0),
-          })),
-        };
-        const existing = JSON.parse(localStorage.getItem('interviewHistoryData') || '[]');
-        localStorage.setItem('interviewHistoryData', JSON.stringify([newItem, ...existing]));
-
-        // 결과 페이지로 이동하며 점수 전달
-        navigate('/interviewresult', { state: { score: avg, total: 40 } });
-      } catch (e) {
-        console.error('최종 점수 계산 중 오류:', e);
-        navigate('/interviewresult', { state: { score: 0, total: 40 } });
-      }
+      await waitAndGoResult(); // 최대 1분 대기 후 강제 마감 포함
     }
   };
 
@@ -418,8 +418,58 @@ function InterviewStart() {
 
   return (
     <div className="content">
-      {/* 공통 배경 추가 - 화면이 클 때만 표시 */}
+      {/* 공통 배경: 큰 화면에서만 */}
       {windowWidth > 1100 && <Background />}
+
+      {/* 결과 대기 오버레이 */}
+      {isFinalizing && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(255,255,255,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            backdropFilter: "blur(2px)",
+          }}
+        >
+          <div
+            style={{
+              padding: 20,
+              borderRadius: 12,
+              background: "#fff",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.12)",
+              fontFamily: "GmarketSans",
+              textAlign: "center",
+              minWidth: 260,
+            }}
+          >
+            <div className="spinner" style={{ marginBottom: 10 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  border: "4px solid #e5e7eb",
+                  borderTopColor: "#3f51b5",
+                  margin: "0 auto",
+                  animation: "spin 0.9s linear infinite",
+                }}
+              />
+            </div>
+            <div style={{ fontWeight: 700, color: "#1f2937" }}>
+              결과 집계 중입니다...
+            </div>
+            <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>
+              최대 1분까지 걸릴 수 있어요.
+            </div>
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      )}
+
       <div className="wrap">
         <Header title={bookTitle} />
         <div className="inner">
@@ -430,83 +480,89 @@ function InterviewStart() {
               data-aos="fade-up"
               data-aos-duration="1000"
             >
-              <p style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '10px',
-                border: '1px solid #e0e0e0',
-                padding: '20px',
-                margin: '0',
-                fontSize: "18px",
-                lineHeight: "1.6",
-                fontFamily: "GmarketSans",
-                fontWeight: "500",
-                textAlign: "left",
-                color: "#333",
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-              }}>
+              <p
+                style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "10px",
+                  border: "1px solid #e0e0e0",
+                  padding: "20px",
+                  margin: "0",
+                  fontSize: "18px",
+                  lineHeight: "1.6",
+                  fontFamily: "GmarketSans",
+                  fontWeight: "500",
+                  textAlign: "left",
+                  color: "#333",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
+                }}
+              >
                 {currentQuestion?.speechText ?? "로딩 중..."}
               </p>
 
               {/* 질문에 음성이 있으면 자동 재생 */}
               {currentQuestion?.sound && (
-                <audio
-                  src={currentQuestion.sound}
-                  autoPlay
-                  style={{ display: "none" }}
-                />
+                <audio src={currentQuestion.sound} autoPlay style={{ display: "none" }} />
               )}
 
-              {/* 에러 메시지 표시 */}
+              {/* 에러 메시지 */}
               {localRecordingError && (
-                <div style={{
-                  color: "red",
-                  fontSize: "14px",
-                  marginBottom: "10px",
-                  textAlign: "center"
-                }}>
+                <div
+                  style={{
+                    color: "red",
+                    fontSize: "14px",
+                    marginBottom: "10px",
+                    textAlign: "center",
+                  }}
+                >
                   {localRecordingError}
                 </div>
               )}
 
-              <div className="bt_flex" style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: '10px',
-                marginTop: '30px'
-              }}>
+              <div
+                className="bt_flex"
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                  marginTop: "30px",
+                }}
+              >
                 <button
                   className="question_bt"
                   onClick={handleRecordClick}
                   disabled={isRecording || recordingCompleted}
                   style={{
                     flex: 1,
-                    opacity: (isRecording || recordingCompleted) ? 0.6 : 1,
-                    cursor: (isRecording || recordingCompleted) ? 'not-allowed' : 'pointer',
-                    background: (isRecording || recordingCompleted) ? '#4a85d1' : '#3f51b5',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    padding: '12px',
-                    fontSize: '1em',
-                    fontWeight: 'bold',
-                    transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px'
+                    opacity: isRecording || recordingCompleted ? 0.6 : 1,
+                    cursor: isRecording || recordingCompleted ? "not-allowed" : "pointer",
+                    background: isRecording || recordingCompleted ? "#4a85d1" : "#3f51b5",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "5px",
+                    padding: "12px",
+                    fontSize: "1em",
+                    fontWeight: "bold",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
                   }}
                 >
                   {isRecording && (
-                    <div style={{
-                      width: '12px',
-                      height: '12px',
-                      borderRadius: '50%',
-                      backgroundColor: '#ff0000',
-                      animation: 'pulse 1s ease-in-out infinite'
-                    }} />
+                    <div
+                      style={{
+                        width: "12px",
+                        height: "12px",
+                        borderRadius: "50%",
+                        backgroundColor: "#ff0000",
+                        animation: "pulse 1s ease-in-out infinite",
+                      }}
+                    />
                   )}
                   {isRecording ? "녹음 중" : "녹음 시작"}
                 </button>
+
                 <button
                   className="question_bt"
                   onClick={handleStopClick}
@@ -514,35 +570,36 @@ function InterviewStart() {
                   style={{
                     flex: 1,
                     opacity: !isRecording ? 0.6 : 1,
-                    cursor: !isRecording ? 'not-allowed' : 'pointer',
-                    background: 'red',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    padding: '12px',
-                    fontSize: '1em',
-                    fontWeight: 'bold',
-                    transition: 'all 0.2s'
+                    cursor: !isRecording ? "not-allowed" : "pointer",
+                    background: "red",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "5px",
+                    padding: "12px",
+                    fontSize: "1em",
+                    fontWeight: "bold",
+                    transition: "all 0.2s",
                   }}
                 >
                   녹음 정지
                 </button>
+
                 <button
                   className="question_bt"
                   onClick={handleNextClick}
                   disabled={!recordingCompleted || isRecording}
                   style={{
                     flex: 1,
-                    opacity: (!recordingCompleted || isRecording) ? 0.6 : 1,
-                    cursor: (!recordingCompleted || isRecording) ? 'not-allowed' : 'pointer',
-                    background: '#4CAF50',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    padding: '12px',
-                    fontSize: '1em',
-                    fontWeight: 'bold',
-                    transition: 'all 0.2s'
+                    opacity: !recordingCompleted || isRecording ? 0.6 : 1,
+                    cursor: !recordingCompleted || isRecording ? "not-allowed" : "pointer",
+                    background: "#4CAF50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "5px",
+                    padding: "12px",
+                    fontSize: "1em",
+                    fontWeight: "bold",
+                    transition: "all 0.2s",
                   }}
                 >
                   다음
@@ -551,10 +608,11 @@ function InterviewStart() {
             </div>
           </div>
         </div>
+
         <ProgressBar current={questionId + 1} total={questions?.length || 0} />
       </div>
     </div>
   );
-};
+}
 
 export default InterviewStart;

@@ -5,6 +5,8 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const url = require("url");
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const MODEL_GATEWAY = process.env.MODEL_GATEWAY || "http://127.0.0.1:4010";
 
 const app = express();
 
@@ -55,6 +57,20 @@ const corsMiddleware = cors({
   maxAge: 86400,             // 프리플라이트 캐시(1일)
   optionsSuccessStatus: 204, // 구형 브라우저 대응
 });
+
+app.use('/gw', createProxyMiddleware({
+  target: MODEL_GATEWAY,
+  changeOrigin: true,
+  pathRewrite: { '^/gw': '' },     // /gw/ir/analyze → /ir/analyze
+  proxyTimeout: 120000,
+  timeout: 120000,
+  onError(err, req, res) {
+    console.error('[GW proxy] error:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ ok:false, message:'Gateway error', detail: String(err) });
+    }
+  },
+}));
 
 app.use(corsMiddleware);
 app.options(/.*/, corsMiddleware);

@@ -302,13 +302,13 @@ function BookHistory(){
       <div className="wrap" style={{maxWidth:520, margin:"0 auto", padding:"80px 20px"}}>
         <h2 style={{ textAlign:"center", marginBottom:10, fontSize:32 }}>동화 화행검사 결과</h2>
 
-        {DEBUG && (
+        {/* {DEBUG && (
           <div style={{ background:"#F3F4F6", border:"1px solid #E5E7EB", borderRadius:8, padding:"8px 10px", marginBottom:12, color:"#374151", fontSize:13 }}>
             <div><b>DEBUG</b> version: {window.__BH_VERSION__}</div>
             <div>userKey: {usedUserKey}</div>
             <div>groups#: {groups?.length || 0}</div>
           </div>
-        )}
+        )} */}
 
         {loading ? (
           <div style={{ textAlign:"center", padding:"40px 0", color:"#666" }}>불러오는 중...</div>

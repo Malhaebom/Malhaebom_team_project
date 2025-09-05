@@ -107,6 +107,7 @@ const InterviewHistory = () => {
             score,
             total,
             details,
+            order: row.serverAttemptOrderAsc ?? row.serverAttemptOrder ?? row.clientAttemptOrder ?? row.clientRound ?? (idx + 1),
           };
         });
 
@@ -120,8 +121,8 @@ const InterviewHistory = () => {
     })();
   }, []);
 
-  if (!config || loading) return <div className="content"><div style={{textAlign:"center", padding:"80px 0"}}>Loading...</div></div>;
-  if (interviews.length === 0) return <div className="content"><div style={{textAlign:"center", padding:"80px 0"}}>아직 검사 이력이 없습니다.</div></div>;
+  if (!config || loading) return <div className="content"><div style={{ textAlign: "center", padding: "80px 0" }}>Loading...</div></div>;
+  if (interviews.length === 0) return <div className="content"><div style={{ textAlign: "center", padding: "80px 0" }}>아직 검사 이력이 없습니다.</div></div>;
 
   const getScoreColor = (score, total) => {
     const pct = (Number(score) / Math.max(1, Number(total))) * 100;
@@ -163,7 +164,22 @@ const InterviewHistory = () => {
                 onClick={() => toggleCard(result.id)}
                 style={{ padding: 20, display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", cursor: "pointer" }}
               >
-                <span style={{ fontWeight: 600 }}>{formatDate(result.date)}</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontWeight: 600 }}>{formatDate(result.date)}</span>
+                  <span
+                    style={{
+                      fontSize: 16,
+                      padding: "4px 8px",
+                      borderRadius: 12,
+                      background: "#EEF2FF",
+                      color: "#4338CA",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {result.order}회차
+                  </span>
+                </div>
+                {/* 점수/토글 */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontWeight: "bold", color: getScoreColor(result.score, result.total) }}>
                     {result.score}/{result.total}점
@@ -218,7 +234,7 @@ const InterviewHistory = () => {
                           </div>
                         </div>
                         {isExpanded && (
-                          <div style={{ padding: 12, borderTop: "1px solid #e0e0e0", background: "#fafafa", whiteSpace: "pre-line", fontSize: 12, color: "#6B7280" }}>
+                          <div style={{ padding: 12, borderTop: "1px solid #e0e0e0", background: "#fafafa", whiteSpace: "pre-line", fontSize: 14, color: "#6B7280" }}>
                             {config.evaluationCriteria?.[category]}
                           </div>
                         )}

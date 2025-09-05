@@ -8,7 +8,7 @@ const cookie = require("cookie");
 const pool = require("./db");
 
 const IR_ALLOW_GUEST = String(process.env.IR_ALLOW_GUEST || "false").toLowerCase() === "true";
-const JWT_SECRET  = process.env.JWT_SECRET  || "malhaebom_sns";
+const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
 const COOKIE_NAME = process.env.COOKIE_NAME || "mb_access";
 
 // ── 유틸 ─────────────────
@@ -28,7 +28,7 @@ function isoToMysqlDatetime(iso) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
   const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
 }
 function safeParseJSON(v, fallback = {}) {
   try { if (v && typeof v === "object") return v; return JSON.parse(v ?? "{}") || fallback; }
@@ -78,18 +78,18 @@ function resolveIdentity(req) {
       const p = jwt.verify(auth.slice(7), JWT_SECRET);
       if (p?.login_id) return { ok: true, user_key: String(p.login_id), from: "jwt" };
     }
-  } catch {}
+  } catch { }
 
   // 3) JWT (Cookie)
   try {
     const raw = String(req.headers.cookie || "");
-    const ck  = cookie.parse(raw || "");
-    const t   = ck[COOKIE_NAME];
+    const ck = cookie.parse(raw || "");
+    const t = ck[COOKIE_NAME];
     if (t) {
       const p = jwt.verify(t, JWT_SECRET);
       if (p?.login_id) return { ok: true, user_key: String(p.login_id), from: "cookie" };
     }
-  } catch {}
+  } catch { }
 
   // 4) 이하 레거시 보조(가능하면 도달하지 않게)
   const loginId = readAny({ ...b, ...q, ...h }, ["login_id", "loginid", "x-login-id"]);
@@ -104,19 +104,45 @@ function resolveIdentity(req) {
   return { ok: false, error: "missing user identity (x-user-key or JWT with login_id)" };
 }
 
-router.get("/health", (_req, res)=> res.json({ ok:true, db: true }));
-router.get("/whoami", (req, res)=> res.json({ identity: resolveIdentity(req), headers: req.headers, query: req.query }));
+router.get("/health", (_req, res) => res.json({ ok: true, db: true }));
+router.get("/whoami", (req, res) => res.json({ identity: resolveIdentity(req), headers: req.headers, query: req.query }));
 
-async function computeServerOrder(conn, { user_key, client_utc, id }) {
+async function computeServerOrderDesc(conn, { user_key, title, client_utc, id }) {
   const sql = `
     SELECT COUNT(*) AS higher
       FROM tb_interview_result
      WHERE user_key = :user_key
+       AND title     = :title
        AND (client_utc > :client_utc OR (client_utc = :client_utc AND id > :id))
   `;
-  const [rows] = await conn.execute(sql, { user_key, client_utc, id });
+  const [rows] = await conn.execute(sql, { user_key, title, client_utc, id });
   const higher = Number(rows?.[0]?.higher ?? 0);
   return higher + 1;
+}
+
+// 전체 개수(=오름차순에서 최신의 회차)
+async function computeTotalForTitle(conn, { user_key, title }) {
+  const [rows] = await conn.execute(`
+    SELECT COUNT(*) AS total
+      FROM tb_interview_result
+     WHERE user_key = :user_key AND title = :title
+  `, { user_key, title });
+  return Number(rows?.[0]?.total ?? 0);
+}
+
+// 다음 저장할 client_round (= DB 최대값+1, 없으면 개수+1)
+async function computeNextClientRound(conn, { user_key, title }) {
+  const [r1] = await conn.execute(`
+    SELECT COALESCE(MAX(client_round), 0) AS max_round
+      FROM tb_interview_result
+     WHERE user_key = :user_key AND title = :title
+  `, { user_key, title });
+  let next = Number(r1?.[0]?.max_round ?? 0) + 1;
+  if (!Number.isFinite(next) || next <= 1) {
+    const tot = await computeTotalForTitle(conn, { user_key, title });
+    next = tot + 1;
+  }
+  return next;
 }
 
 router.post("/attempt", async (req, res) => {
@@ -125,14 +151,15 @@ router.post("/attempt", async (req, res) => {
 
   try {
     const { attemptTime, clientKst, interviewTitle, title, attemptOrder, clientRound, score, total, byCategory, riskBars } = req.body || {};
-    if (!attemptTime) return res.status(400).json({ ok:false, error:"missing attemptTime" });
+    if (!attemptTime) return res.status(400).json({ ok: false, error: "missing attemptTime" });
 
     const clientUtc = new Date(attemptTime);
-    if (isNaN(clientUtc.getTime())) return res.status(400).json({ ok:false, error:"invalid attemptTime" });
+    if (isNaN(clientUtc.getTime())) return res.status(400).json({ ok: false, error: "invalid attemptTime" });
+    const titleNorm = normalizeTitle(interviewTitle || title || "인지 능력 검사");
 
     const rb = riskBars || computeRiskBars(byCategory || {});
     const mysqlClientUtc = isoToMysqlDatetime(clientUtc.toISOString());
-    if (!mysqlClientUtc) return res.status(400).json({ ok:false, error:"invalid attemptTime (to mysql)" });
+    if (!mysqlClientUtc) return res.status(400).json({ ok: false, error: "invalid attemptTime (to mysql)" });
 
     const sql = `
       INSERT INTO tb_interview_result
@@ -140,10 +167,17 @@ router.post("/attempt", async (req, res) => {
       VALUES
       (:user_key, :client_round, :title, :score, :total, :client_utc, :client_kst, :risk_bars)
     `;
+    // 🔥 DB 기준으로 다음 회차 자동 계산(클라 값 무시)
+    const conn = await pool.getConnection();
+    let clientRoundSafe = 1;
+    try {
+      clientRoundSafe = await computeNextClientRound(conn, { user_key: idn.ok ? idn.user_key : "guest", title: titleNorm });
+    } catch { /* ignore; fallback 1 */ }
+
     const params = {
       user_key: idn.ok ? idn.user_key : "guest",
-      client_round: (attemptOrder ?? clientRound) ?? null,
-      title: normalizeTitle(interviewTitle || title || ""),
+      client_round: clientRoundSafe,
+      title: titleNorm,
       score: Number(score ?? 0),
       total: Number(total ?? 0),
       client_utc: mysqlClientUtc,
@@ -151,7 +185,6 @@ router.post("/attempt", async (req, res) => {
       risk_bars: JSON.stringify(rb || {}),
     };
 
-    const conn = await pool.getConnection();
     try {
       const [ret] = await conn.execute(sql, params);
       const insertedId = ret.insertId;
@@ -164,14 +197,16 @@ router.post("/attempt", async (req, res) => {
         [insertedId]
       );
       const row = rows[0];
-      const serverOrder = await computeServerOrder(conn, { user_key: row.user_key, client_utc: row.client_utc, id: row.id });
+      const orderDesc = await computeServerOrderDesc(conn, { user_key: row.user_key, title: row.title, client_utc: row.client_utc, id: row.id });
+      const totalForTitle = await computeTotalForTitle(conn, { user_key: row.user_key, title: row.title });
+      const orderAsc = totalForTitle; // 삽입 직후 최신 = 총개수
 
       const risk = safeParseJSON(row.risk_bars, {});
       const byCatRestored = barsToCategoryStats(risk);
 
       const debugText = [
         "=============== [IR Attempt] ===============",
-        `서버 회차    : ${serverOrder}회차`,
+        `서버 회차    : 오름=${orderAsc} / 내림=${orderDesc}`,
         `클라 회차    : ${row.client_round ?? ""}`,
         `제목         : ${row.title || "(없음)"}`,
         `점수/총점    : ${Number(row.score ?? 0)}/${Number(row.total ?? 0)}`,
@@ -193,7 +228,9 @@ router.post("/attempt", async (req, res) => {
           clientKst: row.client_kst || formatKst(new Date(row.client_utc)),
           riskBars: risk,
           byCategory: byCatRestored,
-          serverAttemptOrder: serverOrder,
+          serverAttemptOrderAsc: orderAsc,
+          serverAttemptOrderDesc: orderDesc,
+          serverAttemptOrder: orderAsc, // (하위 호환: 이제 오름차순을 기본으로)
           debugText,
           createdAt: row.created_at,
         },
@@ -203,7 +240,7 @@ router.post("/attempt", async (req, res) => {
     }
   } catch (e) {
     console.error("[IR] /attempt error:", e?.message || e);
-    return res.status(500).json({ ok:false, error:"server_error", detail:String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   }
 });
 
@@ -228,16 +265,17 @@ router.get("/latest", async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [rows] = await conn.execute(sql, params);
-    if (!rows.length) return res.json({ ok:true, latest:null });
+    if (!rows.length) return res.json({ ok: true, latest: null });
 
     const row = rows[0];
     const risk = safeParseJSON(row.risk_bars, {});
     const byCategory = barsToCategoryStats(risk);
     const clientKst = row.client_kst || (row.client_utc ? formatKst(new Date(row.client_utc)) : "");
 
+    const totalForTitle = await computeTotalForTitle(conn, { user_key: row.user_key, title: row.title });
     const debugText = [
       "=============== [IR Attempt] ===============",
-      `서버 회차    : 1회차`,
+      `서버 회차    : 최신=1 (내림), 누계=${totalForTitle} (오름)`,
       `클라 회차    : ${row.client_round ?? ""}`,
       `제목         : ${row.title || "(없음)"}`,
       `점수/총점    : ${Number(row.score ?? 0)}/${Number(row.total ?? 0)}`,
@@ -259,14 +297,16 @@ router.get("/latest", async (req, res) => {
         clientKst,
         riskBars: risk,
         byCategory,
-        serverAttemptOrder: 1,
+        serverAttemptOrderAsc: totalForTitle,
+        serverAttemptOrderDesc: 1,
+        serverAttemptOrder: totalForTitle, // (기본 오름)
         debugText,
         createdAt: row.created_at,
       },
     });
   } catch (e) {
     console.error("[IR] /latest error:", e?.message || e);
-    return res.status(500).json({ ok:false, error:"server_error", detail:String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   } finally {
     conn.release();
   }
@@ -289,18 +329,24 @@ router.get("/attempt/list", async (req, res) => {
   const conn = await pool.getConnection();
   try {
     const [rows] = await conn.execute(sql, { user_key: userKey });
-    const list = rows.map((row, idx) => {
+    const countByTitle = {};
+    rows.forEach(r => { const t = r.title || ""; countByTitle[t] = (countByTitle[t] || 0) + 1; });
+    const seenByTitle = {};
+
+    const list = rows.map((row) => {
       const risk = safeParseJSON(row.risk_bars, {});
       const byCategory = barsToCategoryStats(risk);
       const score = Number(row.score ?? 0);
       const total = Number(row.total ?? 0);
       const clientKst = row.client_kst || (row.client_utc ? formatKst(new Date(row.client_utc)) : "");
       const attemptIso = row.client_utc ? new Date(row.client_utc).toISOString() : null;
-      const serverOrder = idx + 1;
+      const t = row.title || "";
+      const desc = (seenByTitle[t] = (seenByTitle[t] || 0) + 1);      // 최신=1
+      const asc  = (countByTitle[t] || 0) - desc + 1;                  // 처음=1, 최신=최대
 
       const debugText = [
         "=============== [IR Attempt] ===============",
-        `서버 회차    : ${serverOrder}회차`,
+        `서버 회차    : 오름=${asc} / 내림=${desc}`,
         `클라 회차    : ${row.client_round ?? ""}`,
         `제목         : ${row.title || "(없음)"}`,
         `점수/총점    : ${score}/${total}`,
@@ -310,6 +356,7 @@ router.get("/attempt/list", async (req, res) => {
       ].join("\n");
 
       return {
+        id: row.id,
         title: row.title,
         interviewTitle: row.title,
         clientRound: row.client_round,
@@ -320,16 +367,18 @@ router.get("/attempt/list", async (req, res) => {
         riskBars: risk,
         byCategory,
         scoreText: `${score}/${total}`,
-        serverAttemptOrder: serverOrder,
+        serverAttemptOrderAsc: asc,
+        serverAttemptOrderDesc: desc,
+        serverAttemptOrder: asc, // 기본 오름
         debugText,
         createdAt: row.created_at,
       };
     });
 
-    return res.json({ ok:true, list });
+    return res.json({ ok: true, list });
   } catch (e) {
     console.error("[IR] /attempt/list error:", e?.message || e);
-    return res.status(500).json({ ok:false, error:"server_error", detail:String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: "server_error", detail: String(e?.message || e) });
   } finally {
     conn.release();
   }
