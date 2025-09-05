@@ -1,202 +1,560 @@
-require("dotenv").config();
+"use strict";
+
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 const express = require("express");
-const cors = require("cors");
-const helmet = require("helmet");
-const compression = require("compression");
-const cookieParser = require("cookie-parser");
-const { createProxyMiddleware } = require("http-proxy-middleware");
+const axios = require("axios");
+const qs = require("querystring");
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
 
-// ✅ 라우터
-const loginRouter = require("./router/LoginServer.js");
-const joinRouter  = require("./router/JoinServer.js");
-const strRouter   = require("./router/STRServer.js");
-const irRouter    = require("./router/IRServer.js");
-const authRouter  = require("./router/Auther.js");
+// ✅ 실행 배너 (지금 어떤 파일이 라우팅되는지, 어떤 모드인지 확인용)
+console.log("=== AUTH ROUTER MODE: SCHEME_ONLY (myapp://auth/callback) ===", __filename);
 
-const app = express();
+// ✅ 공용 DB 풀 (프로젝트 구조에 맞춰 경로 사용)
+const pool = require("./db");
+
+const router = express.Router();
 
 /* =========================
- * 서버/오리진 설정 (.env 사용)
+ * JWT
  * ========================= */
-const HOST = process.env.HOST || "0.0.0.0";
-const PORT = Number(process.env.PORT || 4000);
-
-const SERVER_ORIGIN   = process.env.SERVER_ORIGIN   || `http://localhost:${PORT}`;
-const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
-
-const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "")
-  .split(",")
-  .map(s => s.trim())
-  .filter(Boolean);
-
-const GW_TARGET = process.env.GW_TARGET || "http://127.0.0.1:4010";
-const FORCE_CANONICAL_REDIRECT = String(process.env.FORCE_CANONICAL_REDIRECT || "0") === "1";
-
-// 프록시 신뢰
-app.set("trust proxy", true);
-
-/* =========================
- * 보안/성능/파서
- * ========================= */
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(compression());
-app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-
-/* =========================
- * CORS
- * ========================= */
-function corsOrigin(origin, cb) {
-  if (!origin) return cb(null, true);
-  if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-  const msg = `[CORS] blocked origin: ${origin}`;
-  console.warn(msg);
-  return cb(new Error(msg), false);
+const JWT_SECRET = process.env.JWT_SECRET || "malhaebom_sns";
+function signJWT(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
-const corsOptions = {
-  origin: corsOrigin,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: [
-    "Content-Type",
-    "Authorization",
-    "x-requested-with",
-    "x-user-id",
-    "x-sns-user-id",
-    "x-sns-login-type",
-    "x-login-id",
-    "x-login-type",
-    "x-user-key",
-  ],
-  maxAge: 86400,
-};
-app.use(cors(corsOptions));
-app.options(/.*/, cors(corsOptions));
+function maskToken(t) {
+  const s = String(t || "");
+  if (s.length <= 12) return s;
+  return s.slice(0, 12) + "...";
+}
 
 /* =========================
- * (선택) 도메인/프로토콜 강제 리다이렉트
+ * 앱 콜백 (딥링크)
  * ========================= */
-if (FORCE_CANONICAL_REDIRECT && PUBLIC_BASE_URL) {
+const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
+
+/* =========================
+ * Redirect 경로
+ * ========================= */
+const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
+const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback";
+const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
+
+/* =========================
+ * Google redirect: 절대 URL 고정(HTTPS)
+ * ========================= */
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+const GOOGLE_REDIRECT_ABS = (() => {
+  const p = String(process.env.GOOGLE_REDIRECT_PATH || "");
+  if (/^https?:\/\//i.test(p)) return p;
+  return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
+})();
+
+/* =========================
+ * 유틸: 리다이렉트 베이스
+ * ========================= */
+function originFromReq(req) {
   try {
-    const target = new URL(PUBLIC_BASE_URL);
-    const FORCE_HOST = target.host;
-    const FORCE_PROTO = target.protocol.replace(":", "");
-
-    app.use((req, res, next) => {
-      const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
-      const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
-      const scheme = xfProto || req.protocol;
-      const host   = xfHost || req.headers.host || "";
-
-      if (scheme !== FORCE_PROTO || host !== FORCE_HOST) {
-        return res.redirect(308, `${target.origin}${req.originalUrl}`);
-      }
-      next();
-    });
-    console.log(`[BOOT] Canonical redirect ON → ${PUBLIC_BASE_URL}`);
-  } catch (_) {
-    console.warn("[BOOT] Canonical redirect OFF (PUBLIC_BASE_URL parse failed)");
-  }
+    const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
+    const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
+    if (xfProto && xfHost) return `${xfProto}://${xfHost}`;
+    const host = (req.headers.host || "").trim();
+    if (host) return `http://${host}`;
+  } catch (_) {}
+  return null;
+}
+function getRedirectBase(req) {
+  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  const fromReq = originFromReq(req);
+  if (fromReq) return fromReq.replace(/\/$/, "");
+  return "http://localhost:4000";
+}
+function buildRedirectUri(req, pathname) {
+  if (/^https?:\/\//i.test(String(pathname || ""))) return String(pathname);
+  return `${getRedirectBase(req)}${pathname}`;
 }
 
 /* =========================
- * 요청 로깅 (외부 시점)
+ * OAuth 클라이언트
  * ========================= */
-app.use((req, _res, next) => {
-  const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
-  const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
-  const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
-  const scheme = xfProto || req.protocol;
-  const host   = xfHost || req.headers.host;
-  const full   = `${scheme}://${host}${req.originalUrl}`;
-  console.log(`[REQ] ${req.method} ${full} ← ${ip}`);
+const GOOGLE = {
+  client_id: process.env.GOOGLE_CLIENT_ID,
+  client_secret: process.env.GOOGLE_CLIENT_SECRET,
+};
+const KAKAO = { client_id: process.env.KAKAO_CLIENT_ID, client_secret: process.env.KAKAO_CLIENT_SECRET || "" };
+const NAVER = { client_id: process.env.NAVER_CLIENT_ID, NAVER_client_secret: process.env.NAVER_CLIENT_SECRET };
+
+// ENV 체크
+for (const [k, v] of Object.entries({
+  GOOGLE_CLIENT_ID: GOOGLE.client_id,
+  GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
+  KAKAO_CLIENT_ID: KAKAO.client_id,
+  NAVER_CLIENT_ID: NAVER.client_id,
+  NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET,
+})) {
+  if (!v) console.error(`[ENV MISSING] ${k}`);
+}
+
+/* =========================
+ * OAuth state: JWT로 stateless 관리
+ * ========================= */
+const STATE_TTL_SEC = 10 * 60;
+function makeState(provider) {
+  const payload = { typ: "oauth_state", p: provider, n: crypto.randomBytes(8).toString("hex") };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: STATE_TTL_SEC + "s" });
+}
+function verifyStateJWT(state, provider) {
+  try {
+    const p = jwt.verify(state, JWT_SECRET);
+    return p?.typ === "oauth_state" && p?.p === provider;
+  } catch (_) { return false; }
+}
+
+/* =========================
+ * 앱으로 보내기: 스킴 고정 (myapp://…)
+ * ========================= */
+function buildQueryForApp(params) {
+  const q = new URLSearchParams({
+    token: params.token || "",
+    uid: String(params.uid || ""),
+    login_id: params.login_id || "",
+    login_type: params.login_type || "",
+    nick: params.nick || "",
+    user_key: `${params.login_type}:${params.login_id}`,
+    sns_user_id: params.login_id || "",
+    sns_login_type: params.login_type || "",
+    sns_nick: params.nick || "",
+    ok: params.ok === "0" ? "0" : "1",
+    ts: String(Date.now()),
+  });
+  return q.toString();
+}
+function redirectToApp(_req, res, params) {
+  const schemeUrl = `${APP_CALLBACK}?${buildQueryForApp(params)}`;
+  console.log("[AUTH] return to app (scheme-only)", {
+    to: schemeUrl.split("?")[0],
+    uid: params.uid,
+    login_id: params.login_id,
+    login_type: params.login_type,
+    token: maskToken(params.token),
+  });
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  return res.redirect(302, schemeUrl);
+}
+function redirectError(_req, res, msg) {
+  const schemeUrl = `${APP_CALLBACK}?${new URLSearchParams({ error: msg, ts: String(Date.now()) }).toString()}`;
+  console.log("[AUTH] error return (scheme-only)", { error: msg });
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  return res.redirect(302, schemeUrl);
+}
+
+/* =========================
+ * 안전핀: /auth/google* 는 http로 오면 https로 308
+ * ========================= */
+router.use(["/google", "/google/callback"], (req, res, next) => {
+  const host  = String(req.headers["x-forwarded-host"]  || req.headers.host || "").split(",")[0].trim();
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol      || "").split(",")[0].trim();
+  if (host === "malhaebom.smhrd.com" && proto !== "https") {
+    return res.redirect(308, `https://${host}${req.originalUrl}`);
+  }
   next();
 });
 
 /* =========================
- * 헬스체크 & 메타
+ * DB upsert/select
  * ========================= */
-app.get("/ping", (_req, res) => res.send("pong"));
-app.get("/auth/meta", (_req, res) => {
-  const base = PUBLIC_BASE_URL;
-  const abs  = (s) => /^https?:\/\//i.test(String(s || ""));
-  const join = (p) => (abs(p) ? p : `${base}${p}`);
+async function upsertAndGetUser({ login_id, login_type, nick }) {
+  const conn = await pool.getConnection();
+  try {
+    await conn.execute(
+      `INSERT INTO tb_user (login_id, login_type, nick, pwd)
+       VALUES (?, ?, ?, NULL)
+       ON DUPLICATE KEY UPDATE
+         nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)`,
+      [login_id, login_type, nick || ""]
+    );
+    const [rows] = await conn.execute(
+      "SELECT user_id AS uid, login_id, login_type, nick FROM tb_user WHERE login_id = ? AND login_type = ? LIMIT 1",
+      [login_id, login_type]
+    );
+    if (!rows.length) throw new Error("UPSERT ok but SELECT empty");
+    return rows[0];
+  } finally {
+    conn.release();
+  }
+}
 
-  res.json({
-    ok: true,
-    meta: {
-      publicBaseUrl: base,
-      serverOrigin: SERVER_ORIGIN,
-      googleRedirect: process.env.GOOGLE_REDIRECT_ABS || join(process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"),
-      kakaoRedirect:  join(process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback"),
-      naverRedirect:  join(process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback"),
-      appCallback: process.env.APP_CALLBACK || "myapp://auth/callback",
-      corsAllowed: ALLOWED_ORIGINS,
-    },
+/* =========================
+ * Helper
+ * ========================= */
+function getReauthFlags(req) {
+  const reauth = String(req.query.reauth || "") === "1";
+  return { reauth };
+}
+
+/* =========================
+ * Google
+ * ========================= */
+router.get("/google", (req, res) => {
+  const state = makeState("google");
+  const { reauth } = getReauthFlags(req);
+  const redirect_uri = GOOGLE_REDIRECT_ABS;
+  const prompt = reauth ? "select_account consent" : "select_account";
+
+  console.log("[GOOGLE] auth start", { redirect_uri });
+
+  const url = "https://accounts.google.com/o/oauth2/v2/auth?" + qs.stringify({
+    client_id: GOOGLE.client_id,
+    redirect_uri,
+    response_type: "code",
+    scope: "profile email",
+    prompt,
+    access_type: "offline",
+    state,
   });
+  res.redirect(url);
+});
+
+router.get("/google/callback", async (req, res) => {
+  const debug = String(req.query.debug || "") === "1";
+  try {
+    const { code, state } = req.query;
+    if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Google code 없음" })
+                             : redirectError(req, res, "Google code 없음");
+    if (!state || !verifyStateJWT(String(state), "google")) {
+      return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
+                   : redirectError(req, res, "잘못된 state");
+    }
+
+    const redirect_uri = GOOGLE_REDIRECT_ABS;
+    console.log("[GOOGLE] token redirect_uri =", redirect_uri);
+
+    let tokenRes;
+    try {
+      tokenRes = await axios.post(
+        "https://oauth2.googleapis.com/token",
+        qs.stringify({
+          code,
+          client_id: GOOGLE.client_id,
+          client_secret: GOOGLE.client_secret,
+          redirect_uri,
+          grant_type: "authorization_code",
+        }),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
+                   : redirectError(req, res, "Google 토큰 교환 실패");
+    }
+
+    const accessToken = tokenRes?.data?.access_token;
+    if (!accessToken) {
+      return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
+                   : redirectError(req, res, "Google access token 없음");
+    }
+
+    let profileRes;
+    try {
+      profileRes = await axios.get("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
+                   : redirectError(req, res, "Google 프로필 조회 실패");
+    }
+
+    const data = profileRes.data || {};
+    const email = String(data.email ?? "");
+    const name  = String(data.name  ?? "");
+    if (!email) {
+      return debug ? res.status(400).json({ step:"profile", error:"구글 이메일 없음", data })
+                   : redirectError(req, res, "구글 이메일 없음");
+    }
+
+    let user;
+    try {
+      user = await upsertAndGetUser({ login_id: email, login_type: "google", nick: name });
+    } catch (e) {
+      return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
+                   : redirectError(req, res, "DB 처리 실패");
+    }
+
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "google",
+      nick: user.nick || name || "",
+    });
+
+    if (debug) {
+      return res.json({
+        step: "done",
+        redirect_uri,
+        user,
+        outParams: { uid: user.uid, login_id: user.login_id, login_type: "google", token_len: String(token || "").length },
+      });
+    }
+
+    return redirectToApp(req, res, {
+      token, uid: user.uid, login_id: user.login_id, login_type: "google", nick: user.nick || name || ""
+    });
+  } catch (e) {
+    console.error("Google error", e?.response?.data || e);
+    return (String(req.query.debug || "") === "1")
+      ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
+      : redirectError(req, res, "Google 로그인 실패");
+  }
 });
 
 /* =========================
- * /gw 프록시 (→ 내부 게이트웨이)
+ * Kakao
  * ========================= */
-app.use(
-  "/gw",
-  createProxyMiddleware({
-    target: GW_TARGET,
-    changeOrigin: true,
-    pathRewrite: { "^/gw": "" },
-    xfwd: true,
-    logLevel: "warn",
-    proxyTimeout: 120000,
-    timeout: 120000,
-    onProxyReq(_proxyReq, req) {
-      console.log(`[GW] ${req.method} ${req.originalUrl} -> ${GW_TARGET}`);
-    },
-    onError(err, req, res) {
-      console.error("[GW] proxy error:", err?.message);
-      if (!res.headersSent) {
-        res.status(502).json({ ok: false, error: "BadGateway", message: "gateway proxy error" });
-      }
-    },
-  })
-);
+router.get("/kakao", (req, res) => {
+  const state = makeState("kakao");
+  const { reauth } = getReauthFlags(req);
+  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
+
+  const params = {
+    client_id: KAKAO.client_id,
+    redirect_uri,
+    response_type: "code",
+    scope: "profile_nickname account_email",
+    state,
+  };
+  if (reauth) params.prompt = "login";
+
+  const url = "https://kauth.kakao.com/oauth/authorize?" + qs.stringify(params);
+  res.redirect(url);
+});
+
+router.get("/kakao/callback", async (req, res) => {
+  const debug = String(req.query.debug || "") === "1";
+  try {
+    const { code, state } = req.query;
+    if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Kakao code 없음" })
+                             : redirectError(req, res, "Kakao code 없음");
+    if (!state || !verifyStateJWT(String(state), "kakao")) {
+      return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
+                   : redirectError(req, res, "잘못된 state");
+    }
+
+    const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
+    const body = {
+      grant_type: "authorization_code",
+      client_id: KAKAO.client_id,
+      redirect_uri,
+      code,
+    };
+    if (KAKAO.client_secret) body.client_secret = KAKAO.client_secret;
+
+    let tokenRes;
+    try {
+      tokenRes = await axios.post(
+        "https://kauth.kakao.com/oauth/token",
+        qs.stringify(body),
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
+                   : redirectError(req, res, "Kakao 토큰 교환 실패");
+    }
+
+    const accessToken = tokenRes.data.access_token;
+    if (!accessToken) {
+      return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
+                   : redirectError(req, res, "Kakao access token 없음");
+    }
+
+    let profileRes;
+    try {
+      profileRes = await axios.get("https://kapi.kakao.com/v2/user/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
+                   : redirectError(req, res, "Kakao 프로필 조회 실패");
+    }
+
+    const acct = profileRes.data?.kakao_account || {};
+    let email  = String(acct.email ?? "");
+    const name = String(acct.profile?.nickname ?? "");
+    if (!email) email = String(profileRes.data?.id ?? "");
+    if (!email) {
+      return debug ? res.status(400).json({ step:"profile", error:"카카오 아이디 없음", data: profileRes?.data })
+                   : redirectError(req, res, "카카오 아이디 없음");
+    }
+
+    let user;
+    try {
+      user = await upsertAndGetUser({ login_id: email, login_type: "kakao", nick: name });
+    } catch (e) {
+      return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
+                   : redirectError(req, res, "DB 처리 실패");
+    }
+
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "kakao",
+      nick: user.nick || name || "",
+    });
+
+    if (debug) {
+      return res.json({
+        step: "done",
+        redirect_uri,
+        user,
+        outParams: { uid: user.uid, login_id: user.login_id, login_type: "kakao", token_len: String(token || "").length },
+      });
+    }
+
+    return redirectToApp(req, res, {
+      token, uid: user.uid, login_id: user.login_id, login_type: "kakao", nick: user.nick || name || ""
+    });
+  } catch (e) {
+    console.error("Kakao error", e?.response?.data || e);
+    return (String(req.query.debug || "") === "1")
+      ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
+      : redirectError(req, res, "카카오 로그인 실패");
+  }
+});
 
 /* =========================
- * 라우터
+ * Naver
  * ========================= */
-app.use("/userLogin", loginRouter);
-app.use("/userJoin",  joinRouter);
-app.use("/str",       strRouter);
-app.use("/ir",        irRouter);
-app.use("/auth",      authRouter);
+router.get("/naver", (req, res) => {
+  const state = makeState("naver");
+  const { reauth } = getReauthFlags(req);
+  const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
+
+  const params = {
+    client_id: process.env.NAVER_CLIENT_ID,
+    response_type: "code",
+    redirect_uri,
+    state,
+  };
+  if (reauth) params.auth_type = "reprompt";
+
+  const url = "https://nid.naver.com/oauth2.0/authorize?" + qs.stringify(params);
+  res.redirect(url);
+});
+
+router.get("/naver/callback", async (req, res) => {
+  const debug = String(req.query.debug || "") === "1";
+  try {
+    const { code, state } = req.query;
+    if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Naver code 없음" })
+                             : redirectError(req, res, "Naver code 없음");
+    if (!state || !verifyStateJWT(String(state), "naver")) {
+      return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
+                   : redirectError(req, res, "잘못된 state");
+    }
+
+    const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
+
+    let tokenRes;
+    try {
+      tokenRes = await axios.get("https://nid.naver.com/oauth2.0/token", {
+        params: {
+          grant_type: "authorization_code",
+          client_id: process.env.NAVER_CLIENT_ID,
+          client_secret: process.env.NAVER_CLIENT_SECRET,
+          code,
+          state,
+        },
+      });
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
+                   : redirectError(req, res, "Naver 토큰 교환 실패");
+    }
+
+    const accessToken = tokenRes.data.access_token;
+    if (!accessToken) {
+      return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
+                   : redirectError(req, res, "Naver access token 없음");
+    }
+
+    let profileRes;
+    try {
+      profileRes = await axios.get("https://openapi.naver.com/v1/nid/me", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (e) {
+      const detail = e?.response?.data || e?.message;
+      return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
+                   : redirectError(req, res, "Naver 프로필 조회 실패");
+    }
+
+    const resp  = profileRes.data?.response || {};
+    const email = String(resp.email ?? "");
+    const name  = String(resp.name  ?? "");
+    if (!email) {
+      return debug ? res.status(400).json({ step:"profile", error:"네이버 이메일 없음", data: profileRes?.data })
+                   : redirectError(req, res, "네이버 이메일 없음");
+    }
+
+    let user;
+    try {
+      user = await upsertAndGetUser({ login_id: email, login_type: "naver", nick: name });
+    } catch (e) {
+      return debug ? res.status(500).json({ step:"db", error:"upsert/select fail", detail: e?.message || e })
+                   : redirectError(req, res, "DB 처리 실패");
+    }
+
+    const token = signJWT({
+      uid: user.uid,
+      login_id: user.login_id,
+      login_type: "naver",
+      nick: user.nick || name || "",
+    });
+
+    if (debug) {
+      return res.json({
+        step: "done",
+        redirect_uri,
+        user,
+        outParams: { uid: user.uid, login_id: user.login_id, login_type: "naver", token_len: String(token || "").length },
+      });
+    }
+
+    return redirectToApp(req, res, {
+      token, uid: user.uid, login_id: user.login_id, login_type: "naver", nick: user.nick || name || ""
+    });
+  } catch (e) {
+    console.error("Naver error", e?.response?.data || e);
+    return (String(req.query.debug || "") === "1")
+      ? res.status(500).json({ step:"catchall", error:String(e?.message || e) })
+      : redirectError(req, res, "네이버 로그인 실패");
+  }
+});
 
 /* =========================
- * 404 / 에러 핸들러
+ * (테스트) 강제 콜백 페이지 — 302로 앱 열림
  * ========================= */
-app.use((req, res) => {
-  res.status(404).json({ ok: false, message: "Not Found", path: req.originalUrl });
-});
-app.use((err, _req, res, _next) => {
-  const status = err.status || 500;
-  const code = err.code || err.name || "ServerError";
-  console.error("[ERROR]", code, err.stack || err);
-  res.status(status).json({ ok: false, error: code, message: err.message || "Internal Server Error" });
+router.get("/test/callback", (req, res) => {
+  const params = {
+    token: "TEST",
+    login_id: "dev@example.com",
+    login_type: "kakao",
+    uid: "1",
+    nick: "Dev",
+    ok: "1",
+  };
+  return redirectToApp(req, res, params);
 });
 
 /* =========================
- * 서버 시작
+ * (진단) 현재 라우터 모드
  * ========================= */
-app.listen(PORT, HOST, () => {
-  console.log(`API running at ${SERVER_ORIGIN} (bind ${HOST}:${PORT})`);
-  console.log(`Health check: ${SERVER_ORIGIN}/ping`);
-  console.log(`OAuth redirect base: ${PUBLIC_BASE_URL}`);
-  console.log(`CORS allowed: ${ALLOWED_ORIGINS.join(", ") || "(empty -> use corsOrigin logic)"}`);
-  console.log(`GW proxy → ${GW_TARGET} (mount: /gw)`);
+router.get("/__mode__", (req, res) => {
+  res.json({ mode: "scheme-only", file: __filename });
 });
 
-process.on("SIGINT", () => {
-  console.log("SIGINT received. Server shutting down.");
-  process.exit(0);
-});
+module.exports = router;
