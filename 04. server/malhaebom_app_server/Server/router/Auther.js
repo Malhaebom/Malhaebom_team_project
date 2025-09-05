@@ -41,14 +41,11 @@ const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/ca
 
 /* =========================
  * Google은 절대 URL(HTTPS)로 고정
- * - .env 에 GOOGLE_REDIRECT_PATH 를 절대 URL로 넣어도 인정
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
 const GOOGLE_REDIRECT_ABS = (() => {
-  // 절대 URL로 들어왔으면 그대로 사용
   const p = String(process.env.GOOGLE_REDIRECT_PATH || "");
   if (/^https?:\/\//i.test(p)) return p;
-  // 아니면 별도 ABS가 있으면 그거, 없으면 기본값
   return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
 })();
 
@@ -69,9 +66,7 @@ function getRedirectBase(req) {
   return "http://localhost:4000";
 }
 function buildRedirectUri(req, pathname) {
-  if (/^https?:\/\//i.test(String(pathname || ""))) {
-    return String(pathname);
-  }
+  if (/^https?:\/\//i.test(String(pathname || ""))) return String(pathname);
   return `${getRedirectBase(req)}${pathname}`;
 }
 
@@ -82,14 +77,9 @@ const GOOGLE = {
   client_id: process.env.GOOGLE_CLIENT_ID,
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
 };
-const KAKAO = {
-  client_id: process.env.KAKAO_CLIENT_ID,
-  client_secret: process.env.KAKAO_CLIENT_SECRET || "",
-};
-const NAVER = {
-  client_id: process.env.NAVER_CLIENT_ID,
-  client_secret: process.env.NAVER_CLIENT_SECRET,
-};
+const KAKAO = { client_id: process.env.KAKAO_CLIENT_ID, client_secret: process.env.KAKAO_CLIENT_SECRET || "" };
+const NAVER = { client_id: process.env.NAVER_CLIENT_ID, client_secret: process.env.NAVER_CLIENT_SECRET };
+
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
@@ -115,22 +105,55 @@ function verifyAndDeleteState(store, state) {
 }
 
 /* =========================
- * 안전핀: /auth/google* 는 http 로 들어오면 https로 308
- * (리버스프록시가 잘 라우팅되더라도 2중 방어)
+ * 앱 리다이렉트 방식 선택
+ * - Android 일부 단말에서 302→스킴이 막히므로 HTML 브리지 지원
  * ========================= */
-router.use(['/google', '/google/callback'], (req, res, next) => {
-  const host  = String(req.headers['x-forwarded-host']  || req.headers.host || '').split(',')[0].trim();
-  const proto = String(req.headers['x-forwarded-proto'] || req.protocol      || '').split(',')[0].trim();
-  if (host === 'malhaebom.smhrd.com' && proto !== 'https') {
-    return res.redirect(308, `https://${host}${req.originalUrl}`);
-  }
-  next();
-});
+const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
+const FORCE_HTML_BRIDGE = String(process.env.FORCE_HTML_BRIDGE || "0") === "1";
+const ANDROID_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ★ 실제 패키지와 같아야 함
 
-/* =========================
- * 앱으로 리다이렉트 (항상 302)
- * flutter_web_auth_2 의 CallbackActivity 가 가로채므로 HTML 브릿지 불필요
- * ========================= */
+// HTML 브리지 + intent 폴백
+function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
+  const u = new URL(toUrl);
+  const q = u.search || "";
+  const intentHref = `intent://auth/callback${q}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
+
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="0;url=${toUrl}">
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${title}</title>
+  <style>
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px;line-height:1.5}
+    .box{max-width:520px;margin:24px auto;padding:20px;border:1px solid #eee;border-radius:12px}
+    .btn{display:inline-block;margin-top:12px;padding:10px 14px;border-radius:8px;background:#344CB7;color:#fff;text-decoration:none}
+    .muted{color:#666;font-size:14px}
+    .sub{display:block;margin-top:8px}
+  </style>
+  <script>
+    (function(){
+      var target=${JSON.stringify(toUrl)};
+      var intentUrl=${JSON.stringify(intentHref)};
+      try{ window.location.replace(target); }catch(e){}
+      setTimeout(function(){ try{ window.location.href=intentUrl; }catch(e){} },600);
+      setTimeout(function(){ var el=document.getElementById('hint'); if(el) el.style.display='block'; },1200);
+    })();
+  </script>
+</head>
+<body>
+  <div class="box">
+    <h3>${title}</h3>
+    <p class="muted">${hint}</p>
+    <a class="btn" href="${toUrl}">${btnLabel}</a>
+    <a class="btn sub" href="${intentHref}">앱이 열리지 않으면 여기를 누르세요</a>
+    <p id="hint" class="muted" style="display:none;margin-top:8px;">버튼이 작동하지 않으면 브라우저 탭을 닫아 주세요.</p>
+  </div>
+</body>
+</html>`;
+}
+
 function buildAppUrl(params) {
   const q = new URLSearchParams({
     token: params.token || "",
@@ -147,21 +170,60 @@ function buildAppUrl(params) {
   });
   return `${APP_CALLBACK}?${q.toString()}`;
 }
-function redirectToApp(_req, res, params) {
+
+// HTML 또는 302 선택 (쿼리 ?html=1, 강제 플래그, 헤더 모두 지원)
+function redirectToApp(req, res, params) {
   const toUrl = buildAppUrl(params);
-  console.log("[AUTH] return to app (302)", {
+  const useHtml =
+    FORCE_HTML_BRIDGE ||
+    BRIDGE_MODE === "html" ||
+    String(req.query.html || "") === "1" ||
+    String(req.headers["x-use-html-bridge"] || "") === "1";
+
+  console.log("[AUTH] return to app", {
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
     token: maskToken(params.token),
+    mode: useHtml ? "html" : "302",
+    pkg: ANDROID_PKG,
   });
+
+  if (useHtml) {
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.send(htmlBridge(toUrl));
+  }
   return res.redirect(302, toUrl);
 }
-function redirectError(_req, res, msg) {
+
+function redirectError(req, res, msg) {
   const url = `${APP_CALLBACK}?error=${encodeURIComponent(msg)}&ts=${Date.now()}`;
-  console.log("[AUTH] return error to app (302)", msg);
+  const useHtml =
+    FORCE_HTML_BRIDGE ||
+    BRIDGE_MODE === "html" ||
+    String(req.query.html || "") === "1" ||
+    String(req.headers["x-use-html-bridge"] || "") === "1";
+
+  if (useHtml) {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
+  }
   return res.redirect(302, url);
 }
+
+/* =========================
+ * 안전핀: /auth/google* 는 http 로 들어오면 https로 308
+ * ========================= */
+router.use(['/google', '/google/callback'], (req, res, next) => {
+  const host  = String(req.headers['x-forwarded-host']  || req.headers.host || '').split(',')[0].trim();
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol      || '').split(',')[0].trim();
+  if (host === 'malhaebom.smhrd.com' && proto !== 'https') {
+    return res.redirect(308, `https://${host}${req.originalUrl}`);
+  }
+  next();
+});
 
 /* =========================
  * DB upsert/select
@@ -197,7 +259,7 @@ function getReauthFlags(req) {
 }
 
 /* =========================
- * Google (redirect_uri 절대 URL 고정)
+ * Google
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
@@ -554,8 +616,7 @@ router.get("/test/callback", (_req, res) => {
   const toUrl = `${APP_CALLBACK}?${q.toString()}`;
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.status(200).send(`<!doctype html>
-<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${toUrl}"></head><body>테스트: 앱으로 돌아갑니다…</body></html>`);
+  return res.status(200).send(htmlBridge(toUrl, "앱으로 돌아가는 중(테스트)…"));
 });
 
 module.exports = router;

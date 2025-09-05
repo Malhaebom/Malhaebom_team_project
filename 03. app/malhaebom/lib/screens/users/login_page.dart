@@ -259,8 +259,11 @@ class _LoginPageState extends State<LoginPage> {
       final isGoogle = provider == 'google';
       final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
 
-      // ❗ html 파라미터 절대 추가하지 말 것
-      final qp = <String, String>{if (needReauth) 'reauth': '1'};
+      // ★★ 구글은 html 브리지 강제 적용 (일부 단말의 302→스킴 차단 회피)
+      final qp = <String, String>{
+        if (needReauth) 'reauth': '1',
+        if (isGoogle) 'html': '1',
+      };
 
       final authUrl =
           Uri.parse(
