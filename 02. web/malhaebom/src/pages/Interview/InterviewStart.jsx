@@ -17,6 +17,24 @@ const GW_BASE = import.meta.env.VITE_GW_BASE || "/gw";   // 게이트웨이 베�
 const RESULT_MAX_WAIT_MS = 60_000;         // 결과 대기 최대 1분
 const AUTO_GO_NEXT_ON_STOP = false;         // 녹음 끝나면 자동 다음 문항으로
 
+// ===== 안전한 GW URL 빌더 =====
+function gwURL(path) {
+  const baseRaw = (import.meta.env.VITE_GW_BASE || "/gw").trim();
+
+  // 상대(baseRaw가 '/gw' 같은 케이스)면 origin 붙여서 절대 URL로
+  const baseAbs = baseRaw.startsWith("http")
+    ? baseRaw
+    : `${window.location.origin}${baseRaw.startsWith("/") ? "" : "/"}${baseRaw}`;
+
+  // new URL()의 두 번째 인자(base)는 디렉터리로 끝나야 의도대로 결합됨
+  const baseDir = baseAbs.endsWith("/") ? baseAbs : baseAbs + "/";
+
+  // path는 선행 슬래시 제거 후 결합
+  const rel = path.startsWith("/") ? path.slice(1) : path;
+
+  return new URL(rel, baseDir).toString(); // 최종 절대 URL 문자열
+}
+
 // ===== 간단 업로드 큐 =====
 const makeQueue = () => {
   const q = [];
@@ -116,7 +134,8 @@ function InterviewStart() {
     formData.append("prompt", questionText);
     formData.append("interviewTitle", IR_TITLE);
 
-    const url = new URL(`${GW_BASE}/ir/analyze`);
+    // ★ 수정: GW 절대 URL 생성
+    const url = new URL(gwURL("ir/analyze"));
     url.searchParams.set("lineNumber", String(idx1));
     url.searchParams.set("totalLines", String(totalLines));
     url.searchParams.set("questionId", String(idx1));
@@ -341,7 +360,8 @@ function InterviewStart() {
     // 1) 진행도 수신 대기
     while (Date.now() < deadline) {
       try {
-        const u = new URL(`${GW_BASE}/ir/progress`);
+        // ★ 수정: GW 절대 URL 생성
+        const u = new URL(gwURL("ir/progress"));
         u.searchParams.set("userKey", userKey || "guest");
         u.searchParams.set("title", title);
         const r = await fetch(u.toString());
@@ -354,7 +374,8 @@ function InterviewStart() {
     // 2) 최종 결과(force=1 → 미수신 0점 패딩)
     let jr;
     try {
-      const u2 = new URL(`${GW_BASE}/ir/result`);
+      // ★ 수정: GW 절대 URL 생성
+      const u2 = new URL(gwURL("ir/result"));
       u2.searchParams.set("userKey", userKey || "guest");
       u2.searchParams.set("title", title);
       u2.searchParams.set("force", "1");
