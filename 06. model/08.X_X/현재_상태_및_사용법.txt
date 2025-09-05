@@ -65,7 +65,7 @@
 
 flutter run \
   --dart-define=USE_SERVER=true \
-  --dart-define=API_BASE=http://211.188.63.38:4000
+  --dart-define=API_BASE=http://(PC IP 주소):4000
 
 📱 인터뷰 페이지 특징
 ==========================================
