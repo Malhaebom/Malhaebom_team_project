@@ -260,14 +260,22 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
+      // ★★★ 여기만 변경: html=1 파라미터 추가해서 HTML 브리지 강제 ★★★
+      final qp = <String, String>{if (needReauth) 'reauth': '1', 'html': '1'};
       final authUrl =
-          Uri.parse('$API_BASE/auth/$provider')
-              .replace(queryParameters: {if (needReauth) 'reauth': '1'})
-              .toString();
+          Uri.parse(
+            '$API_BASE/auth/$provider',
+          ).replace(queryParameters: qp).toString();
+
+      // (선택) 디버그 로그
+      // ignore: avoid_print
+      print('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        callbackUrlScheme: CALLBACK_SCHEME,
+        // AndroidManifest의 <data android:scheme="myapp" .../> 와 반드시 동일
+        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
+        // preferEphemeral: false, // 필요 시 유지
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
