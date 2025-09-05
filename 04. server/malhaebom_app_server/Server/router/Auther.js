@@ -9,10 +9,7 @@ const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-// ✅ 실행 배너 (지금 어떤 파일이 라우팅되는지, 어떤 모드인지 확인용)
-console.log("=== AUTH ROUTER MODE: SCHEME_ONLY (myapp://auth/callback) ===", __filename);
-
-// ✅ 공용 DB 풀 (프로젝트 구조에 맞춰 경로 사용)
+// ✅ 공용 DB 풀 (router/db.js)
 const pool = require("./db");
 
 const router = express.Router();
@@ -31,19 +28,19 @@ function maskToken(t) {
 }
 
 /* =========================
- * 앱 콜백 (딥링크)
+ * 앱 콜백 (딥링크) — 반드시 스킴 고정
  * ========================= */
 const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
 
 /* =========================
- * Redirect 경로
+ * OAuth Redirect 경로 (.env)
  * ========================= */
 const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
 const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback";
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Google redirect: 절대 URL 고정(HTTPS)
+ * Google은 절대 URL(HTTPS)로 고정
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
 const GOOGLE_REDIRECT_ABS = (() => {
@@ -53,7 +50,7 @@ const GOOGLE_REDIRECT_ABS = (() => {
 })();
 
 /* =========================
- * 유틸: 리다이렉트 베이스
+ * 유틸
  * ========================= */
 function originFromReq(req) {
   try {
@@ -84,36 +81,41 @@ const GOOGLE = {
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
 };
 const KAKAO = { client_id: process.env.KAKAO_CLIENT_ID, client_secret: process.env.KAKAO_CLIENT_SECRET || "" };
-const NAVER = { client_id: process.env.NAVER_CLIENT_ID, NAVER_client_secret: process.env.NAVER_CLIENT_SECRET };
+const NAVER = { client_id: process.env.NAVER_CLIENT_ID, client_secret: process.env.NAVER_CLIENT_SECRET };
 
-// ENV 체크
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
   KAKAO_CLIENT_ID: KAKAO.client_id,
   NAVER_CLIENT_ID: NAVER.client_id,
-  NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET,
+  NAVER_CLIENT_SECRET: NAVER.client_secret,
 })) {
   if (!v) console.error(`[ENV MISSING] ${k}`);
 }
 
 /* =========================
- * OAuth state: JWT로 stateless 관리
+ * Stateless state (JWT)
  * ========================= */
-const STATE_TTL_SEC = 10 * 60;
+const STATE_TTL_SEC = 10 * 60; // 10분
 function makeState(provider) {
-  const payload = { typ: "oauth_state", p: provider, n: crypto.randomBytes(8).toString("hex") };
+  const payload = {
+    typ: "oauth_state",
+    p: provider,                               // provider
+    n: crypto.randomBytes(8).toString("hex"),  // nonce
+  };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: STATE_TTL_SEC + "s" });
 }
 function verifyStateJWT(state, provider) {
   try {
     const p = jwt.verify(state, JWT_SECRET);
     return p?.typ === "oauth_state" && p?.p === provider;
-  } catch (_) { return false; }
+  } catch (_) {
+    return false;
+  }
 }
 
 /* =========================
- * 앱으로 보내기: 스킴 고정 (myapp://…)
+ * 앱으로 보내기: ★항상 스킴(myapp://)으로 302★
  * ========================= */
 function buildQueryForApp(params) {
   const q = new URLSearchParams({
@@ -151,7 +153,18 @@ function redirectError(_req, res, msg) {
 }
 
 /* =========================
- * 안전핀: /auth/google* 는 http로 오면 https로 308
+ * 진단용 엔드포인트
+ * ========================= */
+router.get("/__mode__", (req, res) => {
+  res.json({
+    mode: "scheme-only",
+    appCallback: APP_CALLBACK,
+    file: __filename,
+  });
+});
+
+/* =========================
+ * 안전핀: /auth/google* 는 http 로 들어오면 https로 308
  * ========================= */
 router.use(["/google", "/google/callback"], (req, res, next) => {
   const host  = String(req.headers["x-forwarded-host"]  || req.headers.host || "").split(",")[0].trim();
@@ -175,6 +188,7 @@ async function upsertAndGetUser({ login_id, login_type, nick }) {
          nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)`,
       [login_id, login_type, nick || ""]
     );
+
     const [rows] = await conn.execute(
       "SELECT user_id AS uid, login_id, login_type, nick FROM tb_user WHERE login_id = ? AND login_type = ? LIMIT 1",
       [login_id, login_type]
@@ -200,7 +214,7 @@ function getReauthFlags(req) {
 router.get("/google", (req, res) => {
   const state = makeState("google");
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = GOOGLE_REDIRECT_ABS;
+  const redirect_uri = GOOGLE_REDIRECT_ABS; // 절대 URL
   const prompt = reauth ? "select_account consent" : "select_account";
 
   console.log("[GOOGLE] auth start", { redirect_uri });
@@ -434,7 +448,7 @@ router.get("/naver", (req, res) => {
   const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
   const params = {
-    client_id: process.env.NAVER_CLIENT_ID,
+    client_id: NAVER.client_id,
     response_type: "code",
     redirect_uri,
     state,
@@ -463,8 +477,8 @@ router.get("/naver/callback", async (req, res) => {
       tokenRes = await axios.get("https://nid.naver.com/oauth2.0/token", {
         params: {
           grant_type: "authorization_code",
-          client_id: process.env.NAVER_CLIENT_ID,
-          client_secret: process.env.NAVER_CLIENT_SECRET,
+          client_id: NAVER.client_id,
+          client_secret: NAVER.client_secret,
           code,
           state,
         },
@@ -538,7 +552,7 @@ router.get("/naver/callback", async (req, res) => {
 /* =========================
  * (테스트) 강제 콜백 페이지 — 302로 앱 열림
  * ========================= */
-router.get("/test/callback", (req, res) => {
+router.get("/test/callback", (_req, res) => {
   const params = {
     token: "TEST",
     login_id: "dev@example.com",
@@ -547,14 +561,7 @@ router.get("/test/callback", (req, res) => {
     nick: "Dev",
     ok: "1",
   };
-  return redirectToApp(req, res, params);
-});
-
-/* =========================
- * (진단) 현재 라우터 모드
- * ========================= */
-router.get("/__mode__", (req, res) => {
-  res.json({ mode: "scheme-only", file: __filename });
+  return redirectToApp(_req, res, params);
 });
 
 module.exports = router;
