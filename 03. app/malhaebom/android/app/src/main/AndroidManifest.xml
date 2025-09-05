@@ -6,7 +6,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
-        <!-- 필요시 외부 인텐트 탐색 항목을 추가할 수 있으나 기본은 불필요 -->
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
@@ -20,10 +19,11 @@
         android:usesCleartextTraffic="true"
         android:enableOnBackInvokedCallback="true">
 
+        <!-- MainActivity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:theme="@style/LaunchTheme"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
@@ -39,7 +39,7 @@
             </intent-filter>
         </activity>
 
-        <!-- ✅ flutter_web_auth_2 콜백: 어떤 host/path로 와도 수신되도록 보강 -->
+        <!-- flutter_web_auth_2 콜백 -->
         <activity
             android:name="com.linusu.flutter_web_auth_2.CallbackActivity"
             android:exported="true"
@@ -47,8 +47,8 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Transparent">
 
-            <!-- 정확 매칭 -->
-            <intent-filter android:label="flutter_web_auth_2_exact">
+            <!-- 1) 기존: 정확 매칭(권장) -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
@@ -58,11 +58,12 @@
                     android:path="/callback" />
             </intent-filter>
 
-            <!-- 느슨한 매칭(호환용): scheme만 맞으면 받음 -->
-            <intent-filter android:label="flutter_web_auth_2_fallback">
+            <!-- 2) 추가: 스킴만 매칭(일부 단말의 매칭 실패 대비) -->
+            <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
+                <!-- host/path 없이 스킴만 지정: myapp:// 이하 전부 수용 -->
                 <data android:scheme="myapp" />
             </intent-filter>
         </activity>

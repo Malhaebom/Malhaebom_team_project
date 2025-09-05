@@ -227,7 +227,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 (항상 API 서버에서 시작) ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -242,11 +241,10 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     bool needReauth = false;
-    if (!wantAuto) {
+    if (!wantAuto ||
+        !hasToken ||
+        (lastAutoUsed != null && lastAutoUsed != wantAuto)) {
       needReauth = true;
-    } else {
-      if (!hasToken) needReauth = true;
-      if (lastAutoUsed != null && lastAutoUsed != wantAuto) needReauth = true;
     }
 
     if (mounted) {
@@ -258,23 +256,26 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // ★ 여기 핵심: 시작 URL은 항상 API 서버로(웹 프런트 도메인 사용 X)
+      final base = API_BASE;
+
+      // ★★ 구글은 html 브리지 강제 적용 (일부 단말의 302→스킴 차단 회피)
       final qp = <String, String>{if (needReauth) 'reauth': '1'};
+
       final authUrl =
           Uri.parse(
-            '$API_BASE/auth/$provider',
+            '$base/auth/$provider',
           ).replace(queryParameters: qp).toString();
 
-      // ignore: avoid_print
-      print('[auth] open $authUrl');
+      debugPrint('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        callbackUrlScheme: CALLBACK_SCHEME,
+        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
+      debugPrint('[auth] result = $result');
       final uri = Uri.parse(result);
       if (uri.scheme != CALLBACK_SCHEME) {
         _snack('콜백 스킴이 올바르지 않습니다: ${uri.scheme}');
