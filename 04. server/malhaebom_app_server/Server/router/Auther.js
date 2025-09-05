@@ -1,7 +1,3 @@
-// SNS OAuth → DB upsert → 앱(딥링크) 복귀
-// 기본은 302 리다이렉트(myapp://...)로 즉시 복귀
-// 필요시 ENV로 HTML 브릿지 사용 가능(AUTH_BRIDGE_MODE=html)
-
 "use strict";
 
 const path = require("path");
@@ -13,7 +9,7 @@ const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-// ✅ 공용 DB 풀(경로: Server/router/db.js)
+// ✅ 공용 DB 풀
 const pool = require("./db");
 
 const router = express.Router();
@@ -37,7 +33,7 @@ function maskToken(t) {
 const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
 
 /* =========================
- * OAuth Redirect 경로
+ * OAuth Redirect 경로 (.env)
  * ========================= */
 const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
 const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback";
@@ -45,6 +41,8 @@ const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/ca
 
 /* =========================
  * Redirect Base 결정
+ *  - 구글: 절대 URL(https)면 그대로 사용
+ *  - 그 외: PUBLIC_BASE_URL + 상대경로
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
 function originFromReq(req) {
@@ -61,13 +59,14 @@ function getRedirectBase(req) {
   if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
   const fromReq = originFromReq(req);
   if (fromReq) return fromReq.replace(/\/$/, "");
-  return "http://localhost:4000"; // 최후 fallback
+  return "http://localhost:4000";
 }
 function buildRedirectUri(req, pathname) {
+  // 절대 URL이면 그대로 사용 (구글 전용 케이스)
   if (/^https?:\/\//i.test(String(pathname || ""))) {
-    // 절대 URL이면 그대로 사용 (구글: 도메인/HTTPS)
     return String(pathname);
   }
+  // 상대 경로면 base + path (카카오/네이버)
   return `${getRedirectBase(req)}${pathname}`;
 }
 
@@ -86,7 +85,6 @@ const NAVER = {
   client_id: process.env.NAVER_CLIENT_ID,
   client_secret: process.env.NAVER_CLIENT_SECRET,
 };
-
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
@@ -113,8 +111,6 @@ function verifyAndDeleteState(store, state) {
 
 /* =========================
  * 앱 리다이렉트 방식 선택
- *  - 기본: 302 (AUTH_BRIDGE_MODE != 'html')
- *  - HTML 브릿지: AUTH_BRIDGE_MODE=html 또는 ?html=1
  * ========================= */
 const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
@@ -190,7 +186,6 @@ function redirectToApp(req, res, params) {
     res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(htmlBridge(toUrl));
   }
-  // ✅ 권장: 302로 직접 myapp://... 이동 → flutter_web_auth_2가 즉시 resolve
   return res.redirect(toUrl);
 }
 
@@ -243,14 +238,17 @@ function getReauthFlags(req) {
 
 /* =========================
  * Google
+ *  - redirect_uri: 절대 URL(HTTPS/도메인)로 고정
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(GOOGLE_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH); // 절대 URL(도메인/HTTPS) 그대로 사용
+  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH); // 절대 URL이면 그대로
   const prompt = reauth ? "select_account consent" : "select_account";
+
+  console.log("[GOOGLE] auth start redirect_uri =", redirect_uri);
 
   const url = "https://accounts.google.com/o/oauth2/v2/auth?" + qs.stringify({
     client_id: GOOGLE.client_id,
@@ -275,6 +273,7 @@ router.get("/google/callback", async (req, res) => {
                    : redirectError(req, res, "잘못된 state");
     }
     const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
+    console.log("[GOOGLE] token redirect_uri =", redirect_uri);
 
     let tokenRes;
     try {
@@ -361,7 +360,7 @@ router.get("/kakao", (req, res) => {
   saveState(KAKAO_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH); // IP 기반 base + 상대 path → http://211.188.63.38:4000/...
+  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH); // IP base + 상대 path
   const params = {
     client_id: KAKAO.client_id,
     redirect_uri,

@@ -22,23 +22,18 @@ const app = express();
 const HOST = process.env.HOST || "0.0.0.0";
 const PORT = Number(process.env.PORT || 4000);
 
-// .env에서 받아온 공개 오리진(로그 표기/헬스 링크용)
-const SERVER_ORIGIN    = process.env.SERVER_ORIGIN    || `http://localhost:${PORT}`;
-const PUBLIC_BASE_URL  = process.env.PUBLIC_BASE_URL  || `http://localhost:${PORT}`;
+const SERVER_ORIGIN   = process.env.SERVER_ORIGIN   || `http://localhost:${PORT}`;
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`;
 
-// CORS 허용 오리진 목록(.env의 CORS_ORIGINS 콤마구분)
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
 
-// 내부 게이트웨이 주소
 const GW_TARGET = process.env.GW_TARGET || "http://127.0.0.1:4010";
-
-// 리다이렉트 강제 옵션 (실수 방지용, 필요할 때만 1로)
 const FORCE_CANONICAL_REDIRECT = String(process.env.FORCE_CANONICAL_REDIRECT || "0") === "1";
 
-// 프록시 신뢰(로드밸런서/터널 뒤에 있을 수 있으므로)
+// 프록시 신뢰
 app.set("trust proxy", true);
 
 /* =========================
@@ -82,26 +77,21 @@ app.options(/.*/, cors(corsOptions));
 
 /* =========================
  * (선택) 도메인/프로토콜 강제 리다이렉트
- *  - 필요 시 FORCE_CANONICAL_REDIRECT=1 로 활성화
  * ========================= */
 if (FORCE_CANONICAL_REDIRECT && PUBLIC_BASE_URL) {
   try {
     const target = new URL(PUBLIC_BASE_URL);
-    const FORCE_HOST = target.host;     // ex) malhaebom.smhrd.com:4000
-    const FORCE_PROTO = target.protocol.replace(":", ""); // "https" or "http"
+    const FORCE_HOST = target.host;
+    const FORCE_PROTO = target.protocol.replace(":", "");
 
     app.use((req, res, next) => {
       const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
       const xfHost  = (req.headers["x-forwarded-host"]  || "").toString().split(",")[0].trim();
-      const scheme = xfProto || req.protocol; // 신뢰 프록시 고려
+      const scheme = xfProto || req.protocol;
       const host   = xfHost || req.headers.host || "";
 
-      const protoMismatch = scheme !== FORCE_PROTO;
-      const hostMismatch  = host !== FORCE_HOST;
-
-      if (protoMismatch || hostMismatch) {
-        const redirectUrl = `${target.origin}${req.originalUrl}`;
-        return res.redirect(308, redirectUrl);
+      if (scheme !== FORCE_PROTO || host !== FORCE_HOST) {
+        return res.redirect(308, `${target.origin}${req.originalUrl}`);
       }
       next();
     });
@@ -112,7 +102,7 @@ if (FORCE_CANONICAL_REDIRECT && PUBLIC_BASE_URL) {
 }
 
 /* =========================
- * 요청 로깅(외부 시점)
+ * 요청 로깅 (외부 시점)
  * ========================= */
 app.use((req, _res, next) => {
   const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
@@ -139,6 +129,7 @@ app.get("/auth/meta", (_req, res) => {
     meta: {
       publicBaseUrl: base,
       serverOrigin: SERVER_ORIGIN,
+      // 이 값들로 최종 redirect_uri가 어떻게 잡히는지 확인 가능
       googleRedirect: join(process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"),
       kakaoRedirect:  join(process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback"),
       naverRedirect:  join(process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback"),
