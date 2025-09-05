@@ -49,6 +49,9 @@ const GOOGLE_REDIRECT_ABS = (() => {
   return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
 })();
 
+/* =========================
+ * 유틸: 리다이렉트 베이스
+ * ========================= */
 function originFromReq(req) {
   try {
     const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
@@ -105,56 +108,11 @@ function verifyAndDeleteState(store, state) {
 }
 
 /* =========================
- * 앱 리다이렉트 방식 선택
- * - Android 일부 단말에서 302→스킴이 막히므로 HTML 브리지 지원
+ * 앱 리다이렉트 (항상 302, 안드로이드는 intent://)
  * ========================= */
-const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
-const FORCE_HTML_BRIDGE = String(process.env.FORCE_HTML_BRIDGE || "0") === "1";
-const ANDROID_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ★ 실제 패키지와 같아야 함
+const ANDROID_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ★ 실제 패키지와 동일해야 함
 
-// HTML 브리지 + intent 폴백
-function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
-  const u = new URL(toUrl);
-  const q = u.search || "";
-  const intentHref = `intent://auth/callback${q}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
-
-  return `<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta http-equiv="refresh" content="0;url=${toUrl}">
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>${title}</title>
-  <style>
-    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px;line-height:1.5}
-    .box{max-width:520px;margin:24px auto;padding:20px;border:1px solid #eee;border-radius:12px}
-    .btn{display:inline-block;margin-top:12px;padding:10px 14px;border-radius:8px;background:#344CB7;color:#fff;text-decoration:none}
-    .muted{color:#666;font-size:14px}
-    .sub{display:block;margin-top:8px}
-  </style>
-  <script>
-    (function(){
-      var target=${JSON.stringify(toUrl)};
-      var intentUrl=${JSON.stringify(intentHref)};
-      try{ window.location.replace(target); }catch(e){}
-      setTimeout(function(){ try{ window.location.href=intentUrl; }catch(e){} },600);
-      setTimeout(function(){ var el=document.getElementById('hint'); if(el) el.style.display='block'; },1200);
-    })();
-  </script>
-</head>
-<body>
-  <div class="box">
-    <h3>${title}</h3>
-    <p class="muted">${hint}</p>
-    <a class="btn" href="${toUrl}">${btnLabel}</a>
-    <a class="btn sub" href="${intentHref}">앱이 열리지 않으면 여기를 누르세요</a>
-    <p id="hint" class="muted" style="display:none;margin-top:8px;">버튼이 작동하지 않으면 브라우저 탭을 닫아 주세요.</p>
-  </div>
-</body>
-</html>`;
-}
-
-function buildAppUrl(params) {
+function buildQueryForApp(params) {
   const q = new URLSearchParams({
     token: params.token || "",
     uid: String(params.uid || ""),
@@ -165,61 +123,68 @@ function buildAppUrl(params) {
     sns_user_id: params.login_id || "",
     sns_login_type: params.login_type || "",
     sns_nick: params.nick || "",
-    ok: "1",
+    ok: params.ok === "0" ? "0" : "1",
     ts: String(Date.now()),
   });
-  return `${APP_CALLBACK}?${q.toString()}`;
+  return q.toString();
 }
 
-// HTML 또는 302 선택 (쿼리 ?html=1, 강제 플래그, 헤더 모두 지원)
 function redirectToApp(req, res, params) {
-  const toUrl = buildAppUrl(params);
-  const useHtml =
-    FORCE_HTML_BRIDGE ||
-    BRIDGE_MODE === "html" ||
-    String(req.query.html || "") === "1" ||
-    String(req.headers["x-use-html-bridge"] || "") === "1";
+  const ua = String(req.headers["user-agent"] || "");
+  const isAndroid = /Android/i.test(ua);
+
+  const qs = buildQueryForApp(params);
+
+  // iOS/기타: myapp://auth/callback?... 로 302
+  const schemeUrl = `${APP_CALLBACK}?${qs}`;
+  // Android: intent://auth/callback?...#Intent;scheme=myapp;package=...;end 로 302
+  const intentUrl = `intent://auth/callback?${qs}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
+
+  const location = isAndroid ? intentUrl : schemeUrl;
 
   console.log("[AUTH] return to app", {
+    ua: ua.slice(0, 160),
+    isAndroid,
+    to: isAndroid ? "intent://" : "myapp://",
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
     token: maskToken(params.token),
-    mode: useHtml ? "html" : "302",
-    pkg: ANDROID_PKG,
+    mode: "302",
   });
 
-  if (useHtml) {
-    res.setHeader("Cache-Control", "no-store");
-    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(htmlBridge(toUrl));
-  }
-  return res.redirect(302, toUrl);
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  return res.redirect(302, location);
 }
 
 function redirectError(req, res, msg) {
-  const url = `${APP_CALLBACK}?error=${encodeURIComponent(msg)}&ts=${Date.now()}`;
-  const useHtml =
-    FORCE_HTML_BRIDGE ||
-    BRIDGE_MODE === "html" ||
-    String(req.query.html || "") === "1" ||
-    String(req.headers["x-use-html-bridge"] || "") === "1";
+  const ua = String(req.headers["user-agent"] || "");
+  const isAndroid = /Android/i.test(ua);
+  const qs = new URLSearchParams({ error: msg, ts: String(Date.now()) }).toString();
 
-  if (useHtml) {
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
-  }
-  return res.redirect(302, url);
+  const schemeUrl = `${APP_CALLBACK}?${qs}`;
+  const intentUrl = `intent://auth/callback?${qs}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
+  const location = isAndroid ? intentUrl : schemeUrl;
+
+  console.log("[AUTH] error return", {
+    ua: ua.slice(0, 160),
+    isAndroid,
+    to: isAndroid ? "intent://" : "myapp://",
+    error: msg,
+    mode: "302",
+  });
+
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+  return res.redirect(302, location);
 }
 
 /* =========================
  * 안전핀: /auth/google* 는 http 로 들어오면 https로 308
  * ========================= */
-router.use(['/google', '/google/callback'], (req, res, next) => {
-  const host  = String(req.headers['x-forwarded-host']  || req.headers.host || '').split(',')[0].trim();
-  const proto = String(req.headers['x-forwarded-proto'] || req.protocol      || '').split(',')[0].trim();
-  if (host === 'malhaebom.smhrd.com' && proto !== 'https') {
+router.use(["/google", "/google/callback"], (req, res, next) => {
+  const host  = String(req.headers["x-forwarded-host"]  || req.headers.host || "").split(",")[0].trim();
+  const proto = String(req.headers["x-forwarded-proto"] || req.protocol      || "").split(",")[0].trim();
+  if (host === "malhaebom.smhrd.com" && proto !== "https") {
     return res.redirect(308, `https://${host}${req.originalUrl}`);
   }
   next();
@@ -601,22 +566,18 @@ router.get("/naver/callback", async (req, res) => {
 });
 
 /* =========================
- * (테스트) 강제 콜백 페이지
+ * (테스트) 강제 콜백 페이지 — 302로 앱 열림
  * ========================= */
-router.get("/test/callback", (_req, res) => {
-  const q = new URLSearchParams({
+router.get("/test/callback", (req, res) => {
+  const params = {
     token: "TEST",
     login_id: "dev@example.com",
     login_type: "kakao",
     uid: "1",
     nick: "Dev",
     ok: "1",
-    ts: String(Date.now()),
-  });
-  const toUrl = `${APP_CALLBACK}?${q.toString()}`;
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("Content-Type", "text/html; charset=utf-8");
-  return res.status(200).send(htmlBridge(toUrl, "앱으로 돌아가는 중(테스트)…"));
+  };
+  return redirectToApp(req, res, params);
 });
 
 module.exports = router;
