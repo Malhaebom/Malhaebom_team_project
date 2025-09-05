@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -40,7 +39,6 @@ class _LoginPageState extends State<LoginPage> {
   // Brand colors
   static const Color kNaver = Color(0xFF03C75A);
   static const Color kKakao = Color(0xFFFEE500);
-  static const Color kGoogleBorder = Color(0xFFE5E5E5);
 
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
@@ -229,7 +227,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 (딥링크 즉시 복귀) ==================
+  /// ================== SNS 로그인 (항상 API 서버에서 시작) ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -260,10 +258,15 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
+      // ★ 여기 핵심: 시작 URL은 항상 API 서버로(웹 프런트 도메인 사용 X)
+      final qp = <String, String>{if (needReauth) 'reauth': '1'};
       final authUrl =
-          Uri.parse('$API_BASE/auth/$provider')
-              .replace(queryParameters: {if (needReauth) 'reauth': '1'})
-              .toString();
+          Uri.parse(
+            '$API_BASE/auth/$provider',
+          ).replace(queryParameters: qp).toString();
+
+      // ignore: avoid_print
+      print('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
@@ -418,8 +421,6 @@ class _LoginPageState extends State<LoginPage> {
                           ],
                         ),
                       ),
-
-                      // ✅ SNS 아이콘 포함 UI 그대로
                       _googleSoftButton(
                         label: '구글로 로그인',
                         iconPath: 'assets/icons/google_icon.png',
@@ -441,9 +442,7 @@ class _LoginPageState extends State<LoginPage> {
                         foreground: Colors.black,
                         onPressed: _loginWithKakao,
                       ),
-
                       SizedBox(height: 16.h),
-
                       Row(
                         children: [
                           Expanded(
@@ -466,9 +465,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-
                       SizedBox(height: 16.h),
-
                       Text(
                         '휴대전화번호',
                         style: TextStyle(
@@ -514,9 +511,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: 12.h),
-
                       Text(
                         '비밀번호',
                         style: TextStyle(
@@ -559,9 +554,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: 8.h),
-
                       Row(
                         children: [
                           Checkbox(
@@ -587,9 +580,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-
                       SizedBox(height: 10.h),
-
                       SizedBox(
                         height: 52.h,
                         child: ElevatedButton(
@@ -620,9 +611,7 @@ class _LoginPageState extends State<LoginPage> {
                                   : const Text('로그인'),
                         ),
                       ),
-
                       SizedBox(height: 14.h),
-
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

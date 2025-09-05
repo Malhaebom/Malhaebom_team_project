@@ -1,8 +1,3 @@
-// File: Server/router/Auther.js
-// SNS OAuth → DB upsert → 앱(딥링크) 복귀
-// 기본은 302 리다이렉트(myapp://...)로 즉시 복귀
-// 필요시 ENV로 HTML 브릿지 사용 가능(AUTH_BRIDGE_MODE=html)
-
 "use strict";
 
 const path = require("path");
@@ -14,7 +9,7 @@ const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-// ✅ 공용 DB 풀(경로: Server/router/db.js)
+// ✅ 공용 DB 풀
 const pool = require("./db");
 
 const router = express.Router();
@@ -38,16 +33,19 @@ function maskToken(t) {
 const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
 
 /* =========================
- * OAuth Redirect 경로
+ * OAuth Redirect 경로 (.env)
  * ========================= */
 const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
 const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback";
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Redirect Base 결정
+ * Google은 절대 URL(HTTPS)로 고정
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+const GOOGLE_REDIRECT_ABS =
+  process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
+
 function originFromReq(req) {
   try {
     const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
@@ -62,9 +60,14 @@ function getRedirectBase(req) {
   if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
   const fromReq = originFromReq(req);
   if (fromReq) return fromReq.replace(/\/$/, "");
-  return "http://localhost:4000"; // 최후 fallback
+  return "http://localhost:4000";
 }
 function buildRedirectUri(req, pathname) {
+  // 절대 URL이면 그대로 사용 (구글 전용 가능)
+  if (/^https?:\/\//i.test(String(pathname || ""))) {
+    return String(pathname);
+  }
+  // 상대 경로면 base + path
   return `${getRedirectBase(req)}${pathname}`;
 }
 
@@ -83,7 +86,6 @@ const NAVER = {
   client_id: process.env.NAVER_CLIENT_ID,
   client_secret: process.env.NAVER_CLIENT_SECRET,
 };
-
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
@@ -110,8 +112,6 @@ function verifyAndDeleteState(store, state) {
 
 /* =========================
  * 앱 리다이렉트 방식 선택
- *  - 기본: 302 (AUTH_BRIDGE_MODE != 'html')
- *  - HTML 브릿지: AUTH_BRIDGE_MODE=html 또는 ?html=1
  * ========================= */
 const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
@@ -187,7 +187,6 @@ function redirectToApp(req, res, params) {
     res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(htmlBridge(toUrl));
   }
-  // ✅ 권장: 302로 직접 myapp://... 이동 → flutter_web_auth_2가 즉시 resolve
   return res.redirect(toUrl);
 }
 
@@ -239,15 +238,17 @@ function getReauthFlags(req) {
 }
 
 /* =========================
- * Google
+ * Google (redirect_uri 절대 URL 고정)
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(GOOGLE_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
+  const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
   const prompt = reauth ? "select_account consent" : "select_account";
+
+  console.log("[GOOGLE] auth start redirect_uri =", redirect_uri);
 
   const url = "https://accounts.google.com/o/oauth2/v2/auth?" + qs.stringify({
     client_id: GOOGLE.client_id,
@@ -271,7 +272,8 @@ router.get("/google/callback", async (req, res) => {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
+    const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
+    console.log("[GOOGLE] token redirect_uri =", redirect_uri);
 
     let tokenRes;
     try {
@@ -359,7 +361,6 @@ router.get("/kakao", (req, res) => {
 
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
-
   const params = {
     client_id: KAKAO.client_id,
     redirect_uri,
@@ -499,8 +500,6 @@ router.get("/naver/callback", async (req, res) => {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    // 네이버는 redirect_uri를 토큰 교환에 직접 쓰지 않으므로 여기서는 계산만 참고
-    // (보수적으로 유지)
     const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
     let tokenRes;
