@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
@@ -40,7 +39,6 @@ class _LoginPageState extends State<LoginPage> {
   // Brand colors
   static const Color kNaver = Color(0xFF03C75A);
   static const Color kKakao = Color(0xFFFEE500);
-  static const Color kGoogleBorder = Color(0xFFE5E5E5);
 
   final _phoneCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
@@ -260,10 +258,13 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // 구글은 HTTPS 도메인, 나머지는 기존 API_BASE 사용
+      // 구글은 HTTPS 도메인, 나머지는 기존 API_BASE 사용 (카카오/네이버는 PUBLIC_BASE_URL 기반으로 서버가 처리)
       final isGoogle = provider == 'google';
       final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
+
+      // ❌ html=1 제거: HTML 브리지 사용 안 함(서비스워커/SPA 개입 방지)
       final qp = <String, String>{if (needReauth) 'reauth': '1'};
+
       final authUrl =
           Uri.parse(
             '$base/auth/$provider',
@@ -274,6 +275,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
+        // AndroidManifest / iOS URL Types에 등록한 스킴
         callbackUrlScheme: CALLBACK_SCHEME,
       );
 
