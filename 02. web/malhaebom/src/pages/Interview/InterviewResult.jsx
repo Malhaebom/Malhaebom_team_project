@@ -18,6 +18,14 @@ const InterviewResult = () => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
+  // ✅ 세부 항목 토글 상태
+  const [expandedCategories, setExpandedCategories] = useState(new Set());
+
+  const toggleCategory = (category) => {
+    const next = new Set(expandedCategories);
+    next.has(category) ? next.delete(category) : next.add(category);
+    setExpandedCategories(next);
+  };
 
   const formatDate = (isoString) => {
     if (!isoString) return "";
@@ -59,19 +67,38 @@ const InterviewResult = () => {
         const userKey = await ensureUserKey({ retries: 2, delayMs: 150 });
         const headers = userKey ? { "x-user-key": userKey } : undefined;
 
-        // 제목으로 필터링 (서버가 지원)
         const { data } = await API.get("/ir/latest", {
           headers,
           params: { title: TITLE },
         });
 
-        const latest = data?.ok ? data.latest : null;
+        let latest = data?.ok ? data.latest : null;
+
         if (!latest) {
+          try {
+            const arr = JSON.parse(localStorage.getItem("interviewHistoryData") || "[]");
+            if (Array.isArray(arr) && arr.length > 0) {
+              const recent = arr[0];
+              const details = recent?.details || {};
+              const totals = Object.values(details);
+              const score = totals.reduce((a, b) => a + (b?.score || 0), 0);
+              const total = totals.reduce((a, b) => a + (b?.total || 0), 0) || 40;
+              setItem({
+                date: recent?.date,
+                score,
+                total,
+                details,
+                order: 1,
+              });
+              return;
+            }
+          } catch (e) {
+            console.warn("[InterviewResult] localStorage fallback parse error:", e);
+          }
           setItem(null);
           return;
         }
 
-        // 서버 응답 → UI 구조
         const details = byCategoryToDetails(latest.byCategory || {});
         const totals = Object.values(details);
         const score = totals.reduce((a, b) => a + (b?.score || 0), 0);
@@ -82,17 +109,37 @@ const InterviewResult = () => {
           score,
           total,
           details,
+          // 서버 산출 오름차순 회차 우선 사용
+          order:
+            latest.serverAttemptOrderAsc ??
+            latest.serverAttemptOrder ??
+            latest.clientAttemptOrder ??
+            latest.clientRound ??
+            1,
         });
       } catch (e) {
-        console.error("[InterviewResult] fetch error:", e);
-        setItem(null);
+        console.error("[InterviewResult] fetch error, trying localStorage fallback:", e);
+        try {
+          const arr = JSON.parse(localStorage.getItem("interviewHistoryData") || "[]");
+          if (Array.isArray(arr) && arr.length > 0) {
+            const recent = arr[0];
+            const details = recent?.details || {};
+            const totals = Object.values(details);
+            const score = totals.reduce((a, b) => a + (b?.score || 0), 0);
+            const total = totals.reduce((a, b) => a + (b?.total || 0), 0) || 40;
+            setItem({ date: recent?.date, score, total, details, order: 1 });
+          } else {
+            setItem(null);
+          }
+        } catch {
+          setItem(null);
+        }
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
-  // JSON 기반 표시 유틸
   const getScoreColor = (score, total) => {
     if (!config) return "#666";
     const pct = (Number(score) / Math.max(1, Number(total))) * 100;
@@ -136,30 +183,53 @@ const InterviewResult = () => {
         </h2>
 
         <div style={{ background: "#fff", borderRadius: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", overflow: "hidden" }}>
+          {/* 헤더 (날짜 + 회차) */}
           <div style={{ padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #eee" }}>
-            <span style={{ fontSize: 16, color: "#555", fontWeight: 600 }}>{formatDate(item.date)}</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 16, color: "#555", fontWeight: 600 }}>{formatDate(item.date)}</span>
+              <span
+                style={{
+                  fontSize: 16,
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  background: "#EEF2FF",
+                  color: "#4338CA",
+                  fontWeight: 600,
+                }}
+              >
+                {item.order}회차
+              </span>
+            </div>
             <span style={{ fontSize: 18, fontWeight: 700, color: getScoreColor(item.score, item.total) }}>
               {item.score}/{item.total}점
             </span>
           </div>
 
           <div style={{ padding: 20, background: "#f8f9fa" }}>
+            {/* 전체 평가 */}
             <div style={{ marginBottom: 15 }}>
               <p style={{ fontSize: 14, color: "#4B5563", lineHeight: 1.5, margin: 0, whiteSpace: "pre-line" }}>
                 {getOverallEvaluation(item.score, item.total)}
               </p>
             </div>
 
+            {/* 원형 점수 */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
               <ScoreCircle score={item.score} total={item.total} size={120} />
             </div>
 
+            {/* ✅ 세부 항목: 히스토리와 동일하게 토글 + 설명 문구 */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {Object.entries(item.details).map(([category, detail]) => {
                 const status = getStatusFromScore(detail.score, detail.total);
+                const isExpanded = expandedCategories.has(category);
                 return (
                   <div key={category} style={{ background: "#fff", borderRadius: 8, border: "1px solid #e0e0e0", overflow: "hidden" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12 }}>
+                    {/* 행 클릭 → 토글 */}
+                    <div
+                      onClick={() => toggleCategory(category)}
+                      style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 12, cursor: "pointer" }}
+                    >
                       <span style={{ fontSize: 16, fontWeight: 600, color: "#333" }}>{category}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 14, fontWeight: "bold", color: getScoreColor(detail.score, detail.total) }}>
@@ -177,8 +247,25 @@ const InterviewResult = () => {
                         >
                           {status}
                         </span>
+                        <span
+                          style={{
+                            fontSize: 16,
+                            color: "#666",
+                            transition: "transform 0.3s ease",
+                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                          }}
+                        >
+                          ▼
+                        </span>
                       </div>
                     </div>
+
+                    {/* 펼친 경우: 기준 문구 */}
+                    {isExpanded && (
+                      <div style={{ padding: 12, borderTop: "1px solid #e0e0e0", background: "#fafafa", whiteSpace: "pre-line", fontSize: 14, color: "#6B7280" }}>
+                        {config.evaluationCriteria?.[category]}
+                      </div>
+                    )}
                   </div>
                 );
               })}
