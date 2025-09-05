@@ -242,11 +242,10 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     bool needReauth = false;
-    if (!wantAuto) {
+    if (!wantAuto ||
+        !hasToken ||
+        (lastAutoUsed != null && lastAutoUsed != wantAuto)) {
       needReauth = true;
-    } else {
-      if (!hasToken) needReauth = true;
-      if (lastAutoUsed != null && lastAutoUsed != wantAuto) needReauth = true;
     }
 
     if (mounted) {
@@ -272,9 +271,7 @@ class _LoginPageState extends State<LoginPage> {
             '$base/auth/$provider',
           ).replace(queryParameters: qp).toString();
 
-      // 디버그
-      // ignore: avoid_print
-      print('[auth] open $authUrl');
+      debugPrint('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
@@ -283,15 +280,12 @@ class _LoginPageState extends State<LoginPage> {
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
-      // 디버그: 실제 콜백 URL 확인
-      // ignore: avoid_print
-      print('[auth] result = $result');
-
+      debugPrint('[auth] result = $result');
       final uri = Uri.parse(result);
-      if (uri.scheme != CALLBACK_SCHEME ||
-          uri.host != CALLBACK_HOST ||
-          uri.path != CALLBACK_PATH) {
-        _snack('콜백 URL 불일치: $uri');
+
+      // ✅ 스킴만 검증 (host/path는 단말 따라 변주 가능)
+      if (uri.scheme != CALLBACK_SCHEME) {
+        _snack('콜백 스킴이 올바르지 않습니다: ${uri.scheme}');
         return;
       }
 

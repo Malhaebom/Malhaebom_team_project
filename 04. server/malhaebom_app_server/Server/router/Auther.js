@@ -41,10 +41,17 @@ const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/ca
 
 /* =========================
  * Google은 절대 URL(HTTPS)로 고정
+ * - 네가 .env 에 GOOGLE_REDIRECT_PATH를 절대 URL로 넣어도 먹게 처리
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
-const GOOGLE_REDIRECT_ABS =
-  process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
+const GOOGLE_REDIRECT_ABS = (() => {
+  // 절대 URL로 들어왔으면 그대로 사용
+  if (/^https?:\/\//i.test(String(process.env.GOOGLE_REDIRECT_PATH || ""))) {
+    return process.env.GOOGLE_REDIRECT_PATH;
+  }
+  // 아니면 별도 ABS가 있으면 그거, 없으면 기본값
+  return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
+})();
 
 function originFromReq(req) {
   try {
@@ -63,11 +70,9 @@ function getRedirectBase(req) {
   return "http://localhost:4000";
 }
 function buildRedirectUri(req, pathname) {
-  // 절대 URL이면 그대로 사용 (구글 전용 가능)
   if (/^https?:\/\//i.test(String(pathname || ""))) {
     return String(pathname);
   }
-  // 상대 경로면 base + path
   return `${getRedirectBase(req)}${pathname}`;
 }
 
@@ -114,13 +119,14 @@ function verifyAndDeleteState(store, state) {
  * 앱 리다이렉트 방식 선택
  * ========================= */
 const BRIDGE_MODE = (process.env.AUTH_BRIDGE_MODE || "302").toLowerCase();
+const FORCE_HTML_BRIDGE = String(process.env.FORCE_HTML_BRIDGE || "0") === "1";
+const ANDROID_PKG = process.env.ANDROID_PACKAGE || "com.example.malhaebom"; // ← 실제 설치된 applicationId 로 맞춰
 
-// [EDIT] 인텐트 폴백을 포함한 HTML 브릿지
+// HTML 브리지 + intent 폴백(패키지명 고정)
 function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "앱으로 돌아가기", hint = "자동 전환되지 않으면 버튼을 눌러 주세요.") {
   const u = new URL(toUrl);
   const q = u.search || "";
-  const APP_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ← 실제 앱 패키지명
-  const intentHref = `intent://auth/callback${q}#Intent;scheme=myapp;package=${APP_PKG};end`;
+  const intentHref = `intent://auth/callback${q}#Intent;scheme=myapp;package=${ANDROID_PKG};end`;
 
   return `<!doctype html>
 <html lang="ko">
@@ -140,14 +146,12 @@ function htmlBridge(toUrl, title = "앱으로 돌아가는 중…", btnLabel = "
     (function(){
       var target=${JSON.stringify(toUrl)};
       var intentUrl=${JSON.stringify(intentHref)};
-      function go(){ try{window.location.replace(target);}catch(e){} }
-      go();
-      // 커스텀스킴 302가 막히는 단말 대비: intent:// 폴백
+      try{ window.location.replace(target); }catch(e){}
       setTimeout(function(){
         try{ window.location.href=intentUrl; }catch(e){}
       },600);
       setTimeout(function(){
-        var hint=document.getElementById('hint'); if(hint) hint.style.display='block';
+        var el=document.getElementById('hint'); if(el) el.style.display='block';
       },1200);
     })();
   </script>
@@ -184,6 +188,7 @@ function buildAppUrl(params) {
 function redirectToApp(req, res, params) {
   const toUrl = buildAppUrl(params);
   const useHtml =
+    FORCE_HTML_BRIDGE ||
     BRIDGE_MODE === "html" ||
     String(req.query.html || "") === "1" ||
     String(req.headers["x-use-html-bridge"] || "") === "1";
@@ -194,9 +199,11 @@ function redirectToApp(req, res, params) {
     login_type: params.login_type,
     token: maskToken(params.token),
     mode: useHtml ? "html" : "302",
+    pkg: ANDROID_PKG,
   });
 
   if (useHtml) {
+    res.setHeader("Cache-Control", "no-store");
     res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
     return res.send(htmlBridge(toUrl));
   }
@@ -206,11 +213,13 @@ function redirectToApp(req, res, params) {
 function redirectError(req, res, msg) {
   const url = `${APP_CALLBACK}?error=${encodeURIComponent(msg)}&ts=${Date.now()}`;
   const useHtml =
+    FORCE_HTML_BRIDGE ||
     BRIDGE_MODE === "html" ||
     String(req.query.html || "") === "1" ||
     String(req.headers["x-use-html-bridge"] || "") === "1";
 
   if (useHtml) {
+    res.setHeader("Cache-Control", "no-store");
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
   }
@@ -606,6 +615,7 @@ router.get("/test/callback", (_req, res) => {
     ts: String(Date.now()),
   });
   const toUrl = `${APP_CALLBACK}?${q.toString()}`;
+  res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   return res.status(200).send(htmlBridge(toUrl, "앱으로 돌아가는 중(테스트)…"));
 });
