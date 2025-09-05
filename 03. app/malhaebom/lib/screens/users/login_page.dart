@@ -229,7 +229,7 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 (딥링크 즉시 복귀) ==================
+  /// ================== SNS 로그인 (구글은 HTTPS 도메인) ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -260,22 +260,21 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // ★★★ 여기만 변경: html=1 파라미터 추가해서 HTML 브리지 강제 ★★★
-      final qp = <String, String>{if (needReauth) 'reauth': '1', 'html': '1'};
+      // 구글은 HTTPS 도메인, 나머지는 기존 API_BASE 사용
+      final isGoogle = provider == 'google';
+      final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
+      final qp = <String, String>{if (needReauth) 'reauth': '1'};
       final authUrl =
           Uri.parse(
-            '$API_BASE/auth/$provider',
+            '$base/auth/$provider',
           ).replace(queryParameters: qp).toString();
 
-      // (선택) 디버그 로그
       // ignore: avoid_print
       print('[auth] open $authUrl');
 
       final result = await FlutterWebAuth2.authenticate(
         url: authUrl,
-        // AndroidManifest의 <data android:scheme="myapp" .../> 와 반드시 동일
-        callbackUrlScheme: CALLBACK_SCHEME, // 'myapp'
-        // preferEphemeral: false, // 필요 시 유지
+        callbackUrlScheme: CALLBACK_SCHEME,
       );
 
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
@@ -426,8 +425,6 @@ class _LoginPageState extends State<LoginPage> {
                           ],
                         ),
                       ),
-
-                      // ✅ SNS 아이콘 포함 UI 그대로
                       _googleSoftButton(
                         label: '구글로 로그인',
                         iconPath: 'assets/icons/google_icon.png',
@@ -449,9 +446,7 @@ class _LoginPageState extends State<LoginPage> {
                         foreground: Colors.black,
                         onPressed: _loginWithKakao,
                       ),
-
                       SizedBox(height: 16.h),
-
                       Row(
                         children: [
                           Expanded(
@@ -474,9 +469,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-
                       SizedBox(height: 16.h),
-
                       Text(
                         '휴대전화번호',
                         style: TextStyle(
@@ -522,9 +515,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: 12.h),
-
                       Text(
                         '비밀번호',
                         style: TextStyle(
@@ -567,9 +558,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                       ),
-
                       SizedBox(height: 8.h),
-
                       Row(
                         children: [
                           Checkbox(
@@ -595,9 +584,7 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ],
                       ),
-
                       SizedBox(height: 10.h),
-
                       SizedBox(
                         height: 52.h,
                         child: ElevatedButton(
@@ -628,9 +615,7 @@ class _LoginPageState extends State<LoginPage> {
                                   : const Text('로그인'),
                         ),
                       ),
-
                       SizedBox(height: 14.h),
-
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [

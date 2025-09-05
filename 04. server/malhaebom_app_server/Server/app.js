@@ -129,8 +129,7 @@ app.get("/auth/meta", (_req, res) => {
     meta: {
       publicBaseUrl: base,
       serverOrigin: SERVER_ORIGIN,
-      // 이 값들로 최종 redirect_uri가 어떻게 잡히는지 확인 가능
-      googleRedirect: join(process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"),
+      googleRedirect: process.env.GOOGLE_REDIRECT_ABS || join(process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"),
       kakaoRedirect:  join(process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback"),
       naverRedirect:  join(process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback"),
       appCallback: process.env.APP_CALLBACK || "myapp://auth/callback",

@@ -40,11 +40,12 @@ const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/ca
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Redirect Base 결정
- *  - 구글: 절대 URL(https)면 그대로 사용
- *  - 그 외: PUBLIC_BASE_URL + 상대경로
+ * Google은 절대 URL(HTTPS)로 고정
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
+const GOOGLE_REDIRECT_ABS =
+  process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
+
 function originFromReq(req) {
   try {
     const xfProto = (req.headers["x-forwarded-proto"] || "").toString().split(",")[0].trim();
@@ -62,11 +63,11 @@ function getRedirectBase(req) {
   return "http://localhost:4000";
 }
 function buildRedirectUri(req, pathname) {
-  // 절대 URL이면 그대로 사용 (구글 전용 케이스)
+  // 절대 URL이면 그대로 사용 (구글 전용 가능)
   if (/^https?:\/\//i.test(String(pathname || ""))) {
     return String(pathname);
   }
-  // 상대 경로면 base + path (카카오/네이버)
+  // 상대 경로면 base + path
   return `${getRedirectBase(req)}${pathname}`;
 }
 
@@ -237,15 +238,14 @@ function getReauthFlags(req) {
 }
 
 /* =========================
- * Google
- *  - redirect_uri: 절대 URL(HTTPS/도메인)로 고정
+ * Google (redirect_uri 절대 URL 고정)
  * ========================= */
 router.get("/google", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   saveState(GOOGLE_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH); // 절대 URL이면 그대로
+  const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
   const prompt = reauth ? "select_account consent" : "select_account";
 
   console.log("[GOOGLE] auth start redirect_uri =", redirect_uri);
@@ -272,7 +272,7 @@ router.get("/google/callback", async (req, res) => {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
+    const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
     console.log("[GOOGLE] token redirect_uri =", redirect_uri);
 
     let tokenRes;
@@ -360,7 +360,7 @@ router.get("/kakao", (req, res) => {
   saveState(KAKAO_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH); // IP base + 상대 path
+  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
   const params = {
     client_id: KAKAO.client_id,
     redirect_uri,
@@ -476,7 +476,7 @@ router.get("/naver", (req, res) => {
   saveState(NAVER_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH); // IP base + 상대 path
+  const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
   const params = {
     client_id: NAVER.client_id,
