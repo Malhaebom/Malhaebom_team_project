@@ -129,17 +129,16 @@ function buildQueryForApp(params) {
   return q.toString();
 }
 
-function redirectToApp(_req, res, params) {
+function redirectToApp(req, res, params) {
   const qs = buildQueryForApp(params);
-  const schemeUrl = `${APP_CALLBACK}?${qs}`; // ★ 항상 myapp:// 로 보낸다
+  const schemeUrl = `${APP_CALLBACK}?${qs}`; // myapp://auth/callback?...
 
-  console.log("[AUTH] return to app", {
-    to: "myapp://",
+  console.log("[AUTH] return to app (scheme-only)", {
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
     token: maskToken(params.token),
-    mode: "302",
+    location: schemeUrl,
   });
 
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
