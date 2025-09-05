@@ -187,43 +187,19 @@ function buildAppUrl(params) {
 
 function redirectToApp(req, res, params) {
   const toUrl = buildAppUrl(params);
-  const useHtml =
-    FORCE_HTML_BRIDGE ||
-    BRIDGE_MODE === "html" ||
-    String(req.query.html || "") === "1" ||
-    String(req.headers["x-use-html-bridge"] || "") === "1";
-
-  console.log("[AUTH] return to app", {
+  console.log("[AUTH] return to app (302)", {
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
     token: maskToken(params.token),
-    mode: useHtml ? "html" : "302",
-    pkg: ANDROID_PKG,
   });
-
-  if (useHtml) {
-    res.setHeader("Cache-Control", "no-store");
-    res.status(200).setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.send(htmlBridge(toUrl));
-  }
-  return res.redirect(toUrl);
+  return res.redirect(302, toUrl); // ← 항상 302
 }
 
 function redirectError(req, res, msg) {
   const url = `${APP_CALLBACK}?error=${encodeURIComponent(msg)}&ts=${Date.now()}`;
-  const useHtml =
-    FORCE_HTML_BRIDGE ||
-    BRIDGE_MODE === "html" ||
-    String(req.query.html || "") === "1" ||
-    String(req.headers["x-use-html-bridge"] || "") === "1";
-
-  if (useHtml) {
-    res.setHeader("Cache-Control", "no-store");
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.status(200).send(htmlBridge(url, "로그인 처리 중 오류"));
-  }
-  return res.redirect(url);
+  console.log("[AUTH] return error to app (302)", msg);
+  return res.redirect(302, url);   // ← 항상 302
 }
 
 /* =========================

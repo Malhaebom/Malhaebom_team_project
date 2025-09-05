@@ -227,7 +227,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  /// ================== SNS 로그인 ==================
   Future<void> _startSnsLogin(String provider) async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -257,14 +256,11 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     try {
-      // 구글은 HTTPS 도메인 + HTML 브리지 강제
       final isGoogle = provider == 'google';
       final base = isGoogle ? 'https://malhaebom.smhrd.com' : API_BASE;
 
-      final qp = <String, String>{
-        if (needReauth) 'reauth': '1',
-        if (isGoogle) 'html': '1', // ← 크롬이 302 커스텀스킴을 씹는 단말 대비
-      };
+      // ❗ html 파라미터 절대 추가하지 말 것
+      final qp = <String, String>{if (needReauth) 'reauth': '1'};
 
       final authUrl =
           Uri.parse(
@@ -282,8 +278,6 @@ class _LoginPageState extends State<LoginPage> {
 
       debugPrint('[auth] result = $result');
       final uri = Uri.parse(result);
-
-      // ✅ 스킴만 검증 (host/path는 단말 따라 변주 가능)
       if (uri.scheme != CALLBACK_SCHEME) {
         _snack('콜백 스킴이 올바르지 않습니다: ${uri.scheme}');
         return;
