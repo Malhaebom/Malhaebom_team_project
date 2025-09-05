@@ -94,24 +94,29 @@ for (const [k, v] of Object.entries({
 }
 
 /* =========================
- * CSRF state 저장소
+ * Stateless state (JWT)
  * ========================= */
-const STATE_TTL_MS = 10 * 60 * 1000;
-const GOOGLE_STATE = new Map();
-const KAKAO_STATE  = new Map();
-const NAVER_STATE  = new Map();
-function saveState(store, state) { store.set(state, Date.now()); }
-function verifyAndDeleteState(store, state) {
-  const ts = store.get(state);
-  store.delete(state);
-  return !!(ts && Date.now() - ts < STATE_TTL_MS);
+const STATE_TTL_SEC = 10 * 60; // 10분
+function makeState(provider) {
+  const payload = {
+    typ: "oauth_state",
+    p: provider,                               // provider
+    n: crypto.randomBytes(8).toString("hex"),  // nonce
+  };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: STATE_TTL_SEC + "s" });
+}
+function verifyStateJWT(state, provider) {
+  try {
+    const p = jwt.verify(state, JWT_SECRET);
+    return p?.typ === "oauth_state" && p?.p === provider;
+  } catch (_) {
+    return false;
+  }
 }
 
 /* =========================
- * 앱 리다이렉트 (항상 302, 안드로이드는 intent://)
+ * 앱으로 보내기: myapp:// 스킴으로 302
  * ========================= */
-const ANDROID_PKG = process.env.ANDROID_PACKAGE || "com.example.brain_up"; // ★ 실제 패키지와 동일해야 함
-
 function buildQueryForApp(params) {
   const q = new URLSearchParams({
     token: params.token || "",
@@ -128,33 +133,21 @@ function buildQueryForApp(params) {
   });
   return q.toString();
 }
-
-function redirectToApp(req, res, params) {
-  const qs = buildQueryForApp(params);
-  const schemeUrl = `${APP_CALLBACK}?${qs}`; // myapp://auth/callback?...
-
+function redirectToApp(_req, res, params) {
+  const schemeUrl = `${APP_CALLBACK}?${buildQueryForApp(params)}`;
   console.log("[AUTH] return to app (scheme-only)", {
+    to: schemeUrl.split("?")[0],
     uid: params.uid,
     login_id: params.login_id,
     login_type: params.login_type,
     token: maskToken(params.token),
-    location: schemeUrl,
   });
-
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   return res.redirect(302, schemeUrl);
 }
-
 function redirectError(_req, res, msg) {
-  const qs = new URLSearchParams({ error: msg, ts: String(Date.now()) }).toString();
-  const schemeUrl = `${APP_CALLBACK}?${qs}`; // ★ 에러도 myapp:// 로
-
-  console.log("[AUTH] error return", {
-    to: "myapp://",
-    error: msg,
-    mode: "302",
-  });
-
+  const schemeUrl = `${APP_CALLBACK}?${new URLSearchParams({ error: msg, ts: String(Date.now()) }).toString()}`;
+  console.log("[AUTH] error return (scheme-only)", { error: msg });
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
   return res.redirect(302, schemeUrl);
 }
@@ -208,14 +201,12 @@ function getReauthFlags(req) {
  * Google
  * ========================= */
 router.get("/google", (req, res) => {
-  const state = crypto.randomBytes(16).toString("hex");
-  saveState(GOOGLE_STATE, state);
-
+  const state = makeState("google");
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
+  const redirect_uri = GOOGLE_REDIRECT_ABS; // 절대 URL
   const prompt = reauth ? "select_account consent" : "select_account";
 
-  console.log("[GOOGLE] auth start redirect_uri =", redirect_uri);
+  console.log("[GOOGLE] auth start", { redirect_uri });
 
   const url = "https://accounts.google.com/o/oauth2/v2/auth?" + qs.stringify({
     client_id: GOOGLE.client_id,
@@ -235,11 +226,12 @@ router.get("/google/callback", async (req, res) => {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Google code 없음" })
                              : redirectError(req, res, "Google code 없음");
-    if (!state || !verifyAndDeleteState(GOOGLE_STATE, state)) {
+    if (!state || !verifyStateJWT(String(state), "google")) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    const redirect_uri = GOOGLE_REDIRECT_ABS; // ★ 절대 URL
+
+    const redirect_uri = GOOGLE_REDIRECT_ABS;
     console.log("[GOOGLE] token redirect_uri =", redirect_uri);
 
     let tokenRes;
@@ -260,6 +252,7 @@ router.get("/google/callback", async (req, res) => {
       return debug ? res.status(500).json({ step:"token", error:"token exchange fail", detail, redirect_uri })
                    : redirectError(req, res, "Google 토큰 교환 실패");
     }
+
     const accessToken = tokenRes?.data?.access_token;
     if (!accessToken) {
       return debug ? res.status(500).json({ step:"token", error:"no access_token", tokenRes: tokenRes?.data })
@@ -276,6 +269,7 @@ router.get("/google/callback", async (req, res) => {
       return debug ? res.status(500).json({ step:"profile", error:"profile fetch fail", detail })
                    : redirectError(req, res, "Google 프로필 조회 실패");
     }
+
     const data = profileRes.data || {};
     const email = String(data.email ?? "");
     const name  = String(data.name  ?? "");
@@ -323,11 +317,10 @@ router.get("/google/callback", async (req, res) => {
  * Kakao
  * ========================= */
 router.get("/kakao", (req, res) => {
-  const state = crypto.randomBytes(16).toString("hex");
-  saveState(KAKAO_STATE, state);
-
+  const state = makeState("kakao");
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
+
   const params = {
     client_id: KAKAO.client_id,
     redirect_uri,
@@ -347,12 +340,12 @@ router.get("/kakao/callback", async (req, res) => {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Kakao code 없음" })
                              : redirectError(req, res, "Kakao code 없음");
-    if (!state || !verifyAndDeleteState(KAKAO_STATE, state)) {
+    if (!state || !verifyStateJWT(String(state), "kakao")) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
 
+    const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
     const body = {
       grant_type: "authorization_code",
       client_id: KAKAO.client_id,
@@ -439,9 +432,7 @@ router.get("/kakao/callback", async (req, res) => {
  * Naver
  * ========================= */
 router.get("/naver", (req, res) => {
-  const state = crypto.randomBytes(16).toString("hex");
-  saveState(NAVER_STATE, state);
-
+  const state = makeState("naver");
   const { reauth } = getReauthFlags(req);
   const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
@@ -463,10 +454,11 @@ router.get("/naver/callback", async (req, res) => {
     const { code, state } = req.query;
     if (!code)  return debug ? res.status(400).json({ step:"callback", error:"Naver code 없음" })
                              : redirectError(req, res, "Naver code 없음");
-    if (!state || !verifyAndDeleteState(NAVER_STATE, state)) {
+    if (!state || !verifyStateJWT(String(state), "naver")) {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
+
     const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
     let tokenRes;
@@ -549,7 +541,7 @@ router.get("/naver/callback", async (req, res) => {
 /* =========================
  * (테스트) 강제 콜백 페이지 — 302로 앱 열림
  * ========================= */
-router.get("/test/callback", (req, res) => {
+router.get("/test/callback", (_req, res) => {
   const params = {
     token: "TEST",
     login_id: "dev@example.com",
@@ -558,7 +550,7 @@ router.get("/test/callback", (req, res) => {
     nick: "Dev",
     ok: "1",
   };
-  return redirectToApp(req, res, params);
+  return redirectToApp(_req, res, params);
 });
 
 module.exports = router;
