@@ -9,24 +9,13 @@ const qs = require("querystring");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 
-// ✅ 공용 DB 풀
+// ✅ 실행 배너 (지금 어떤 파일이 라우팅되는지, 어떤 모드인지 확인용)
+console.log("=== AUTH ROUTER MODE: SCHEME_ONLY (myapp://auth/callback) ===", __filename);
+
+// ✅ 공용 DB 풀 (프로젝트 구조에 맞춰 경로 사용)
 const pool = require("./db");
 
 const router = express.Router();
-
-/* =========================
- * 간단 요청 로그 (디버깅용)
- * ========================= */
-router.use((req, _res, next) => {
-  try {
-    const ip =
-      (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
-      req.socket?.remoteAddress ||
-      "";
-    console.log(`[REQ] ${req.method} ${req.protocol}://${req.get("host")}${req.originalUrl} ← ${ip}`);
-  } catch (_) {}
-  next();
-});
 
 /* =========================
  * JWT
@@ -47,20 +36,19 @@ function maskToken(t) {
 const APP_CALLBACK = (process.env.APP_CALLBACK || "myapp://auth/callback").replace(/\/?$/, "");
 
 /* =========================
- * OAuth Redirect 경로 (.env)
+ * Redirect 경로
  * ========================= */
 const GOOGLE_REDIRECT_PATH = process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback";
 const KAKAO_REDIRECT_PATH  = process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback";
 const NAVER_REDIRECT_PATH  = process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback";
 
 /* =========================
- * Google은 절대 URL(HTTPS)로 고정
+ * Google redirect: 절대 URL 고정(HTTPS)
  * ========================= */
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "").replace(/\/$/, "");
 const GOOGLE_REDIRECT_ABS = (() => {
   const p = String(process.env.GOOGLE_REDIRECT_PATH || "");
   if (/^https?:\/\//i.test(p)) return p;
-  // 기본값: 서비스 도메인의 HTTPS 콜백
   return process.env.GOOGLE_REDIRECT_ABS || "https://malhaebom.smhrd.com/auth/google/callback";
 })();
 
@@ -96,41 +84,36 @@ const GOOGLE = {
   client_secret: process.env.GOOGLE_CLIENT_SECRET,
 };
 const KAKAO = { client_id: process.env.KAKAO_CLIENT_ID, client_secret: process.env.KAKAO_CLIENT_SECRET || "" };
-const NAVER = { client_id: process.env.NAVER_CLIENT_ID, client_secret: process.env.NAVER_CLIENT_SECRET };
+const NAVER = { client_id: process.env.NAVER_CLIENT_ID, NAVER_client_secret: process.env.NAVER_CLIENT_SECRET };
 
+// ENV 체크
 for (const [k, v] of Object.entries({
   GOOGLE_CLIENT_ID: GOOGLE.client_id,
   GOOGLE_CLIENT_SECRET: GOOGLE.client_secret,
   KAKAO_CLIENT_ID: KAKAO.client_id,
   NAVER_CLIENT_ID: NAVER.client_id,
-  NAVER_CLIENT_SECRET: NAVER.client_secret,
+  NAVER_CLIENT_SECRET: process.env.NAVER_CLIENT_SECRET,
 })) {
   if (!v) console.error(`[ENV MISSING] ${k}`);
 }
 
 /* =========================
- * Stateless state (JWT)
+ * OAuth state: JWT로 stateless 관리
  * ========================= */
-const STATE_TTL_SEC = 10 * 60; // 10분
+const STATE_TTL_SEC = 10 * 60;
 function makeState(provider) {
-  const payload = {
-    typ: "oauth_state",
-    p: provider,                               // provider
-    n: crypto.randomBytes(8).toString("hex"),  // nonce
-  };
+  const payload = { typ: "oauth_state", p: provider, n: crypto.randomBytes(8).toString("hex") };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: STATE_TTL_SEC + "s" });
 }
 function verifyStateJWT(state, provider) {
   try {
     const p = jwt.verify(state, JWT_SECRET);
     return p?.typ === "oauth_state" && p?.p === provider;
-  } catch (_) {
-    return false;
-  }
+  } catch (_) { return false; }
 }
 
 /* =========================
- * 앱으로 보내기: myapp:// 스킴으로 302 (고정)
+ * 앱으로 보내기: 스킴 고정 (myapp://…)
  * ========================= */
 function buildQueryForApp(params) {
   const q = new URLSearchParams({
@@ -168,7 +151,7 @@ function redirectError(_req, res, msg) {
 }
 
 /* =========================
- * 안전핀: /auth/google* 는 http 로 들어오면 https로 308
+ * 안전핀: /auth/google* 는 http로 오면 https로 308
  * ========================= */
 router.use(["/google", "/google/callback"], (req, res, next) => {
   const host  = String(req.headers["x-forwarded-host"]  || req.headers.host || "").split(",")[0].trim();
@@ -192,7 +175,6 @@ async function upsertAndGetUser({ login_id, login_type, nick }) {
          nick = IF(nick IS NULL OR nick = '', VALUES(nick), nick)`,
       [login_id, login_type, nick || ""]
     );
-
     const [rows] = await conn.execute(
       "SELECT user_id AS uid, login_id, login_type, nick FROM tb_user WHERE login_id = ? AND login_type = ? LIMIT 1",
       [login_id, login_type]
@@ -218,7 +200,7 @@ function getReauthFlags(req) {
 router.get("/google", (req, res) => {
   const state = makeState("google");
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = GOOGLE_REDIRECT_ABS; // 절대 URL
+  const redirect_uri = GOOGLE_REDIRECT_ABS;
   const prompt = reauth ? "select_account consent" : "select_account";
 
   console.log("[GOOGLE] auth start", { redirect_uri });
@@ -452,7 +434,7 @@ router.get("/naver", (req, res) => {
   const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
   const params = {
-    client_id: NAVER.client_id,
+    client_id: process.env.NAVER_CLIENT_ID,
     response_type: "code",
     redirect_uri,
     state,
@@ -481,8 +463,8 @@ router.get("/naver/callback", async (req, res) => {
       tokenRes = await axios.get("https://nid.naver.com/oauth2.0/token", {
         params: {
           grant_type: "authorization_code",
-          client_id: NAVER.client_id,
-          client_secret: NAVER.client_secret,
+          client_id: process.env.NAVER_CLIENT_ID,
+          client_secret: process.env.NAVER_CLIENT_SECRET,
           code,
           state,
         },
@@ -569,11 +551,10 @@ router.get("/test/callback", (req, res) => {
 });
 
 /* =========================
- * 헬스체크
+ * (진단) 현재 라우터 모드
  * ========================= */
-router.get("/__ping__", (_req, res) => {
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.status(200).send("pong-auth\n");
+router.get("/__mode__", (req, res) => {
+  res.json({ mode: "scheme-only", file: __filename });
 });
 
 module.exports = router;
