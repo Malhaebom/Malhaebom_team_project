@@ -82,11 +82,8 @@ app.options(/.*/, cors(corsOptions));
 
 /* =========================
  * (선택) 도메인/프로토콜 강제 리다이렉트
- * =========================
- * - 켜려면 .env에 FORCE_CANONICAL_REDIRECT=1
- * - PUBLIC_BASE_URL이 "https://malhaebom.smhrd.com:4000" 형태여야 정확히 동작
- * - HTTP만 띄운 상태에서 이걸 켜면 루프 날 수 있으니, 실제 HTTPS 구성 후 켜세요
- */
+ *  - 필요 시 FORCE_CANONICAL_REDIRECT=1 로 활성화
+ * ========================= */
 if (FORCE_CANONICAL_REDIRECT && PUBLIC_BASE_URL) {
   try {
     const target = new URL(PUBLIC_BASE_URL);
@@ -133,14 +130,18 @@ app.use((req, _res, next) => {
  * ========================= */
 app.get("/ping", (_req, res) => res.send("pong"));
 app.get("/auth/meta", (_req, res) => {
+  const base = PUBLIC_BASE_URL;
+  const abs  = (s) => /^https?:\/\//i.test(String(s || ""));
+  const join = (p) => (abs(p) ? p : `${base}${p}`);
+
   res.json({
     ok: true,
     meta: {
-      publicBaseUrl: PUBLIC_BASE_URL,
+      publicBaseUrl: base,
       serverOrigin: SERVER_ORIGIN,
-      googleRedirect: `${PUBLIC_BASE_URL}${process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"}`,
-      kakaoRedirect:  `${PUBLIC_BASE_URL}${process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback"}`,
-      naverRedirect:  `${PUBLIC_BASE_URL}${process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback"}`,
+      googleRedirect: join(process.env.GOOGLE_REDIRECT_PATH || "/auth/google/callback"),
+      kakaoRedirect:  join(process.env.KAKAO_REDIRECT_PATH  || "/auth/kakao/callback"),
+      naverRedirect:  join(process.env.NAVER_REDIRECT_PATH  || "/auth/naver/callback"),
       appCallback: process.env.APP_CALLBACK || "myapp://auth/callback",
       corsAllowed: ALLOWED_ORIGINS,
     },

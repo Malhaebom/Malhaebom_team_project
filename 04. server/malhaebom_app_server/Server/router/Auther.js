@@ -1,4 +1,3 @@
-// File: Server/router/Auther.js
 // SNS OAuth → DB upsert → 앱(딥링크) 복귀
 // 기본은 302 리다이렉트(myapp://...)로 즉시 복귀
 // 필요시 ENV로 HTML 브릿지 사용 가능(AUTH_BRIDGE_MODE=html)
@@ -66,6 +65,7 @@ function getRedirectBase(req) {
 }
 function buildRedirectUri(req, pathname) {
   if (/^https?:\/\//i.test(String(pathname || ""))) {
+    // 절대 URL이면 그대로 사용 (구글: 도메인/HTTPS)
     return String(pathname);
   }
   return `${getRedirectBase(req)}${pathname}`;
@@ -249,7 +249,7 @@ router.get("/google", (req, res) => {
   saveState(GOOGLE_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH);
+  const redirect_uri = buildRedirectUri(req, GOOGLE_REDIRECT_PATH); // 절대 URL(도메인/HTTPS) 그대로 사용
   const prompt = reauth ? "select_account consent" : "select_account";
 
   const url = "https://accounts.google.com/o/oauth2/v2/auth?" + qs.stringify({
@@ -361,8 +361,7 @@ router.get("/kakao", (req, res) => {
   saveState(KAKAO_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH);
-
+  const redirect_uri = buildRedirectUri(req, KAKAO_REDIRECT_PATH); // IP 기반 base + 상대 path → http://211.188.63.38:4000/...
   const params = {
     client_id: KAKAO.client_id,
     redirect_uri,
@@ -478,7 +477,7 @@ router.get("/naver", (req, res) => {
   saveState(NAVER_STATE, state);
 
   const { reauth } = getReauthFlags(req);
-  const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
+  const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH); // IP base + 상대 path
 
   const params = {
     client_id: NAVER.client_id,
@@ -502,8 +501,6 @@ router.get("/naver/callback", async (req, res) => {
       return debug ? res.status(400).json({ step:"state", error:"잘못된 state" })
                    : redirectError(req, res, "잘못된 state");
     }
-    // 네이버는 redirect_uri를 토큰 교환에 직접 쓰지 않으므로 여기서는 계산만 참고
-    // (보수적으로 유지)
     const redirect_uri = buildRedirectUri(req, NAVER_REDIRECT_PATH);
 
     let tokenRes;
