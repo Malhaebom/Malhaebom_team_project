@@ -318,6 +318,34 @@ def _ensure_session(user_key: str, title: str, total_lines: Optional[int]) -> Di
         sess["total"] = int(total_lines)
     return sess
 
+def _fmt_scores_line(scores_map: Dict[str, int]) -> str:
+    # "반응 시간:3/4, 반복어 비율:4/4, ..." 형태
+    parts = []
+    for ko, maxv in MAX_PER_KEY.items():
+        parts.append(f"{ko}:{int(scores_map.get(ko, 0))}/{maxv}")
+    return ", ".join(parts)
+
+def _log_details(ctx: str, idx: int, qid: int, user_key: str, title: str,
+                 transcript: str, audio_dur: float,
+                 raw_details: Dict[str, Any], mapped_scores: Dict[str, int],
+                 total: Optional[int] = None):
+    # 전사는 너무 길면 자름
+    t = (transcript or "").strip()
+    if len(t) > 120:
+        t = t[:120] + "…"
+    total_disp = f"/{total}" if total else ""
+    print(
+        f"[gateway][{ctx}] idx={idx}{total_disp} qid={qid} user={user_key} "
+        f"title={title} dur={audio_dur:.2f}s",
+        flush=True,
+    )
+    print(f"[gateway][{ctx}] transcript: {t}", flush=True)
+    try:
+        print(f"[gateway][{ctx}] scores(raw): {json.dumps(raw_details or {}, ensure_ascii=False)}", flush=True)
+    except Exception:
+        print(f"[gateway][{ctx}] scores(raw): {raw_details}", flush=True)
+    print(f"[gateway][{ctx}] scores(mapped): {_fmt_scores_line(mapped_scores)}", flush=True)
+
 # ---------- 프런트 호환: 업로드 분석 엔드포인트 ----------
 @app.post("/ir/analyze")
 async def ir_analyze(
@@ -370,7 +398,8 @@ async def ir_analyze(
         print(f"[gateway] backend analyze fail: {e}")
         backend = {"final_score": 0, "details": {}, "answer_text": stt_text or ""}
 
-    scores_map = _map_details_to_ko(backend.get("details") or backend.get("scores") or {})
+    raw_details = backend.get("details") or backend.get("scores") or {}
+    scores_map = _map_details_to_ko(raw_details)
 
     # 진행도 저장
     sess = _ensure_session(user_key, title, totalLines)
@@ -382,6 +411,20 @@ async def ir_analyze(
         "qid": qid,
     }
     sess["updatedAt"] = datetime.utcnow().isoformat() + "Z"
+
+    # ✅ 항상 상세 로그 출력 (STT 성공/실패 무관)
+    _log_details(
+        ctx="analyze",
+        idx=idx,
+        qid=qid,
+        user_key=user_key,
+        title=title,
+        transcript=backend.get("answer_text", stt_text or ""),
+        audio_dur=audio_dur,
+        raw_details=raw_details,
+        mapped_scores=scores_map,
+        total=sess.get("total"),
+    )
 
     print(f"[gateway] saved idx={idx:02d} (qid={qid}) user={user_key} title={title} "
           f"count={len(sess['items'])}/{sess['total']} ok={bool(stt_text)} dur={audio_dur:.2f}s")
@@ -580,6 +623,17 @@ async def process_audio_pipeline(
             zero_scores = {"response_time": 0, "repetition": 0, "avg_sentence_length": 0,
                            "appropriateness": 0, "recall": 0, "grammar": 0}
             final_result = {"scores": zero_scores, "final_score": 0, "answer_text": txt}
+        # ✅ 로그 출력
+        raw_details = final_result.get("details") or final_result.get("scores") or {}
+        mapped = _map_details_to_ko(raw_details)
+        _log_details(
+            ctx="process-audio",
+            idx=0, qid=0, user_key="(legacy)", title="(legacy)",
+            transcript=final_result.get("answer_text", txt or ""),
+            audio_dur=dur or audio_duration or 0.0,
+            raw_details=raw_details,
+            mapped_scores=mapped,
+        )
         return final_result
     except Exception as e:
         print(f"[gateway] /process-audio exception: {e}")
