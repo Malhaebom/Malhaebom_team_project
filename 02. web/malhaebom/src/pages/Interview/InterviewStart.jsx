@@ -114,20 +114,30 @@ function InterviewStart() {
       wavBlob = blob;
     }
 
+    function gwURL(path) {
+      const baseRaw = (import.meta.env.VITE_GW_BASE || "/gw").trim();
+      const baseAbs = baseRaw.startsWith("http")
+        ? baseRaw
+        : `${window.location.origin}${baseRaw.startsWith("/") ? "" : "/"}${baseRaw}`;
+      const baseDir = baseAbs.endsWith("/") ? baseAbs : baseAbs + "/";
+      const rel = path.startsWith("/") ? path.slice(1) : path;
+      return new URL(rel, baseDir).toString();
+    }
+
     const formData = new FormData();
     formData.append("audio", wavBlob, `interview_q${idx1}.wav`);
     formData.append("prompt", questionText);
     formData.append("interviewTitle", irTitle); // ✅ 테스트/일반 구분하여 저장
 
-    const url = new URL(`${GW_BASE}/ir/analyze`);
+    const url = new URL(gwURL("ir/analyze"));
     url.searchParams.set("lineNumber", String(idx1));
     url.searchParams.set("totalLines", String(totalLines));
     url.searchParams.set("questionId", String(idx1));
 
     const userKey = await ensureUserKey({ retries: 2, delayMs: 150 }).catch(() => null);
     const headers = userKey ? { "x-user-key": userKey } : undefined;
-
     const res = await fetch(url.toString(), { method: "POST", body: formData, headers });
+
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       throw new Error(`analyze HTTP ${res.status} ${txt}`);
@@ -342,7 +352,7 @@ function InterviewStart() {
     // 1) 진행도 수신 대기
     while (Date.now() < deadline) {
       try {
-        const u = new URL(`${GW_BASE}/ir/progress`);
+        const u = new URL(gwURL("ir/progress"));
         u.searchParams.set("userKey", userKey || "guest");
         u.searchParams.set("title", title);
         const r = await fetch(u.toString());
@@ -355,7 +365,7 @@ function InterviewStart() {
     // 2) 최종 결과(force=1 → 미수신 0점 패딩)
     let jr;
     try {
-      const u2 = new URL(`${GW_BASE}/ir/result`);
+      const u2 = new URL(gwURL("ir/result"));
       u2.searchParams.set("userKey", userKey || "guest");
       u2.searchParams.set("title", title);
       u2.searchParams.set("force", "1");
