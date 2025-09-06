@@ -18,6 +18,16 @@ const RESULT_MAX_WAIT_MS = 60_000; // 결과 대기 최대 1분
 const AUTO_GO_NEXT_ON_STOP = false; // 녹음 끝나면 자동 다음 문항으로
 const TEST_QUESTIONS_COUNT = 5;     // 테스트 모드 문항 수
 
+function gwURL(path) {
+  const baseRaw = (import.meta.env.VITE_GW_BASE || "/gw").trim();
+  const baseAbs = baseRaw.startsWith("http")
+    ? baseRaw
+    : `${window.location.origin}${baseRaw.startsWith("/") ? "" : "/"}${baseRaw}`;
+  const baseDir = baseAbs.endsWith("/") ? baseAbs : baseAbs + "/";
+  const rel = path.startsWith("/") ? path.slice(1) : path;
+  return new URL(rel, baseDir).toString();
+}
+
 // ===== 간단 업로드 큐 =====
 const makeQueue = () => {
   const q = [];
@@ -112,16 +122,6 @@ function InterviewStart() {
     } catch (e) {
       console.warn("[upload] blobToWav 실패, 원본 전송 시도", e);
       wavBlob = blob;
-    }
-
-    function gwURL(path) {
-      const baseRaw = (import.meta.env.VITE_GW_BASE || "/gw").trim();
-      const baseAbs = baseRaw.startsWith("http")
-        ? baseRaw
-        : `${window.location.origin}${baseRaw.startsWith("/") ? "" : "/"}${baseRaw}`;
-      const baseDir = baseAbs.endsWith("/") ? baseAbs : baseAbs + "/";
-      const rel = path.startsWith("/") ? path.slice(1) : path;
-      return new URL(rel, baseDir).toString();
     }
 
     const formData = new FormData();
