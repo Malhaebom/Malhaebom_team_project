@@ -34,10 +34,8 @@ export default function Home() {
   useEffect(() => {
     // 1) 마운트 즉시 호출
     fetchMe("mount");
-
     // 2) 최초 비로그인 캐시/타이밍 대비 짧은 재시도
     const retry = setTimeout(() => fetchMe("retry"), 400);
-
     // 3) 탭 포커스/가시성 복귀 시 다시 확인
     const onFocus = () => fetchMe("focus");
     const onVisible = () => {
@@ -45,7 +43,6 @@ export default function Home() {
     };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
-
     return () => {
       clearTimeout(retry);
       window.removeEventListener("focus", onFocus);
@@ -86,6 +83,7 @@ export default function Home() {
           <div className="ct_banner">훈련을 통해 활력을 되찾아요!</div>
 
           <div className="ct_home ct_inner">
+            {/* 기존 인지 능력 검사 */}
             <div className="box" data-aos="fade-up" data-aos-duration="1000" style={boxStyle}>
               <div>
                 <h2>인지 능력 검사</h2>
@@ -98,6 +96,25 @@ export default function Home() {
               </div>
               <button type="button" onClick={() => navigate("/interview/interviewstart")}>
                 시작하기
+              </button>
+            </div>
+
+            {/* ✅ 테스트 모드 카드 추가 */}
+            <div className="box" data-aos="fade-up" data-aos-duration="1200" style={boxStyle}>
+              <div>
+                <h2>인지 능력 검사 (테스트)</h2>
+                <p>5개 질문으로 간단히 테스트해보세요</p>
+                <img
+                  src="/img/home_icon04.png"
+                  onError={(e) => (e.currentTarget.src = "/drawable/noImage.png")}
+                  alt="회상 훈련 테스트"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate("/interview/interviewstart?test=true")}
+              >
+                테스트 시작
               </button>
             </div>
 

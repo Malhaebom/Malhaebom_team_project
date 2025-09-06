@@ -12,28 +12,11 @@ import { useMicrophone } from "../../MicrophoneContext.jsx";
 import { blobToWav } from "../../lib/BlobToWav.js";
 
 // ===== 설정 =====
-const IR_TITLE = "인지 능력 검사";
-const GW_BASE = import.meta.env.VITE_GW_BASE || "/gw";   // 게이트웨이 베이스 주소
-const RESULT_MAX_WAIT_MS = 60_000;         // 결과 대기 최대 1분
-const AUTO_GO_NEXT_ON_STOP = false;         // 녹음 끝나면 자동 다음 문항으로
-
-// ===== 안전한 GW URL 빌더 =====
-function gwURL(path) {
-  const baseRaw = (import.meta.env.VITE_GW_BASE || "/gw").trim();
-
-  // 상대(baseRaw가 '/gw' 같은 케이스)면 origin 붙여서 절대 URL로
-  const baseAbs = baseRaw.startsWith("http")
-    ? baseRaw
-    : `${window.location.origin}${baseRaw.startsWith("/") ? "" : "/"}${baseRaw}`;
-
-  // new URL()의 두 번째 인자(base)는 디렉터리로 끝나야 의도대로 결합됨
-  const baseDir = baseAbs.endsWith("/") ? baseAbs : baseAbs + "/";
-
-  // path는 선행 슬래시 제거 후 결합
-  const rel = path.startsWith("/") ? path.slice(1) : path;
-
-  return new URL(rel, baseDir).toString(); // 최종 절대 URL 문자열
-}
+const IR_TITLE_BASE = "인지 능력 검사";
+const GW_BASE = import.meta.env.VITE_GW_BASE || "/gw"; // 게이트웨이 베이스 주소
+const RESULT_MAX_WAIT_MS = 60_000; // 결과 대기 최대 1분
+const AUTO_GO_NEXT_ON_STOP = false; // 녹음 끝나면 자동 다음 문항으로
+const TEST_QUESTIONS_COUNT = 5;     // 테스트 모드 문항 수
 
 // ===== 간단 업로드 큐 =====
 const makeQueue = () => {
@@ -71,8 +54,10 @@ function InterviewStart() {
   } = useMicrophone();
 
   const initialQuestionId = Number(query.get("questionId") ?? "0");
+  const isTestMode = query.get("test") === "true";
+  const irTitle = IR_TITLE_BASE;
 
-  const [bookTitle] = useState("회상훈련");
+  const [bookTitle] = useState(isTestMode ? "회상훈련 (테스트)" : "회상훈련");
   const [questions, setQuestions] = useState([]);
   const [questionId, setQuestionId] = useState(initialQuestionId);
   const [recordingCompleted, setRecordingCompleted] = useState(false);
@@ -132,10 +117,9 @@ function InterviewStart() {
     const formData = new FormData();
     formData.append("audio", wavBlob, `interview_q${idx1}.wav`);
     formData.append("prompt", questionText);
-    formData.append("interviewTitle", IR_TITLE);
+    formData.append("interviewTitle", irTitle); // ✅ 테스트/일반 구분하여 저장
 
-    // ★ 수정: GW 절대 URL 생성
-    const url = new URL(gwURL("ir/analyze"));
+    const url = new URL(`${GW_BASE}/ir/analyze`);
     url.searchParams.set("lineNumber", String(idx1));
     url.searchParams.set("totalLines", String(totalLines));
     url.searchParams.set("questionId", String(idx1));
@@ -170,7 +154,7 @@ function InterviewStart() {
       const currentQuestion = Array.isArray(questions) ? questions[questionId] : null;
       const questionText = currentQuestion?.speechText ?? "";
       const idx1 = Math.max(1, (questionId || 0) + 1);
-      const totalLines = Array.isArray(questions) ? questions.length : 25;
+      const totalLines = Array.isArray(questions) ? questions.length : 25; // ✅ 테스트면 5
 
       // 백그라운드 업로드 큐에 등록
       uploadQueueRef.current.push({ blob, idx1, totalLines, questionText }, uploadOne);
@@ -188,7 +172,6 @@ function InterviewStart() {
       //   }
       // }
 
-      // 실패 대비: 원본 청크 복구 가능하게 보관해도 되지만 여기선 폐기
       void localChunks;
     };
 
@@ -196,10 +179,6 @@ function InterviewStart() {
       console.error("MediaRecorder 오류:", event.error);
       setLocalRecordingError("녹음 중 오류가 발생했습니다.");
       setIsRecording(false);
-    };
-
-    mediaRecorder.onstart = () => {
-      // console.log("MediaRecorder 녹음 시작됨");
     };
   };
 
@@ -210,12 +189,15 @@ function InterviewStart() {
         if (!r.ok) throw new Error("인터뷰 JSON 로드 실패");
         return r.json();
       })
-      .then((json) => setQuestions(json))
+      .then((json) => {
+        // ✅ 테스트 모드면 상위 5문항만
+        setQuestions(isTestMode ? json.slice(0, TEST_QUESTIONS_COUNT) : json);
+      })
       .catch((e) => {
         console.error(e);
         alert("인터뷰 질문을 불러오지 못했습니다.");
       });
-  }, []);
+  }, [isTestMode]);
 
   // 질문 변경 시 상태 초기화
   useEffect(() => {
@@ -229,7 +211,7 @@ function InterviewStart() {
     // MediaRecorder 강제 재생성을 위해 참조 초기화
     if (mediaRecorderRef.current) {
       if (mediaRecorderRef.current.state !== "inactive") {
-        try { mediaRecorderRef.current.stop(); } catch {}
+        try { mediaRecorderRef.current.stop(); } catch { }
       }
       mediaRecorderRef.current = null;
     }
@@ -240,7 +222,7 @@ function InterviewStart() {
     // 기존 정리
     if (mediaRecorderRef.current) {
       if (mediaRecorderRef.current.state !== "inactive") {
-        try { mediaRecorderRef.current.stop(); } catch {}
+        try { mediaRecorderRef.current.stop(); } catch { }
       }
       mediaRecorderRef.current = null;
     }
@@ -314,7 +296,7 @@ function InterviewStart() {
       }
     } else {
       // 안전 재시작
-      try { mediaRecorder.stop(); } catch {}
+      try { mediaRecorder.stop(); } catch { }
       setTimeout(() => {
         try {
           const mr = createMediaRecorder(globalStreamRef.current);
@@ -353,29 +335,27 @@ function InterviewStart() {
   const waitAndGoResult = async () => {
     setIsFinalizing(true);
     const userKey = await ensureUserKey({ retries: 2, delayMs: 150 }).catch(() => "guest");
-    const title = IR_TITLE;
+    const title = irTitle; // ✅ 테스트/일반 구분
     const total = Array.isArray(questions) ? questions.length : 25;
     const deadline = Date.now() + RESULT_MAX_WAIT_MS;
 
     // 1) 진행도 수신 대기
     while (Date.now() < deadline) {
       try {
-        // ★ 수정: GW 절대 URL 생성
-        const u = new URL(gwURL("ir/progress"));
+        const u = new URL(`${GW_BASE}/ir/progress`);
         u.searchParams.set("userKey", userKey || "guest");
         u.searchParams.set("title", title);
         const r = await fetch(u.toString());
         const j = await r.json().catch(() => ({}));
         if ((j.received ?? 0) >= total) break;
-      } catch {}
+      } catch { }
       await new Promise((r) => setTimeout(r, 400));
     }
 
     // 2) 최종 결과(force=1 → 미수신 0점 패딩)
     let jr;
     try {
-      // ★ 수정: GW 절대 URL 생성
-      const u2 = new URL(gwURL("ir/result"));
+      const u2 = new URL(`${GW_BASE}/ir/result`);
       u2.searchParams.set("userKey", userKey || "guest");
       u2.searchParams.set("title", title);
       u2.searchParams.set("force", "1");
@@ -418,7 +398,10 @@ function InterviewStart() {
       }
     })();
 
-    navigate("/interviewresult", { state: { score, total: totalMax } });
+    navigate("/interviewresult", {
+      state: { score, total: totalMax, isTestMode: false, title: irTitle },
+      replace: true,
+    });
   };
 
   // 다음 질문으로 이동
@@ -480,9 +463,7 @@ function InterviewStart() {
                 }}
               />
             </div>
-            <div style={{ fontWeight: 700, color: "#1f2937" }}>
-              결과 집계 중입니다...
-            </div>
+            <div style={{ fontWeight: 700, color: "#1f2937" }}>결과 집계 중입니다...</div>
             <div style={{ fontSize: 13, color: "#6b7280", marginTop: 6 }}>
               최대 1분까지 걸릴 수 있어요.
             </div>
